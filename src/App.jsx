@@ -1,125 +1,3 @@
-// import { Canvas } from '@react-three/fiber'
-// import { OrbitControls } from '@react-three/drei'
-// import { EffectComposer, Bloom } from '@react-three/postprocessing'
-// import { Suspense, useState } from 'react'
-
-// import {  Platform, GLBLoader } from './components/Platforms'
-// import { Light, } from './components/Lights'
-// import { FloatingLight } from './components/Float'
-// import { HDRIEnvironment } from './components/ExrLoader'
-// import { Orbiter, Rotator } from './components/MotionWrap'
-// import { Clickable, HoverTooltip} from './components/SelectControls'
-
-// export default function App() {
-//   // <-- Add this for hover control
-//   const [hovered, setHovered] = useState(false)
-
-//   return (
-//     <Canvas
-//       camera={{ position: [0, 2, 5], fov: 50, near: 0.01, far: 1000 }}
-//       style={{ width: '100vw', height: '100vh' }}
-//       shadows
-//     >
-//       {/* Ambient + Bloom */}
-//       <ambientLight intensity={0.3} />
-//       <EffectComposer>
-//         <Bloom luminanceThreshold={0.2} luminanceSmoothing={0.9} intensity={1.5} />
-//       </EffectComposer>
-
-//       {/* Scene Content */}
-//       <Suspense fallback={null}>
-//         <HDRIEnvironment path="/hdri/space8k2.exr" intensity={0.1} />
-
-//         {/* Static Platforms */}
-//         <Platform path="/models/main_1.glb" position={[0, 0, 0]} scale={1} />
-//         <Platform path="/models/station.glb" position={[0, 0, 0]} scale={1} />
-//         <Platform path="/models/man_1.glb" position={[0, 0, 0]} scale={1} />
-//         <Platform path="/models/p1.glb" position={[0, 0, 0]} scale={1.2} />
-
-//         {/* Directional Light */}
-//         <Light type="directional" intensity={1.5} position={[-3, -1, 1]} />
-
-//         {/* Floating Light */}
-//         <FloatingLight
-//           color="#00ffff"
-//           target={[0, 1, 0]}
-//           orbitRadius={3}
-//           orbitSpeed={0.9}
-//           height={1.2}
-//           intensity={30}
-//           lightType="point"
-//         />
-
-
-//         <HoverTooltip content="Visit LinkedIn" position={[0, 1.5, 0]}>
-//         <Clickable  outlineColor="#00ffff"  link="https://www.linkedin.com/in/shaheerulislam/"  setHovered={setHovered}>
-//           <Orbiter target={[0, 0, 0]} radius={3} speed={0.3} bob>
-//           <Rotator speed={1} axis = 'z' >
-//             <Rotator speed={1} axis='x' >
-//               <GLBLoader path="/models/rock_1.glb" scale={0.8} />
-//             </Rotator>
-//           </Rotator>
-//           </Orbiter>
-//         </Clickable>
-//         </HoverTooltip>
-
-
-//       </Suspense>
-//       <OrbitControls />
-//     </Canvas>
-//   )
-// }
-// import { useRef } from 'react'
-// import { Canvas, useFrame } from '@react-three/fiber'
-// import { EffectComposer, Bloom } from '@react-three/postprocessing'
-// import * as THREE from 'three'
-
-// function MouseCircle() {
-//   const meshRef = useRef()
-
-//   useFrame((state) => {
-//     if (!meshRef.current) return
-
-//     // Mapping mouse coordinates (-1 to 1) to the 3D scene
-//     const targetX = state.mouse.x * 5
-//     const targetY = state.mouse.y * 3
-
-//     // Smoothing the movement (0.05 is the "slowness")
-//     meshRef.current.position.x = THREE.MathUtils.lerp(meshRef.current.position.x, targetX, 0.05)
-//     meshRef.current.position.y = THREE.MathUtils.lerp(meshRef.current.position.y, targetY, 0.05)
-//   })
-
-//   return (
-//     <mesh ref={meshRef}>
-//       <circleGeometry args={[0.8, 64]} />
-//       {/* toneMapped={false} ensures the color stays bright enough to trigger Bloom */}
-//       <meshBasicMaterial color="white" toneMapped={false} />
-//     </mesh>
-//   )
-// }
-
-// export default function App() {
-//   return (
-//     <div style={{ width: '100vw', height: '100vh', background: 'black' }}>
-//       <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
-//         <color attach="background" args={['black']} />
-        
-//         <MouseCircle />
-
-//         {/* Bloom Effect configuration */}
-//         <EffectComposer>
-//           <Bloom 
-//             intensity={1.5}      // How strong the glow is
-//             luminanceThreshold={0} // Glow anything brighter than 0 (everything white)
-//             luminanceSmoothing={0.9} 
-//             mipmapBlur           // Makes the glow look soft and professional
-//           />
-//         </EffectComposer>
-//       </Canvas>
-//     </div>
-//   )
-// }
-
 import { useState, useEffect, useRef, useCallback, useMemo, useId } from "react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
@@ -303,6 +181,7 @@ const CurvedLoop = ({ marqueeText='', speed=2, curveAmount=400, direction='left'
 
   const text = useMemo(() => marqueeText.replace(/\s+$/, '') + '\u00A0', [marqueeText]);
 
+  const svgRef      = useRef(null);
   const measureRef  = useRef(null);
   const textPathRef = useRef(null);
   const spacingRef  = useRef(0);       // driven by ref, never state
@@ -311,6 +190,7 @@ const CurvedLoop = ({ marqueeText='', speed=2, curveAmount=400, direction='left'
   const lastXRef    = useRef(0);
   const dirRef      = useRef(direction);
   const velRef      = useRef(0);
+  const lastTimeRef = useRef(0);
   const [ready, setReady] = useState(false); // one-time flag to mount textPath
 
   const pathD = `M-100,40 Q500,${40 + curveAmount} 1540,40`;
@@ -321,40 +201,55 @@ const CurvedLoop = ({ marqueeText='', speed=2, curveAmount=400, direction='left'
 
   // Single effect: measure → compute totalText → set initial offset → start loop.
   // No downstream effects needed — eliminates the initialization race entirely.
-  useEffect(() => {
-    if (!measureRef.current) return;
-    const spacing = measureRef.current.getComputedTextLength();
-    if (!spacing) return;
+  const measureAndPrime = useCallback(() => {
+    const m = measureRef.current;
+    const svg = svgRef.current;
+    if (!m || !svg) return false;
 
-    spacingRef.current    = spacing;
-    offsetRef.current     = -spacing;
-    totalTextRef.current  = Array(Math.ceil(1800 / spacing) + 2).fill(text).join('');
+    const spacing = m.getComputedTextLength();
+    const rect = svg.getBoundingClientRect();
+    if (!spacing || !rect.width) return false;
 
-    // Reveal the textPath element before starting the loop.
+    spacingRef.current = spacing;
+    offsetRef.current = -spacing;
+    totalTextRef.current = Array(Math.ceil((rect.width + 600) / spacing) + 4).fill(text).join('');
     setReady(true);
+    return true;
+  }, [text]);
 
+  useEffect(() => {
     let frame;
-    const step = () => {
-      if (!dragRef.current && textPathRef.current) {
-        const delta = dirRef.current === 'right' ? speed : -speed;
+    const started = measureAndPrime();
+    if (!started) return undefined;
+
+    const step = now => {
+      if (!dragRef.current && textPathRef.current && spacingRef.current) {
+        const dt = lastTimeRef.current ? Math.min(2.5, (now - lastTimeRef.current) / 16.6667) : 1;
+        const delta = (dirRef.current === "right" ? speed : -speed) * dt;
         let o = offsetRef.current + delta;
-        if (o <= -spacing) o += spacing;
-        if (o > 0)         o -= spacing;
+        if (o <= -spacingRef.current) o += spacingRef.current;
+        if (o > 0) o -= spacingRef.current;
         offsetRef.current = o;
-        textPathRef.current.setAttribute('startOffset', o + 'px');
+        textPathRef.current.setAttribute("startOffset", `${o}px`);
       }
+      lastTimeRef.current = now;
       frame = requestAnimationFrame(step);
     };
+
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [text, speed]); // re-initializes cleanly if text or speed prop changes
+  }, [measureAndPrime, speed]);
+
+  useResizeObserver(svgRef, () => {
+    measureAndPrime();
+  });
 
   const onPointerDown = e => {
     if (!interactive) return;
     dragRef.current  = true;
     lastXRef.current = e.clientX;
     velRef.current   = 0;
-    e.target.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = e => {
     if (!interactive || !dragRef.current || !textPathRef.current) return;
@@ -368,7 +263,7 @@ const CurvedLoop = ({ marqueeText='', speed=2, curveAmount=400, direction='left'
     textPathRef.current.setAttribute('startOffset', o + 'px');
   };
   const endDrag = () => {
-    if (!interactive) return;
+    if (!interactive || !dragRef.current) return;
     dragRef.current = false;
     dirRef.current  = velRef.current > 0 ? 'right' : 'left';
   };
@@ -378,7 +273,7 @@ const CurvedLoop = ({ marqueeText='', speed=2, curveAmount=400, direction='left'
       style={{ width:'100%', cursor: interactive ? 'grab' : 'auto', visibility: ready ? 'visible' : 'hidden' }}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={endDrag} onPointerLeave={endDrag}
     >
-      <svg style={{ userSelect:'none', width:'100%', aspectRatio:'100/12', overflow:'visible', display:'block', fontSize:'3.5rem', fill:'#ffffff', fontWeight:700, textTransform:'uppercase', lineHeight:1, opacity }} viewBox="0 0 1440 120">
+      <svg ref={svgRef} style={{ userSelect:'none', width:'100%', aspectRatio:'100/12', overflow:'visible', display:'block', fontSize:'3.5rem', fill:'#ffffff', fontWeight:700, textTransform:'uppercase', lineHeight:1, opacity }} viewBox="0 0 1440 120">
         {/* Hidden measure node — always mounted so measurement is immediate */}
         <text ref={measureRef} xmlSpace="preserve" style={{ visibility:'hidden', opacity:0, pointerEvents:'none' }}>{text}</text>
         <defs><path id={pathId} d={pathD} fill="none" stroke="transparent"/></defs>
@@ -556,9 +451,10 @@ void main(){
 // TRAIL_DECAY: multiplier per frame so trail hits TRAIL_FLOOR in exactly 1.5s at 60fps.
 // Derivation: TRAIL_FLOOR = 1 * TRAIL_DECAY^90  →  TRAIL_DECAY = TRAIL_FLOOR^(1/90)
 const RIPPLE_SPEED  = 4;
-const TRAIL_FLOOR   = 0.001;                         // threshold below which trail is zeroed
-const TRAIL_DECAY   = Math.pow(TRAIL_FLOOR, 1/90);   // ≈ 0.9234 — per-frame multiplier
+const TRAIL_FLOOR   = 0.0025;                         // threshold below which trail is zeroed
+const TRAIL_DECAY   = Math.pow(TRAIL_FLOOR, 1/130);   // ≈ 0.9234 — per-frame multiplier
 const TRAIL_GAMMA   = 1 / 2.2;                       // pre-inverted so render uses Math.pow(t, TRAIL_GAMMA) directly — no division per frame
+const TRAIL_SOFTEN  = 1.45;                          // higher value softens the visible trail edge
 
 // Pre-computed gamma LUT: 256 entries mapping linear trail [0,1] → gamma-expanded [0,1].
 // Computed once at module load. Render path does a single array index instead of Math.pow.
@@ -663,16 +559,18 @@ const DotGrid = ({ dotSize=T.dotSize, gap=T.dotGap, baseColor=T.dotBase, activeC
 
         if (dsq <= proxSq) {
           const linear = 1 - Math.sqrt(dsq) / proximity;
-          const eased  = 1 - Math.pow(1 - linear, 2.4); // proximity easing — only runs for dots near cursor
+          const eased  = 1 - Math.pow(1 - linear, 2.4); // proximity easing - only runs for dots near cursor
           if (eased > t) t = eased;                      // branchless max via conditional assign
+          dot.trail = Math.max(dot.trail, eased * 0.75);
         }
 
         // Skip ctx state changes entirely for fully dark dots — biggest per-frame saving.
         if (t <= 0) { ctx.save(); ctx.translate(dot.cx, dot.cy); ctx.fillStyle = baseColor; ctx.fill(circlePath); ctx.restore(); continue; }
 
-        const r = Math.round(baseRgb.r + (activeRgb.r - baseRgb.r) * t);
-        const g = Math.round(baseRgb.g + (activeRgb.g - baseRgb.g) * t);
-        const b = Math.round(baseRgb.b + (activeRgb.b - baseRgb.b) * t);
+        const softT = Math.pow(t * t * (3 - 2 * t), TRAIL_SOFTEN);
+        const r = Math.round(baseRgb.r + (activeRgb.r - baseRgb.r) * softT);
+        const g = Math.round(baseRgb.g + (activeRgb.g - baseRgb.g) * softT);
+        const b = Math.round(baseRgb.b + (activeRgb.b - baseRgb.b) * softT);
 
         ctx.save(); ctx.translate(ox, oy); ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fill(circlePath); ctx.restore();
       }
@@ -696,16 +594,18 @@ const DotGrid = ({ dotSize=T.dotSize, gap=T.dotGap, baseColor=T.dotBase, activeC
       pr.lastTime = now; pr.lastX = e.clientX; pr.lastY = e.clientY; pr.vx = vx; pr.vy = vy; pr.speed = speed;
       const rect = canvasRef.current?.getBoundingClientRect(); if (!rect) return;
       pr.x = e.clientX - rect.left; pr.y = e.clientY - rect.top;
-      if (speed > speedTrigger) {
-        for (const dot of dotsRef.current) {
-          if (dot.active) continue;
-          const dist = Math.hypot(dot.cx - pr.x, dot.cy - pr.y);
-          if (dist < proximity) {
-            dot.active = true;
-            dot.trail  = Math.min(1, dot.trail + 0.4);
-            dot.vx = (dot.cx - pr.x)*0.3 + vx*0.08;
-            dot.vy = (dot.cy - pr.y)*0.3 + vy*0.08;
-          }
+      for (const dot of dotsRef.current) {
+        const dist = Math.hypot(dot.cx - pr.x, dot.cy - pr.y);
+        if (dist >= proximity) continue;
+
+        const proximityGain = Math.max(0, 1 - dist / proximity);
+        dot.trail = Math.min(1, dot.trail + proximityGain * 0.1);
+
+        if (speed > speedTrigger && !dot.active) {
+          dot.active = true;
+          dot.trail  = Math.min(1, dot.trail + 0.45 * proximityGain);
+          dot.vx = (dot.cx - pr.x)*0.3 + vx*0.08;
+          dot.vy = (dot.cy - pr.y)*0.3 + vy*0.08;
         }
       }
     };
@@ -849,13 +749,13 @@ const StatCard = ({ value, label, sub }) => {
   useResizeObserver(outerRef, onResize);
 
   return (
-    <div ref={outerRef} className="outer" style={{ flex:1, minWidth:"180px" }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <div ref={outerRef} className="outer" style={{ flex:1, minWidth:"180px", transform:hovered ? "translateY(-3px)" : "translateY(0)", transition:"transform 0.28s cubic-bezier(0.2,0.7,0.2,1)", willChange:"transform" }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       <div className="dot"/>
       <div className="card">
         <div className="ray"/>
         <div className="line topl"/><div className="line bottoml"/><div className="line leftl"/><div className="line rightl"/>
-        <div className="text" style={{ fontSize: hovered ? "2.2rem" : idleSize, transform: hovered ? "translateY(-12px)" : "translateY(0px)", transition:"font-size 0.4s cubic-bezier(0.34,1.56,0.64,1), transform 0.4s cubic-bezier(0.34,1.56,0.64,1)" }}>{value}</div>
-        <div style={{ position:"absolute", bottom:"28px", left:0, right:0, textAlign:"center", padding:"0 14px", opacity: hovered ? 1 : 0, transform: hovered ? "translateY(0px)" : "translateY(10px)", transition:"opacity 0.35s ease 0.05s, transform 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.05s" }}>
+        <div className="text" style={{ fontSize: idleSize, transform: hovered ? "translateY(-10px) scale(0.94)" : "translateY(0px) scale(1)", transformOrigin:"center center", transition:"transform 0.35s cubic-bezier(0.34,1.2,0.64,1)", willChange:"transform" }}>{value}</div>
+        <div style={{ position:"absolute", bottom:"28px", left:0, right:0, textAlign:"center", padding:"0 14px", opacity: hovered ? 1 : 0, transform: hovered ? "translateY(0px)" : "translateY(10px)", transition:"opacity 0.3s ease 0.02s, transform 0.3s cubic-bezier(0.34,1.2,0.64,1)", willChange:"opacity, transform" }}>
           <div style={{ fontSize:"11px", fontWeight:"700", color:"#aaa", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:T.fontSans }}>{label}</div>
           {sub && <div style={{ fontSize:"10px", color:T.white, marginTop:"5px", fontFamily:T.fontSans }}>{sub}</div>}
         </div>
@@ -912,7 +812,7 @@ const OverviewSection = ({ sectionRef, visible }) => {
               <div style={{ fontSize:"13px", fontWeight:"700", color:T.text, marginBottom:"4px" }}>Game Size vs. Performance Reports</div>
               <div style={{ fontSize:"11px", color:T.muted, marginBottom:"22px", lineHeight:1.6 }}>Average install size (GB) alongside indexed performance bug reports at launch</div>
               <ResponsiveContainer width="100%" height={210}>
-                <BarChart data={CHART_DATA} barGap={4} syncId="year-sync" margin={{ left:0, right:16, top:4, bottom:0 }}>
+                <BarChart data={CHART_DATA} barGap={4} syncId="year-sync" syncMethod="value" margin={{ left:0, right:16, top:4, bottom:0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1a1c1c"/>
                   <XAxis dataKey="year" tick={{ fontSize:10, fill:T.muted }} axisLine={{ stroke:T.border }} tickLine={false}/>
                   <YAxis width={32} tick={{ fontSize:10, fill:T.muted }} axisLine={false} tickLine={false}/>
@@ -927,7 +827,7 @@ const OverviewSection = ({ sectionRef, visible }) => {
               <div style={{ fontSize:"13px", fontWeight:"700", color:T.text, marginBottom:"4px" }}>Frame Stability vs. Development Cost</div>
               <div style={{ fontSize:"11px", color:T.muted, marginBottom:"22px", lineHeight:1.6 }}>Launch-day frame stability index (%) against average production budgets (USD millions)</div>
               <ResponsiveContainer width="100%" height={210}>
-                <LineChart data={PERFORMANCE_DATA} syncId="year-sync" margin={{ left:0, right:16, top:4, bottom:0 }}>
+                <LineChart data={PERFORMANCE_DATA} syncId="year-sync" syncMethod="value" margin={{ left:0, right:16, top:4, bottom:0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1a1c1c"/>
                   <XAxis dataKey="year" tick={{ fontSize:10, fill:T.muted }} axisLine={{ stroke:T.border }} tickLine={false}/>
                   <YAxis width={32} tick={{ fontSize:10, fill:T.muted }} axisLine={false} tickLine={false}/>
@@ -979,7 +879,7 @@ const TimelineSection = ({ sectionRef }) => {
           <div style={{ position:"absolute", left:"20px", right:"20px", top:"50%", height:"1px", background:"#1e2020", zIndex:0 }}/>
           <div style={{ position:"absolute", left:"20px", top:"50%", height:"1px", background:"linear-gradient(90deg,rgba(255,255,255,0.3),rgba(255,255,255,0.08))", zIndex:0, width:`${(activeIdx/(TIMELINE_DATA.length-1))*100}%`, transition:"width 0.5s cubic-bezier(0.4,0,0.2,1)", maxWidth:"calc(100% - 40px)" }}/>
           {TIMELINE_DATA.map((t, i) => (
-            <div key={i} onClick={() => handleSelect(i)} className={`tl-dot${activeIdx===i?" active":""}`} style={{ zIndex:1, position:"relative", width:activeIdx===i?"56px":"44px", height:activeIdx===i?"56px":"44px", borderRadius:"50%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", background:activeIdx===i?"radial-gradient(circle at 30% 30%,#3a3c3c,#0c0d0d)":"radial-gradient(circle at 30% 30%,#1a1c1c,#0c0d0d)", border:`1px solid ${activeIdx===i?"rgba(255,255,255,0.18)":T.border}`, boxShadow:activeIdx===i?"0 0 24px rgba(255,255,255,0.07)":"none", color:activeIdx===i?T.white:T.muted, cursor:"pointer", transition:"all 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}>
+            <div key={i} onClick={() => handleSelect(i)} className={`tl-dot${activeIdx===i?" active":""}`} style={{ zIndex:1, position:"relative", width:"56px", height:"56px", borderRadius:"50%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", transform:activeIdx===i?"scale(1)":"scale(0.78)", transformOrigin:"center center", background:activeIdx===i?"radial-gradient(circle at 30% 30%,#3a3c3c,#0c0d0d)":"radial-gradient(circle at 30% 30%,#1a1c1c,#0c0d0d)", border:`1px solid ${activeIdx===i?"rgba(255,255,255,0.18)":T.border}`, boxShadow:activeIdx===i?"0 0 24px rgba(255,255,255,0.07)":"none", color:activeIdx===i?T.white:T.muted, cursor:"pointer", transition:"transform 0.3s cubic-bezier(0.34,1.56,0.64,1), background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, color 0.3s ease" }}>
               <span style={{ fontSize:"10px", fontWeight:"700", fontFamily:T.fontSans, letterSpacing:"0.03em" }}>{t.era}</span>
             </div>
           ))}
@@ -1106,6 +1006,7 @@ const Header = ({ activeSection, onNavigate }) => (
 // ─────────────────────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
   *{box-sizing:border-box;margin:0;padding:0;}
+  :root{--title-grad-offset:50%;}
   body{background:#0c0d0d;}
   .fade-in{opacity:0;transform:translateY(20px);transition:opacity 0.7s ease,transform 0.7s ease;}
   .fade-in.visible{opacity:1;transform:translateY(0);}
@@ -1117,15 +1018,14 @@ const GLOBAL_CSS = `
   .nav-item.active::after{width:80%;opacity:0.6;}
   .page-transition-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at 50% 50%,#0c0d0d,#000);z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.4s ease;}
   .page-transition-overlay.active{opacity:0.3;}
-  .heading-text{font-family:'DM Sans',sans-serif;font-weight:800;background:linear-gradient(90deg,#333 0%,#fff 40%,#fff 60%,#333 100%);background-size:200% 100%;background-clip:text;color:transparent;-webkit-background-clip:text;filter:brightness(1.8) contrast(2.2);animation:boomerang 4s ease-in-out infinite;}
-  @keyframes boomerang{0%{background-position:0% 0;}50%{background-position:100% 0;}100%{background-position:0% 0;}}
+  .heading-text{font-family:'DM Sans',sans-serif;font-weight:800;background:linear-gradient(90deg,#333 0%,#fff 40%,#fff 60%,#333 100%);background-size:200% 100%;background-position:var(--title-grad-offset) 0;background-clip:text;color:transparent;-webkit-background-clip:text;filter:brightness(1.8) contrast(2.2);transition:background-position 90ms linear;}
   .outer{--line-gap:18px;width:210px;height:190px;border-radius:10px;padding:1px;background:radial-gradient(circle 230px at 0% 0%,#ffffff,#0c0d0d);position:relative;}
-  .dot{width:5px;aspect-ratio:1;position:absolute;background-color:#fff;box-shadow:0 0 10px #ffffff;border-radius:100px;z-index:2;right:calc(var(--line-gap) - 2.5px);top:calc(var(--line-gap) - 2.5px);animation:moveDot 6s linear infinite;opacity:0;transition:opacity 0.3s ease;}
-  .outer:hover .dot{opacity:1;}
+  .dot{width:5px;aspect-ratio:1;position:absolute;background-color:#fff;box-shadow:0 0 10px #ffffff;border-radius:100px;z-index:2;right:calc(var(--line-gap) - 2.5px);top:calc(var(--line-gap) - 2.5px);animation:moveDot 6s linear infinite;animation-play-state:paused;opacity:0;transition:opacity 0.3s ease;}
+  .outer:hover .dot{opacity:1;animation-play-state:running;}
   @keyframes moveDot{0%,100%{top:calc(var(--line-gap) - 2.5px);right:calc(var(--line-gap) - 2.5px);}25%{top:calc(var(--line-gap) - 2.5px);right:calc(100% - var(--line-gap) - 2.5px);}50%{top:calc(100% - var(--line-gap) - 2.5px);right:calc(100% - var(--line-gap) - 2.5px);}75%{top:calc(100% - var(--line-gap) - 2.5px);right:calc(var(--line-gap) - 2.5px);}}
   .card{z-index:1;width:100%;height:100%;border-radius:9px;border:solid 1px #202222;background:radial-gradient(circle 280px at 0% 0%,#444444,#0c0d0d);display:flex;align-items:center;justify-content:center;position:relative;flex-direction:column;color:#fff;overflow:hidden;}
-  .ray{width:220px;height:45px;border-radius:100px;position:absolute;background-color:#c7c7c7;opacity:0.4;box-shadow:0 0 50px #fff;filter:blur(10px);transform-origin:10%;top:0;left:0;transform:rotate(40deg);}
-  .card .text{font-weight:bolder;font-family:'DM Sans',sans-serif;background:linear-gradient(90deg,#333 0%,#fff 40%,#fff 60%,#333 100%);background-size:200% 100%;background-clip:text;color:transparent;-webkit-background-clip:text;filter:brightness(1.8) contrast(2.2);animation:boomerang 4s ease-in-out infinite;}
+  .ray{width:220px;height:45px;border-radius:100px;position:absolute;background-color:#c7c7c7;opacity:0.28;box-shadow:0 0 50px #fff;filter:blur(10px);transform-origin:10%;top:0;left:0;transform:translate3d(0,0,0) rotate(40deg);}
+  .card .text{font-weight:bolder;font-family:'DM Sans',sans-serif;background:linear-gradient(90deg,#333 0%,#fff 40%,#fff 60%,#333 100%);background-size:200% 100%;background-position:var(--title-grad-offset) 0;background-clip:text;color:transparent;-webkit-background-clip:text;filter:brightness(1.8) contrast(2.2);}
   .line{width:100%;height:1px;position:absolute;background-color:#2c2c2c;}
   .topl{top:var(--line-gap);background:linear-gradient(90deg,#888888 30%,#1d1f1f 70%);}
   .bottoml{bottom:var(--line-gap);}
@@ -1153,6 +1053,7 @@ const GLOBAL_CSS = `
   .card-spotlight::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at var(--mouse-x) var(--mouse-y),var(--spotlight-color),transparent 80%);opacity:0;transition:opacity 0.5s ease;pointer-events:none;z-index:1;}
   .card-spotlight:hover::before,.card-spotlight:focus-within::before{opacity:0.6;}
   .card-spotlight>*{position:relative;z-index:2;}
+  .outer,.card,.dot,.ray{backface-visibility:hidden;transform:translateZ(0);}
   ::-webkit-scrollbar{width:5px;}
   ::-webkit-scrollbar-track{background:#0c0d0d;}
   ::-webkit-scrollbar-thumb{background:#222424;border-radius:3px;}
@@ -1169,6 +1070,9 @@ export default function App() {
   const [activeSection,   setActiveSection  ] = useState("overview");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [visible,         setVisible        ] = useState(false);
+  const activeSectionRef = useRef("overview");
+  const scrollAnimRef    = useRef(0);
+  const transitionRef    = useRef(false);
 
   const sectionRefs = {
     overview: useRef(null),
@@ -1177,29 +1081,122 @@ export default function App() {
   };
 
   useEffect(() => { setTimeout(() => setVisible(true), 100); }, []);
-
-  const navigateToSection = useCallback(section => {
-    if (isTransitioning) return;
-    setIsTransitioning(true);
-    setActiveSection(section);
-    document.body.style.overflow = "hidden";
-    setTimeout(() => {
-      sectionRefs[section]?.current?.scrollIntoView({ behavior:"smooth", block:"start" });
-      setTimeout(() => { document.body.style.overflow = ""; setIsTransitioning(false); }, 800);
-    }, 50);
-  }, [isTransitioning]);
+  useEffect(() => { activeSectionRef.current = activeSection; }, [activeSection]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (isTransitioning) return;
-      const sp = window.scrollY + 100;
-      if (sectionRefs.research.current && sp >= sectionRefs.research.current.offsetTop - 200) setActiveSection("research");
-      else if (sectionRefs.timeline.current && sp >= sectionRefs.timeline.current.offsetTop - 200) setActiveSection("timeline");
-      else setActiveSection("overview");
+    const root = document.documentElement;
+    let raf = 0;
+    let lastX = null;
+    let targetOffset = 0;
+    let offset = 0;
+
+    const tick = () => {
+      offset += (targetOffset - offset) * 0.16;
+      targetOffset *= 0.9;
+      root.style.setProperty("--title-grad-offset", `${50 + offset}%`);
+
+      if (Math.abs(offset) > 0.08 || Math.abs(targetOffset) > 0.08) {
+        raf = requestAnimationFrame(tick);
+      } else {
+        offset = 0;
+        targetOffset = 0;
+        root.style.setProperty("--title-grad-offset", "50%");
+        raf = 0;
+      }
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [isTransitioning]);
+
+    const onMouseMove = e => {
+      if (lastX !== null) {
+        const dx = e.clientX - lastX;
+        targetOffset = Math.max(-45, Math.min(45, targetOffset + dx * 0.45));
+        if (!raf) raf = requestAnimationFrame(tick);
+      }
+      lastX = e.clientX;
+    };
+
+    const onMouseLeave = () => {
+      lastX = null;
+      targetOffset = 0;
+      if (!raf) raf = requestAnimationFrame(tick);
+    };
+
+    window.addEventListener("mousemove", onMouseMove, { passive:true });
+    window.addEventListener("mouseleave", onMouseLeave);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseleave", onMouseLeave);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const navigateToSection = useCallback(section => {
+    const targetNode = sectionRefs[section]?.current;
+    if (!targetNode) return;
+
+    if (scrollAnimRef.current) cancelAnimationFrame(scrollAnimRef.current);
+
+    const startY = window.scrollY;
+    const headerOffset = 92;
+    const targetY = Math.max(0, targetNode.getBoundingClientRect().top + window.scrollY - headerOffset);
+    const distance = targetY - startY;
+
+    setActiveSection(section);
+    activeSectionRef.current = section;
+
+    if (Math.abs(distance) < 2) return;
+
+    transitionRef.current = true;
+    setIsTransitioning(true);
+    const duration = Math.min(900, Math.max(420, Math.abs(distance) * 0.6));
+    const startTs = performance.now();
+    const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+
+    const step = now => {
+      const p = Math.min(1, (now - startTs) / duration);
+      const eased = easeOutCubic(p);
+      window.scrollTo(0, startY + distance * eased);
+      if (p < 1) {
+        scrollAnimRef.current = requestAnimationFrame(step);
+      } else {
+        transitionRef.current = false;
+        setIsTransitioning(false);
+        scrollAnimRef.current = 0;
+      }
+    };
+
+    scrollAnimRef.current = requestAnimationFrame(step);
+  }, []);
+
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      ticking = false;
+      if (transitionRef.current) return;
+      const sp = window.scrollY + 100;
+      let next = "overview";
+      if (sectionRefs.research.current && sp >= sectionRefs.research.current.offsetTop - 200) next = "research";
+      else if (sectionRefs.timeline.current && sp >= sectionRefs.timeline.current.offsetTop - 200) next = "timeline";
+
+      if (next !== activeSectionRef.current) {
+        activeSectionRef.current = next;
+        setActiveSection(next);
+      }
+    };
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(handleScroll);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive:true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => () => {
+    if (scrollAnimRef.current) cancelAnimationFrame(scrollAnimRef.current);
+  }, []);
 
   return (
     <div style={{ minHeight:"100vh", background:T.bg, fontFamily:T.fontSans, color:T.text }}>
