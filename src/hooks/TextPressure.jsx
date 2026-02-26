@@ -68,7 +68,110 @@ export default function TextPressure({
   const titleRef = useRef(null);
 
   useEffect(() => {
+    // ============================================
+    // MOBILE OPTIMIZATIONS
+    // ============================================
+    
+    // Disable zoom, swipe, drag, select
+    const preventDefaults = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    // Prevent pinch zoom
+    const preventPinchZoom = (e) => {
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+    };
+
+    // Prevent double-tap zoom
+    const preventDoubleTapZoom = (e) => {
+      const now = Date.now();
+      const DOUBLE_TAP_DELAY = 300;
+      if (now - (window.lastTap || 0) < DOUBLE_TAP_DELAY) {
+        e.preventDefault();
+      }
+      window.lastTap = now;
+    };
+
+    // Disable context menu (long press)
+    const preventContextMenu = (e) => {
+      e.preventDefault();
+      return false;
+    };
+
+    // Add all event listeners for mobile
+    document.addEventListener('touchstart', preventPinchZoom, { passive: false });
+    document.addEventListener('touchmove', preventPinchZoom, { passive: false });
+    document.addEventListener('touchend', preventPinchZoom, { passive: false });
+    document.addEventListener('gesturestart', preventDefaults, { passive: false });
+    document.addEventListener('gesturechange', preventDefaults, { passive: false });
+    document.addEventListener('gestureend', preventDefaults, { passive: false });
+    document.addEventListener('contextmenu', preventContextMenu);
+    
+    // Double-tap prevention
+    document.addEventListener('touchstart', preventDoubleTapZoom, { passive: false });
+
+    // Add CSS to prevent selection and dragging globally
+    const style = document.createElement('style');
+    style.textContent = `
+      * {
+        -webkit-touch-callout: none !important;
+        -webkit-user-select: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+        -webkit-overflow-scrolling: touch !important;
+        touch-action: pan-y pinch-zoom !important; /* Allows vertical scroll but prevents horizontal swipe */
+      }
+      
+      body {
+        overscroll-behavior: none !important;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
+        overflow: hidden !important;
+      }
+      
+      #root {
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+        position: fixed;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Handle orientation changes
+    const handleOrientationChange = () => {
+      // Small delay to let the browser finish orientation change
+      setTimeout(() => {
+        if (stageRef.current && titleRef.current) {
+          const setFontSize = () => {
+            const { width: sw, height: sh } = stageRef.current.getBoundingClientRect();
+            // Adjust base calculation based on orientation
+            const isLandscape = window.innerWidth > window.innerHeight;
+            let ideal = Math.max(80, sw / (text.length * (isLandscape ? 0.1 : 0.12)));
+            ideal = ideal * layout.textScale;
+            
+            // Use GSAP if available, otherwise direct style
+            if (window.gsap) {
+              window.gsap.set(titleRef.current, { fontSize: ideal, lineHeight: 0.8 });
+            } else {
+              titleRef.current.style.fontSize = `${ideal}px`;
+              titleRef.current.style.lineHeight = '0.8';
+            }
+          };
+          setFontSize();
+        }
+      }, 100);
+    };
+
+    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleOrientationChange);
+
+    // ============================================
     // Load GSAP from CDN
+    // ============================================
     const script = document.createElement('script');
     script.src = 'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js';
     script.async = true;
@@ -96,7 +199,7 @@ export default function TextPressure({
 
     function setupAnimation(gsap) {
       // ============================================
-      // MOUSE TRACKING
+      // MOUSE/TOUCH TRACKING
       // ============================================
       const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
       const mouseLerpX = gsap.quickTo(mouse, 'x', { 
@@ -122,7 +225,7 @@ export default function TextPressure({
       };
 
       window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('touchmove', handleTouchMove, { passive: true });
+      window.addEventListener('touchmove', handleTouchMove, { passive: false }); // Changed to non-passive for better control
 
       // ============================================
       // CREATE CHARACTER SPANS - WITH SPACE PRESERVATION
@@ -193,17 +296,27 @@ export default function TextPressure({
       // ============================================
       const stage = stageRef.current;
       stage.style.backgroundColor = colors.background;
-      document.body.style.backgroundColor = colors.background;
 
       // ============================================
-      // RESPONSIVE FONT SIZE - WITH SCALE FACTOR
+      // RESPONSIVE FONT SIZE - WITH SCALE FACTOR AND ORIENTATION
       // ============================================
       const setFontSize = () => {
-        const { width: sw } = stage.getBoundingClientRect();
-        // Base size calculation - adjusted for better spacing
-        let ideal = Math.max(100, sw / (text.length * 0.08));
+        const { width: sw, height: sh } = stage.getBoundingClientRect();
+        const isLandscape = window.innerWidth > window.innerHeight;
+        
+        // Adjust base calculation for different orientations
+        let baseMultiplier = text.length * (isLandscape ? 0.1 : 0.12);
+        let ideal = Math.max(80, sw / baseMultiplier);
+        
         // Apply scale factor
         ideal = ideal * layout.textScale;
+        
+        // Ensure text doesn't get too tall in portrait
+        const maxHeight = sh * 0.3;
+        if (ideal > maxHeight) {
+          ideal = maxHeight;
+        }
+        
         gsap.set(titleEl, { fontSize: ideal, lineHeight: 0.8 });
       };
       setFontSize();
@@ -259,7 +372,7 @@ export default function TextPressure({
           }
 
           // ============================================
-          // PHYSICS: HORIZONTAL MOVEMENT (apply to all chars including spaces)
+          // PHYSICS: HORIZONTAL MOVEMENT
           // ============================================
           if (physics.enabled) {
             const rad = physics.repelRadius;
@@ -271,7 +384,7 @@ export default function TextPressure({
               c.phys.vx += dirX * str;
             }
 
-            // Spring pull-back (with optional dynamic adjustment for edge letters)
+            // Spring pull-back
             let springStrength = physics.springK;
             if (features.dynamicSpringBack && !c.isSpace) {
               springStrength *= (1 + (1 - c.freedomFactor) * 0.5);
@@ -297,14 +410,13 @@ export default function TextPressure({
         });
         
         // ============================================
-        // COLLISION PREVENTION - SKIP SPACES
+        // COLLISION PREVENTION
         // ============================================
         if (features.preventOverlap) {
           for (let i = 0; i < chars.length - 1; i++) {
             const c1 = chars[i];
             const c2 = chars[i + 1];
             
-            // Skip collision prevention if either is a space
             if (c1.isSpace || c2.isSpace) continue;
             
             const rect1 = c1.span.getBoundingClientRect();
@@ -320,7 +432,6 @@ export default function TextPressure({
               c1.phys.x -= push1;
               c2.phys.x += push2;
               
-              // Re-apply bounds
               c1.phys.x = Math.min(c1.maxDisp, Math.max(-c1.maxDisp, c1.phys.x));
               c2.phys.x = Math.min(c2.maxDisp, Math.max(-c2.maxDisp, c2.phys.x));
               
@@ -366,10 +477,29 @@ export default function TextPressure({
       };
     }
 
-    // Cleanup script tag
+    // ============================================
+    // CLEANUP FUNCTION
+    // ============================================
     return () => {
+      // Remove script
       const script = document.querySelector('script[src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"]');
       if (script) document.head.removeChild(script);
+      
+      // Remove style
+      const style = document.querySelector('style[data-textpressure]');
+      if (style) document.head.removeChild(style);
+      
+      // Remove event listeners
+      document.removeEventListener('touchstart', preventPinchZoom);
+      document.removeEventListener('touchmove', preventPinchZoom);
+      document.removeEventListener('touchend', preventPinchZoom);
+      document.removeEventListener('gesturestart', preventDefaults);
+      document.removeEventListener('gesturechange', preventDefaults);
+      document.removeEventListener('gestureend', preventDefaults);
+      document.removeEventListener('contextmenu', preventContextMenu);
+      document.removeEventListener('touchstart', preventDoubleTapZoom);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener('resize', handleOrientationChange);
     };
   }, [text, colors, axes, physics, fontSpring, animation, features, layout]);
 
@@ -391,7 +521,11 @@ export default function TextPressure({
         color: "white",
         fontFamily: "system-ui",
         overflow: "hidden",
-        position: "relative",
+        position: "fixed", // Changed to fixed for mobile
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         ...style,
       }}
     >
@@ -404,6 +538,9 @@ export default function TextPressure({
           lineHeight: 0.8,
           margin: 0,
           userSelect: "none",
+          WebkitUserSelect: "none",
+          MozUserSelect: "none",
+          msUserSelect: "none",
           width: "100%",
           textAlign: layout.centerAlign ? "center" : "left",
           display: "flex",
@@ -412,6 +549,7 @@ export default function TextPressure({
           zIndex: 10,
           color: colors.text,
           gap: '0.1em',
+          pointerEvents: 'none', // Prevents text selection on mobile
         }}
       >
         {text}
