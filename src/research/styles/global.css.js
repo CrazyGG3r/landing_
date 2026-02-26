@@ -11,6 +11,46 @@ export const GLOBAL_CSS = `
     user-select: none;
   }
   
+  /* Disable zoom on iOS */
+  @viewport {
+    zoom: 1.0;
+    width: extend-to-zoom;
+  }
+  
+  @-ms-viewport {
+    width: extend-to-zoom;
+    zoom: 1.0;
+  }
+  
+  /* Disable pinch zoom on all browsers */
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+    position: relative;
+    height: 100%;
+    -webkit-overflow-scrolling: touch;
+    /* Disable zoom */
+    touch-action: pan-x pan-y; /* Allows only panning, no pinch zoom */
+    -ms-touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: none; /* Prevent font scaling on orientation change */
+    text-size-adjust: none;
+  }
+  
+  /* Additional zoom prevention for mobile browsers */
+  @media (max-width: 768px) {
+    html, body {
+      touch-action: pan-x pan-y !important; /* Override any default touch actions */
+      -webkit-text-size-adjust: 100%; /* Keep text readable but prevent zoom */
+    }
+    
+    /* Prevent double-tap zoom */
+    a, button, [role="button"], .filter-btn, .nav-item, .tl-dot, 
+    input, select, textarea, [contenteditable="true"] {
+      touch-action: manipulation;
+      -ms-touch-action: manipulation;
+    }
+  }
+  
   img, svg, canvas, [draggable="true"] {
     -webkit-user-drag: none;
     -khtml-user-drag: none;
@@ -26,6 +66,9 @@ export const GLOBAL_CSS = `
     -ms-user-select: auto;
     user-select: auto;
     -webkit-touch-callout: default;
+    /* Prevent zoom on these elements */
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
   }
   
   button:focus, button:focus-visible, .nav-item:focus, .nav-item:focus-visible {
