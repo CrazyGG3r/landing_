@@ -99,40 +99,88 @@ const DEFAULT_SETTINGS = {
   version: 1,
   layers: [
     { color: '#ff2244', spread: -1.0, intensity: 1.0 },
-    { color: '#ffffff', spread:  0.0, intensity: 1.0 },
-    { color: '#2266ff', spread:  1.0, intensity: 1.0 },
+    { color: '#ffffff', spread: 0.0, intensity: 1.0 },
+    { color: '#2266ff', spread: 1.0, intensity: 1.0 },
   ]
 };
 
+function getStorageAdapter() {
+  const custom = typeof window !== 'undefined' ? window.storage : null;
+  if (
+    custom &&
+    typeof custom.get === 'function' &&
+    typeof custom.set === 'function' &&
+    typeof custom.delete === 'function'
+  ) {
+    return {
+      get: async (key) => custom.get(key),
+      set: async (key, value) => custom.set(key, value),
+      delete: async (key) => custom.delete(key),
+    };
+  }
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return {
+      get: async (key) => ({ value: window.localStorage.getItem(key) }),
+      set: async (key, value) => window.localStorage.setItem(key, value),
+      delete: async (key) => window.localStorage.removeItem(key),
+    };
+  }
+
+  return null;
+}
+
+function isValidSettings(value) {
+  if (!value || !Array.isArray(value.layers) || value.layers.length !== 3) return false;
+  return value.layers.every((layer) =>
+    layer &&
+    typeof layer.color === 'string' &&
+    typeof layer.spread === 'number' &&
+    typeof layer.intensity === 'number'
+  );
+}
+
 async function loadSettings() {
   try {
-    const res = await window.storage.get(STORAGE_KEY);
-    if (res?.value) return JSON.parse(res.value);
-  } catch (_) {}
+    const storage = getStorageAdapter();
+    if (!storage) return DEFAULT_SETTINGS;
+    const res = await storage.get(STORAGE_KEY);
+    if (res?.value) {
+      const parsed = JSON.parse(res.value);
+      if (isValidSettings(parsed)) return parsed;
+    }
+  } catch (_) { }
   return DEFAULT_SETTINGS;
 }
 async function saveSettings(layers) {
-  try { await window.storage.set(STORAGE_KEY, JSON.stringify({ version: 1, layers })); } catch (_) {}
+  try {
+    const storage = getStorageAdapter();
+    if (!storage) return;
+    await storage.set(STORAGE_KEY, JSON.stringify({ version: 1, layers }));
+  } catch (_) { }
 }
 async function resetSettings() {
-  try { await window.storage.delete(STORAGE_KEY); } catch (_) {}
+  try {
+    const storage = getStorageAdapter();
+    if (storage) await storage.delete(STORAGE_KEY);
+  } catch (_) { }
   return DEFAULT_SETTINGS;
 }
 
 function hexToRgb01(hex) {
   return [
-    parseInt(hex.slice(1,3),16)/255,
-    parseInt(hex.slice(3,5),16)/255,
-    parseInt(hex.slice(5,7),16)/255,
+    parseInt(hex.slice(1, 3), 16) / 255,
+    parseInt(hex.slice(3, 5), 16) / 255,
+    parseInt(hex.slice(5, 7), 16) / 255,
   ];
 }
 
 // ── ShapeBlur ────────────────────────────────────────────────
 
 const ShapeBlur = ({ layers, followMouse }) => {
-  const mountRef   = useRef();
-  const matRef     = useRef();
-  const stateRef   = useRef({ followMouse });
+  const mountRef = useRef();
+  const matRef = useRef();
+  const stateRef = useRef({ followMouse });
 
   useEffect(() => { stateRef.current.followMouse = followMouse; }, [followMouse]);
 
@@ -141,15 +189,15 @@ const ShapeBlur = ({ layers, followMouse }) => {
     if (!mount) return;
     let animId, time = 0, lastTime = 0;
 
-    const vMouse     = new THREE.Vector2();
+    const vMouse = new THREE.Vector2();
     const vMouseDamp = new THREE.Vector2();
     const vResolution = new THREE.Vector2();
 
     // Shape position in screen px, damped
     const vShapeTarget = new THREE.Vector2(0.5, 0.5); // normalized
-    const vShapeDamp   = new THREE.Vector2(0.5, 0.5);
+    const vShapeDamp = new THREE.Vector2(0.5, 0.5);
 
-    const scene  = new THREE.Scene();
+    const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera();
     camera.position.z = 1;
 
@@ -157,37 +205,37 @@ const ShapeBlur = ({ layers, followMouse }) => {
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
-    const [rA,gA,bA] = hexToRgb01(layers[0].color);
-    const [rB,gB,bB] = hexToRgb01(layers[1].color);
-    const [rC,gC,bC] = hexToRgb01(layers[2].color);
+    const [rA, gA, bA] = hexToRgb01(layers[0].color);
+    const [rB, gB, bB] = hexToRgb01(layers[1].color);
+    const [rC, gC, bC] = hexToRgb01(layers[2].color);
 
     const material = new THREE.ShaderMaterial({
       vertexShader, fragmentShader,
       uniforms: {
-        u_mouse:      { value: vMouseDamp },
+        u_mouse: { value: vMouseDamp },
         u_resolution: { value: vResolution },
         u_pixelRatio: { value: 2 },
-        u_shapeSize:  { value: 1.0 },
-        u_roundness:  { value: 1.0 },
+        u_shapeSize: { value: 1.0 },
+        u_roundness: { value: 1.0 },
         u_borderSize: { value: 0.05 },
         u_circleSize: { value: 0.25 },
         u_circleEdge: { value: 1.0 },
-        u_colorA:     { value: new THREE.Vector3(rA,gA,bA) },
-        u_colorB:     { value: new THREE.Vector3(rB,gB,bB) },
-        u_colorC:     { value: new THREE.Vector3(rC,gC,bC) },
-        u_spreadA:    { value: layers[0].spread },
-        u_spreadB:    { value: layers[1].spread },
-        u_spreadC:    { value: layers[2].spread },
+        u_colorA: { value: new THREE.Vector3(rA, gA, bA) },
+        u_colorB: { value: new THREE.Vector3(rB, gB, bB) },
+        u_colorC: { value: new THREE.Vector3(rC, gC, bC) },
+        u_spreadA: { value: layers[0].spread },
+        u_spreadB: { value: layers[1].spread },
+        u_spreadC: { value: layers[2].spread },
         u_intensityA: { value: layers[0].intensity },
         u_intensityB: { value: layers[1].intensity },
         u_intensityC: { value: layers[2].intensity },
-        u_shapePos:   { value: new THREE.Vector2(0.5, 0.5) },
+        u_shapePos: { value: new THREE.Vector2(0.5, 0.5) },
       },
       transparent: true
     });
     matRef.current = material;
 
-    const quad = new THREE.Mesh(new THREE.PlaneGeometry(1,1), material);
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
     scene.add(quad);
 
     const onMove = e => {
@@ -208,10 +256,10 @@ const ShapeBlur = ({ layers, followMouse }) => {
       const dpr = Math.min(window.devicePixelRatio, 2);
       renderer.setSize(w, h);
       renderer.setPixelRatio(dpr);
-      camera.left=-w/2; camera.right=w/2; camera.top=h/2; camera.bottom=-h/2;
+      camera.left = -w / 2; camera.right = w / 2; camera.top = h / 2; camera.bottom = -h / 2;
       camera.updateProjectionMatrix();
-      quad.scale.set(w,h,1);
-      vResolution.set(w,h).multiplyScalar(dpr);
+      quad.scale.set(w, h, 1);
+      vResolution.set(w, h).multiplyScalar(dpr);
       material.uniforms.u_pixelRatio.value = dpr;
     };
     resize();
@@ -224,7 +272,7 @@ const ShapeBlur = ({ layers, followMouse }) => {
       const dt = Math.min(time - lastTime, 0.05);
       lastTime = time;
 
-      ['x','y'].forEach(k => {
+      ['x', 'y'].forEach(k => {
         vMouseDamp[k] = THREE.MathUtils.damp(vMouseDamp[k], vMouse[k], 8, dt);
       });
 
@@ -255,35 +303,35 @@ const ShapeBlur = ({ layers, followMouse }) => {
   useEffect(() => {
     const m = matRef.current;
     if (!m) return;
-    ['A','B','C'].forEach((k, i) => {
-      const [r,g,b] = hexToRgb01(layers[i].color);
-      m.uniforms[`u_color${k}`].value.set(r,g,b);
-      m.uniforms[`u_spread${k}`].value    = layers[i].spread;
+    ['A', 'B', 'C'].forEach((k, i) => {
+      const [r, g, b] = hexToRgb01(layers[i].color);
+      m.uniforms[`u_color${k}`].value.set(r, g, b);
+      m.uniforms[`u_spread${k}`].value = layers[i].spread;
       m.uniforms[`u_intensity${k}`].value = layers[i].intensity;
     });
   }, [layers]);
 
-  return <div ref={mountRef} style={{ width:'100%', height:'100%' }} />;
+  return <div ref={mountRef} style={{ width: '100%', height: '100%' }} />;
 };
 
 // ── UI helpers ───────────────────────────────────────────────
 
 const LAYER_LABELS = ['Layer A', 'Layer B', 'Layer C'];
-const LAYER_HINTS  = ['← left · smaller', '· center ·', '→ right · larger'];
+const LAYER_HINTS = ['← left · smaller', '· center ·', '→ right · larger'];
 
 function SliderRow({ label, value, min, max, step, color, onChange }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-      <div style={{ display:'flex', justifyContent:'space-between' }}>
-        <span style={{ color:'#555', fontSize:11, letterSpacing:'0.06em', textTransform:'uppercase' }}>{label}</span>
-        <span style={{ color:'#777', fontSize:11, fontVariantNumeric:'tabular-nums' }}>{value.toFixed(2)}</span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ color: '#555', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
+        <span style={{ color: '#777', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{value.toFixed(2)}</span>
       </div>
-      <div style={{ position:'relative', height:3, borderRadius:2, background:'rgba(255,255,255,0.07)' }}>
-        <div style={{ position:'absolute', left:0, top:0, height:'100%', width:`${pct}%`, background:`linear-gradient(90deg,${color}44,${color})`, borderRadius:2 }} />
+      <div style={{ position: 'relative', height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.07)' }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: `linear-gradient(90deg,${color}44,${color})`, borderRadius: 2 }} />
         <input type="range" min={min} max={max} step={step} value={value}
           onChange={e => onChange(parseFloat(e.target.value))}
-          style={{ position:'absolute', inset:0, width:'100%', height:'100%', opacity:0, cursor:'pointer', margin:0 }} />
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', margin: 0 }} />
       </div>
     </div>
   );
@@ -292,43 +340,43 @@ function SliderRow({ label, value, min, max, step, color, onChange }) {
 function LayerCard({ index, layer, onChange }) {
   return (
     <div style={{
-      background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)',
-      borderRadius:14, padding:'14px 16px', display:'flex', flexDirection:'column', gap:12, flex:1, minWidth:0,
+      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+      borderRadius: 14, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minWidth: 0,
     }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ color:'#ccc', fontWeight:600, fontSize:13 }}>{LAYER_LABELS[index]}</div>
-          <div style={{ color:'#444', fontSize:11, marginTop:2 }}>{LAYER_HINTS[index]}</div>
+          <div style={{ color: '#ccc', fontWeight: 600, fontSize: 13 }}>{LAYER_LABELS[index]}</div>
+          <div style={{ color: '#444', fontSize: 11, marginTop: 2 }}>{LAYER_HINTS[index]}</div>
         </div>
-        <label style={{ cursor:'pointer', position:'relative' }}>
+        <label style={{ cursor: 'pointer', position: 'relative' }}>
           <div style={{
-            width:28, height:28, borderRadius:7, background:layer.color,
-            border:'2px solid rgba(255,255,255,0.1)',
-            boxShadow:`0 0 12px ${layer.color}88`,
+            width: 28, height: 28, borderRadius: 7, background: layer.color,
+            border: '2px solid rgba(255,255,255,0.1)',
+            boxShadow: `0 0 12px ${layer.color}88`,
           }} />
           <input type="color" value={layer.color}
             onChange={e => onChange({ ...layer, color: e.target.value })}
-            style={{ position:'absolute', opacity:0, width:0, height:0, pointerEvents:'none' }} />
+            style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }} />
         </label>
       </div>
-      <SliderRow label="Spread"    value={layer.spread}    min={-2} max={2} step={0.01} color={layer.color} onChange={v => onChange({ ...layer, spread: v })} />
-      <SliderRow label="Intensity" value={layer.intensity} min={0}  max={2} step={0.01} color={layer.color} onChange={v => onChange({ ...layer, intensity: v })} />
+      <SliderRow label="Spread" value={layer.spread} min={-2} max={2} step={0.01} color={layer.color} onChange={v => onChange({ ...layer, spread: v })} />
+      <SliderRow label="Intensity" value={layer.intensity} min={0} max={2} step={0.01} color={layer.color} onChange={v => onChange({ ...layer, intensity: v })} />
     </div>
   );
 }
 
 function StatusDot({ status }) {
   const map = {
-    saved:   { color:'#44ff88', label:'Saved' },
-    saving:  { color:'#ffcc44', label:'Saving…' },
-    loaded:  { color:'#4488ff', label:'Loaded' },
-    default: { color:'#ff4444', label:'Defaults' },
+    saved: { color: '#44ff88', label: 'Saved' },
+    saving: { color: '#ffcc44', label: 'Saving…' },
+    loaded: { color: '#4488ff', label: 'Loaded' },
+    default: { color: '#ff4444', label: 'Defaults' },
   };
   const s = map[status] || map.saved;
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-      <div style={{ width:6, height:6, borderRadius:'50%', background:s.color, boxShadow:`0 0 6px ${s.color}` }} />
-      <span style={{ color:'#444', fontSize:11 }}>{s.label}</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
+      <span style={{ color: '#444', fontSize: 11 }}>{s.label}</span>
     </div>
   );
 }
@@ -338,31 +386,31 @@ function StatusDot({ status }) {
 function ToggleBtn({ open, onClick }) {
   return (
     <button onClick={onClick} style={{
-      position:'fixed', bottom:24, right:24, zIndex:100,
-      width:44, height:44, borderRadius:12,
+      position: 'fixed', bottom: 24, right: 24, zIndex: 100,
+      width: 44, height: 44, borderRadius: 12,
       background: open ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
-      border:`1px solid ${open ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
-      backdropFilter:'blur(12px)',
-      display:'flex', alignItems:'center', justifyContent:'center',
-      cursor:'pointer', transition:'all 0.2s',
+      border: `1px solid ${open ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`,
+      backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      cursor: 'pointer', transition: 'all 0.2s',
       boxShadow: open ? '0 0 20px rgba(255,255,255,0.08)' : 'none',
     }}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         {open ? (
           // X icon
           <>
-            <line x1="3" y1="3" x2="13" y2="13" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="13" y1="3" x2="3"  y2="13" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="3" y1="3" x2="13" y2="13" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="13" y1="3" x2="3" y2="13" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" strokeLinecap="round" />
           </>
         ) : (
           // Sliders icon
           <>
-            <line x1="2" y1="4"  x2="14" y2="4"  stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="2" y1="8"  x2="14" y2="8"  stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
-            <line x1="2" y1="12" x2="14" y2="12" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
-            <circle cx="5"  cy="4"  r="1.5" fill="#0a0a0a" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2"/>
-            <circle cx="10" cy="8"  r="1.5" fill="#0a0a0a" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2"/>
-            <circle cx="6"  cy="12" r="1.5" fill="#0a0a0a" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2"/>
+            <line x1="2" y1="4" x2="14" y2="4" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="2" y1="8" x2="14" y2="8" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="2" y1="12" x2="14" y2="12" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="5" cy="4" r="1.5" fill="#0a0a0a" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" />
+            <circle cx="10" cy="8" r="1.5" fill="#0a0a0a" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" />
+            <circle cx="6" cy="12" r="1.5" fill="#0a0a0a" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" />
           </>
         )}
       </svg>
@@ -374,23 +422,23 @@ function ToggleBtn({ open, onClick }) {
 function SpaceBadge({ active }) {
   return (
     <div style={{
-      position:'fixed', bottom:24, left: 24, zIndex:100,
-      display:'flex', alignItems:'center', gap:8,
-      background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)',
-      borderRadius:10, padding:'6px 12px', backdropFilter:'blur(10px)',
-      transition:'opacity 0.3s',
+      position: 'fixed', bottom: 24, left: 24, zIndex: 100,
+      display: 'flex', alignItems: 'center', gap: 8,
+      background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 10, padding: '6px 12px', backdropFilter: 'blur(10px)',
+      transition: 'opacity 0.3s',
     }}>
       <div style={{
         background: active ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.06)',
-        border:`1px solid ${active ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
-        borderRadius:5, padding:'1px 7px', fontSize:11,
+        border: `1px solid ${active ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: 5, padding: '1px 7px', fontSize: 11,
         color: active ? '#fff' : '#555',
-        fontFamily:'monospace',
+        fontFamily: 'monospace',
         boxShadow: active ? '0 0 10px rgba(255,255,255,0.15)' : 'none',
-        transition:'all 0.2s',
+        transition: 'all 0.2s',
       }}>SPACE</div>
-      <span style={{ color: active ? '#888' : '#333', fontSize:11, transition:'color 0.2s' }}>
-        {active ? 'following cursor' : 'hold to follow'}
+      <span style={{ color: active ? '#888' : '#333', fontSize: 11, transition: 'color 0.2s' }}>
+        {active ? 'anchoring cursor' : 'hold to anchor'}
       </span>
     </div>
   );
@@ -399,8 +447,8 @@ function SpaceBadge({ active }) {
 // ── App ──────────────────────────────────────────────────────
 
 export default function App() {
-  const [layers, setLayers]     = useState(DEFAULT_SETTINGS.layers);
-  const [status, setStatus]     = useState('loading');
+  const [layers, setLayers] = useState(DEFAULT_SETTINGS.layers);
+  const [status, setStatus] = useState('loading');
   const [panelOpen, setPanelOpen] = useState(false);
   const [jsonView, setJsonView] = useState(false);
   const [followMouse, setFollowMouse] = useState(false);
@@ -418,9 +466,9 @@ export default function App() {
   // Spacebar listener
   useEffect(() => {
     const onDown = e => { if (e.code === 'Space') { e.preventDefault(); setFollowMouse(true); } };
-    const onUp   = e => { if (e.code === 'Space') setFollowMouse(false); };
+    const onUp = e => { if (e.code === 'Space') setFollowMouse(false); };
     window.addEventListener('keydown', onDown);
-    window.addEventListener('keyup',   onUp);
+    window.addEventListener('keyup', onUp);
     return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
   }, []);
 
@@ -447,62 +495,62 @@ export default function App() {
 
   return (
     <div style={{
-      background:'#0a0a0a', width:'100vw', height:'100vh',
-      display:'flex', alignItems:'center', justifyContent:'center',
-      fontFamily:"'Inter',sans-serif", overflow:'hidden', position:'relative',
+      background: '#0a0a0a', width: '100vw', height: '100vh',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontFamily: "'Inter',sans-serif", overflow: 'hidden', position: 'relative',  userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' 
     }}>
       {/* Full-screen canvas */}
-      <div style={{ position:'absolute', inset:0 }}>
+      <div style={{ position: 'absolute', inset: 0 }}>
         <ShapeBlur layers={layers} followMouse={followMouse} />
       </div>
 
       {/* Sliding panel */}
       <div style={{
-        position:'fixed', bottom:0, left:0, right:0, zIndex:50,
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
         transform: panelOpen ? 'translateY(0)' : 'translateY(100%)',
-        transition:'transform 0.35s cubic-bezier(0.32,0.72,0,1)',
-        padding:'0 16px 80px',
+        transition: 'transform 0.35s cubic-bezier(0.32,0.72,0,1)',
+        padding: '0 16px 80px',
       }}>
         <div style={{
-          maxWidth:680, margin:'0 auto',
-          background:'rgba(10,10,10,0.92)', border:'1px solid rgba(255,255,255,0.07)',
-          borderRadius:'18px 18px 0 0', padding:'16px',
-          backdropFilter:'blur(20px)',
-          display:'flex', flexDirection:'column', gap:12,
-          boxShadow:'0 -20px 60px rgba(0,0,0,0.6)',
+          maxWidth: 680, margin: '0 auto',
+          background: 'rgba(10,10,10,0.92)', border: '1px solid rgba(255,255,255,0.07)',
+          borderRadius: '18px 18px 0 0', padding: '16px',
+          backdropFilter: 'blur(20px)',
+          display: 'flex', flexDirection: 'column', gap: 12,
+          boxShadow: '0 -20px 60px rgba(0,0,0,0.6)',
         }}>
           {/* drag handle */}
-          <div style={{ display:'flex', justifyContent:'center', marginBottom:-4 }}>
-            <div style={{ width:32, height:3, borderRadius:2, background:'rgba(255,255,255,0.1)' }} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: -4 }}>
+            <div style={{ width: 32, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.1)' }} />
           </div>
 
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <StatusDot status={status} />
-            <div style={{ display:'flex', gap:8 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setJsonView(v => !v)} style={{
-                background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.08)',
-                color: jsonView ? '#fff' : '#555', borderRadius:8, padding:'4px 12px',
-                fontSize:11, cursor:'pointer', letterSpacing:'0.05em',
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+                color: jsonView ? '#fff' : '#555', borderRadius: 8, padding: '4px 12px',
+                fontSize: 11, cursor: 'pointer', letterSpacing: '0.05em',
               }}>{jsonView ? 'Hide JSON' : 'View JSON'}</button>
               <button onClick={handleReset} style={{
-                background:'rgba(255,60,60,0.08)', border:'1px solid rgba(255,60,60,0.15)',
-                color:'#ff4444', borderRadius:8, padding:'4px 12px',
-                fontSize:11, cursor:'pointer',
+                background: 'rgba(255,60,60,0.08)', border: '1px solid rgba(255,60,60,0.15)',
+                color: '#ff4444', borderRadius: 8, padding: '4px 12px',
+                fontSize: 11, cursor: 'pointer',
               }}>Reset</button>
             </div>
           </div>
 
           {jsonView && (
             <pre style={{
-              background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,255,255,0.06)',
-              borderRadius:10, padding:'12px 14px', margin:0,
-              color:'#4af', fontSize:11, lineHeight:1.6,
-              overflowX:'auto', maxHeight:160, overflowY:'auto',
-              fontFamily:"'Fira Code','Courier New',monospace",
+              background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 10, padding: '12px 14px', margin: 0,
+              color: '#4af', fontSize: 11, lineHeight: 1.6,
+              overflowX: 'auto', maxHeight: 160, overflowY: 'auto',
+              fontFamily: "'Fira Code','Courier New',monospace",
             }}>{jsonString}</pre>
           )}
 
-          <div style={{ display:'flex', gap:10 }}>
+          <div style={{ display: 'flex', gap: 10 }}>
             {layers.map((l, i) => (
               <LayerCard key={i} index={i} layer={l} onChange={v => handleChange(i, v)} />
             ))}
