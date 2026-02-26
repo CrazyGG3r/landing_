@@ -1,0 +1,1 @@
+export const SectionTitle = ({ children }) => <h2 className="heading-text" style={{ fontSize: "clamp(22px,3vw,30px)", marginBottom: "10px", lineHeight: 1.2 }}>{children}</h2>;
