@@ -1,0 +1,26 @@
+export const uniforms = `
+uniform vec2  u_mouse;
+uniform vec2  u_resolution;
+uniform float u_pixelRatio;
+uniform float u_shapeSize;
+uniform float u_roundness;
+uniform float u_borderSize;
+uniform float u_circleSize;
+uniform float u_circleEdge;
+uniform float u_impactSize;
+uniform float u_impactEdge;
+uniform vec3  u_colorA;
+uniform vec3  u_colorB;
+uniform vec3  u_colorC;
+uniform float u_spreadA;
+uniform float u_spreadB;
+uniform float u_spreadC;
+uniform float u_intensityA;
+uniform float u_intensityB;
+uniform float u_intensityC;
+uniform vec2  u_shapePos;
+uniform float u_noise;
+uniform float u_smoke;
+uniform float u_dither;
+uniform float u_time;
+`;

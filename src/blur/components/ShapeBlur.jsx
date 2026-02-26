@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { vertexShader, fragmentShader } from '../shaders.js';
+import { vertexShader, fragmentShader } from '../shaders/index.js';
 import { hexToRgb01 } from '../storage.js';
 
 export const ShapeBlur = ({
