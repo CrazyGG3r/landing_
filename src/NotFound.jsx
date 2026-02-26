@@ -60,7 +60,7 @@ const CONFIG = {
   
   // Layout configuration
   layout: {
-    textScale: 0.1,           // 0.1 = 10% of original size (90% smaller)
+    textScale: 0.14,           // 0.1 = 10% of original size (90% smaller)
     centerAlign: true,        // Center horizontally
   }
 };
