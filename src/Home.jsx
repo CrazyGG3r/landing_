@@ -6,7 +6,7 @@ import TextPressure from './hooks/TextPressure.jsx';
 // ============================================
 const CONFIG = {
   // Text content
-  text: 'BOLT FORGE',
+  text: 'BOLT FORGED',
   
   // Visual colors
   colors: {
@@ -60,7 +60,7 @@ const CONFIG = {
   
   // Layout configuration
   layout: {
-    textScale: 0.11,           // 0.1 = 10% of original size (90% smaller)
+    textScale: 0.14,           // 0.1 = 10% of original size (90% smaller)
     centerAlign: true,        // Center horizontally
   }
 };

@@ -66,6 +66,8 @@ export default function TextPressure({
 }) {
   const stageRef = useRef(null);
   const titleRef = useRef(null);
+  const touchActiveRef = useRef(false);
+  const lastTouchPositionRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     // ============================================
@@ -113,23 +115,33 @@ export default function TextPressure({
     // Double-tap prevention
     document.addEventListener('touchstart', preventDoubleTapZoom, { passive: false });
 
-    // Add CSS to prevent selection and dragging globally
+    // Add CSS to prevent selection and dragging globally with proper centering
     const style = document.createElement('style');
+    style.setAttribute('data-textpressure', 'true');
     style.textContent = `
       * {
         -webkit-touch-callout: none !important;
         -webkit-user-select: none !important;
         -webkit-tap-highlight-color: transparent !important;
-        -webkit-overflow-scrolling: touch !important;
-        touch-action: pan-y pinch-zoom !important; /* Allows vertical scroll but prevents horizontal swipe */
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
       
-      body {
+      html, body {
         overscroll-behavior: none !important;
         position: fixed !important;
         width: 100% !important;
         height: 100% !important;
         overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       
       #root {
@@ -137,11 +149,40 @@ export default function TextPressure({
         width: 100%;
         overflow: hidden;
         position: fixed;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      /* Ensure all content stays centered */
+      .textpressure-container {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      
+      /* Safe area insets for modern mobile devices */
+      @supports (padding: max(0px)) {
+        .textpressure-container {
+          padding-left: max(0px, env(safe-area-inset-left));
+          padding-right: max(0px, env(safe-area-inset-right));
+          padding-top: max(0px, env(safe-area-inset-top));
+          padding-bottom: max(0px, env(safe-area-inset-bottom));
+        }
       }
     `;
     document.head.appendChild(style);
 
-    // Handle orientation changes
+    // Handle orientation changes with perfect centering
     const handleOrientationChange = () => {
       // Small delay to let the browser finish orientation change
       setTimeout(() => {
@@ -150,8 +191,34 @@ export default function TextPressure({
             const { width: sw, height: sh } = stageRef.current.getBoundingClientRect();
             // Adjust base calculation based on orientation
             const isLandscape = window.innerWidth > window.innerHeight;
-            let ideal = Math.max(80, sw / (text.length * (isLandscape ? 0.1 : 0.12)));
+            let baseMultiplier = text.length * (isLandscape ? 0.1 : 0.12);
+            let ideal = Math.max(60, sw / baseMultiplier); // Reduced minimum for mobile
+            
+            // Apply scale factor
             ideal = ideal * layout.textScale;
+            
+            // Ensure text fits within viewport with padding
+            const maxWidth = sw * 0.9; // 90% of screen width
+            const maxHeight = sh * 0.4; // 40% of screen height for portrait, adjusted for landscape
+            
+            if (ideal > maxHeight) {
+              ideal = maxHeight;
+            }
+            
+            // Ensure text doesn't overflow width
+            const tempSpan = document.createElement('span');
+            tempSpan.style.fontSize = `${ideal}px`;
+            tempSpan.style.fontFamily = "'Compressa VF', sans-serif";
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.textContent = text;
+            document.body.appendChild(tempSpan);
+            const textWidth = tempSpan.getBoundingClientRect().width;
+            document.body.removeChild(tempSpan);
+            
+            if (textWidth > maxWidth) {
+              ideal = ideal * (maxWidth / textWidth);
+            }
             
             // Use GSAP if available, otherwise direct style
             if (window.gsap) {
@@ -199,15 +266,19 @@ export default function TextPressure({
 
     function setupAnimation(gsap) {
       // ============================================
-      // MOUSE/TOUCH TRACKING
+      // MOUSE/TOUCH TRACKING WITH PERSISTENCE
       // ============================================
       const mouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      
+      // Use shorter lerp duration for mobile for more responsiveness
+      const mobileLerpDuration = window.innerWidth < 768 ? 0.2 : animation.mouseLerpDuration;
+      
       const mouseLerpX = gsap.quickTo(mouse, 'x', { 
-        duration: animation.mouseLerpDuration, 
+        duration: mobileLerpDuration, 
         ease: 'power2.out' 
       });
       const mouseLerpY = gsap.quickTo(mouse, 'y', { 
-        duration: animation.mouseLerpDuration, 
+        duration: mobileLerpDuration, 
         ease: 'power2.out' 
       });
 
@@ -216,16 +287,60 @@ export default function TextPressure({
         mouseLerpY(e.clientY);
       };
 
-      const handleTouchMove = (e) => {
+      const handleTouchStart = (e) => {
+        touchActiveRef.current = true;
         const touch = e.touches[0];
         if (touch) {
+          lastTouchPositionRef.current = { x: touch.clientX, y: touch.clientY };
           mouseLerpX(touch.clientX);
           mouseLerpY(touch.clientY);
         }
       };
 
+      const handleTouchMove = (e) => {
+        e.preventDefault(); // Prevent scrolling while touching
+        const touch = e.touches[0];
+        if (touch) {
+          lastTouchPositionRef.current = { x: touch.clientX, y: touch.clientY };
+          mouseLerpX(touch.clientX);
+          mouseLerpY(touch.clientY);
+        }
+      };
+
+      const handleTouchEnd = (e) => {
+        touchActiveRef.current = false;
+        // Gradually return to center when touch ends
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        gsap.to(mouse, {
+          x: centerX,
+          y: centerY,
+          duration: 0.8,
+          ease: 'power2.out',
+          onUpdate: () => {
+            mouseLerpX(mouse.x);
+            mouseLerpY(mouse.y);
+          }
+        });
+      };
+
+      const handleTouchCancel = (e) => {
+        touchActiveRef.current = false;
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        gsap.to(mouse, {
+          x: centerX,
+          y: centerY,
+          duration: 0.5,
+          ease: 'power2.out'
+        });
+      };
+
       window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('touchmove', handleTouchMove, { passive: false }); // Changed to non-passive for better control
+      window.addEventListener('touchstart', handleTouchStart, { passive: false });
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', handleTouchEnd, { passive: false });
+      window.addEventListener('touchcancel', handleTouchCancel, { passive: false });
 
       // ============================================
       // CREATE CHARACTER SPANS - WITH SPACE PRESERVATION
@@ -303,18 +418,41 @@ export default function TextPressure({
       const setFontSize = () => {
         const { width: sw, height: sh } = stage.getBoundingClientRect();
         const isLandscape = window.innerWidth > window.innerHeight;
+        const isMobile = window.innerWidth < 768;
         
-        // Adjust base calculation for different orientations
+        // Adjust base calculation for different orientations and devices
         let baseMultiplier = text.length * (isLandscape ? 0.1 : 0.12);
-        let ideal = Math.max(80, sw / baseMultiplier);
+        if (isMobile) {
+          baseMultiplier = text.length * (isLandscape ? 0.15 : 0.18); // Smaller text on mobile
+        }
+        
+        let ideal = Math.max(isMobile ? 40 : 80, sw / baseMultiplier);
         
         // Apply scale factor
         ideal = ideal * layout.textScale;
         
-        // Ensure text doesn't get too tall in portrait
-        const maxHeight = sh * 0.3;
+        // Ensure text fits within viewport with padding
+        const maxWidth = sw * (isMobile ? 0.85 : 0.9);
+        const maxHeight = sh * (isMobile ? 0.3 : 0.4);
+        
         if (ideal > maxHeight) {
           ideal = maxHeight;
+        }
+        
+        // Check width overflow
+        const tempSpan = document.createElement('span');
+        tempSpan.style.fontSize = `${ideal}px`;
+        tempSpan.style.fontFamily = "'Compressa VF', sans-serif";
+        tempSpan.style.visibility = 'hidden';
+        tempSpan.style.position = 'absolute';
+        tempSpan.style.whiteSpace = 'nowrap';
+        tempSpan.textContent = text;
+        document.body.appendChild(tempSpan);
+        const textWidth = tempSpan.getBoundingClientRect().width;
+        document.body.removeChild(tempSpan);
+        
+        if (textWidth > maxWidth) {
+          ideal = ideal * (maxWidth / textWidth);
         }
         
         gsap.set(titleEl, { fontSize: ideal, lineHeight: 0.8 });
@@ -470,7 +608,10 @@ export default function TextPressure({
       // ============================================
       return () => {
         window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('touchstart', handleTouchStart);
         window.removeEventListener('touchmove', handleTouchMove);
+        window.removeEventListener('touchend', handleTouchEnd);
+        window.removeEventListener('touchcancel', handleTouchCancel);
         window.removeEventListener('resize', handleResize);
         gsap.ticker.remove(updateAnimation);
         gsap.killTweensOf('*');
@@ -509,10 +650,8 @@ export default function TextPressure({
   return (
     <div
       ref={stageRef}
-      className={className}
+      className={`textpressure-container ${className}`}
       style={{
-        height: "100vh",
-        width: "100vw",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
@@ -521,11 +660,15 @@ export default function TextPressure({
         color: "white",
         fontFamily: "system-ui",
         overflow: "hidden",
-        position: "fixed", // Changed to fixed for mobile
+        position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
+        width: "100vw",
+        height: "100vh",
+        margin: 0,
+        padding: 0,
         ...style,
       }}
     >
@@ -544,12 +687,17 @@ export default function TextPressure({
           width: "100%",
           textAlign: layout.centerAlign ? "center" : "left",
           display: "flex",
+          flexWrap: "nowrap",
           justifyContent: layout.centerAlign ? "center" : "space-between",
+          alignItems: "center",
           position: "relative",
           zIndex: 10,
           color: colors.text,
           gap: '0.1em',
-          pointerEvents: 'none', // Prevents text selection on mobile
+          pointerEvents: 'none',
+          transform: 'translateZ(0)', // Force hardware acceleration
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
         }}
       >
         {text}
