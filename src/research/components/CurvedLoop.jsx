@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, useId } from "react";  // Already has useId
+import { useState, useRef, useCallback, useEffect, useMemo, useId } from "react";
 import { useResizeObserver } from "../hooks/useResizeObserver.js";
 import { useMobileDetect } from "../hooks/useMobileDetect.js";
 
@@ -19,6 +19,7 @@ export const CurvedLoop = ({
   const svgRef = useRef(null);
   const measureRef = useRef(null);
   const textPathRef = useRef(null);
+  const containerRef = useRef(null);
   const spacingRef = useRef(0);
   const offsetRef = useRef(0);
   const dragRef = useRef(false);
@@ -26,6 +27,7 @@ export const CurvedLoop = ({
   const dirRef = useRef(direction);
   const velRef = useRef(0);
   const lastTimeRef = useRef(0);
+  const animationFrameRef = useRef(null);
   const [ready, setReady] = useState(false);
 
   const pathD = isMobile
@@ -39,85 +41,200 @@ export const CurvedLoop = ({
     const svg = svgRef.current;
     if (!m || !svg) return false;
 
+    // Force a reflow on iOS
+    m.getBBox();
+    
     const spacing = m.getComputedTextLength();
     const rect = svg.getBoundingClientRect();
     if (!spacing || !rect.width) return false;
 
     spacingRef.current = spacing;
     offsetRef.current = -spacing;
-    totalTextRef.current = Array(Math.ceil((rect.width + 600) / spacing) + 4).fill(text).join('');
+    
+    // Calculate required text length more efficiently
+    const requiredLength = Math.ceil((rect.width + 600) / spacing) + 4;
+    totalTextRef.current = Array(requiredLength).fill(text).join('');
+    
     setReady(true);
     return true;
   }, [text]);
 
+  // Separate animation effect
   useEffect(() => {
-    let frame;
-    const started = measureAndPrime();
-    if (!started) return undefined;
+    if (!ready) return undefined;
 
-    const step = now => {
+    const step = (now) => {
       if (!dragRef.current && textPathRef.current && spacingRef.current) {
         const dt = lastTimeRef.current ? Math.min(2.5, (now - lastTimeRef.current) / 16.6667) : 1;
-        const delta = (dirRef.current === "right" ? speed : -speed) * dt;
-        let o = offsetRef.current + delta;
-        if (o <= -spacingRef.current) o += spacingRef.current;
-        if (o > 0) o -= spacingRef.current;
+        
+        // Smoother delta calculation
+        const baseDelta = (dirRef.current === "right" ? speed : -speed) * dt;
+        let o = offsetRef.current + baseDelta;
+        
+        // Use while loop for better wrap-around
+        while (o <= -spacingRef.current) {
+          o += spacingRef.current;
+        }
+        while (o > 0) {
+          o -= spacingRef.current;
+        }
+        
         offsetRef.current = o;
-        textPathRef.current.setAttribute("startOffset", `${o}px`);
+        
+        // Use requestAnimationFrame to batch DOM updates
+        if (textPathRef.current) {
+          textPathRef.current.setAttribute("startOffset", `${o}px`);
+        }
       }
       lastTimeRef.current = now;
-      frame = requestAnimationFrame(step);
+      animationFrameRef.current = requestAnimationFrame(step);
     };
 
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [measureAndPrime, speed]);
+    animationFrameRef.current = requestAnimationFrame(step);
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [ready, speed]);
 
-  useResizeObserver(svgRef, () => {
-    measureAndPrime();
-  });
+  // Resize observer with debounce for iOS
+  useEffect(() => {
+    let timeoutId;
+    
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        measureAndPrime();
+      }, 100);
+    };
 
-  const onPointerDown = e => {
+    const observer = new ResizeObserver(handleResize);
+    if (svgRef.current) {
+      observer.observe(svgRef.current);
+    }
+
+    return () => {
+      clearTimeout(timeoutId);
+      observer.disconnect();
+    };
+  }, [measureAndPrime]);
+
+  // Touch event handlers with passive option for iOS
+  const onPointerDown = useCallback((e) => {
     if (!interactive) return;
+    e.preventDefault(); // Prevent default touch behavior
     dragRef.current = true;
-    lastXRef.current = e.clientX;
+    lastXRef.current = e.clientX || (e.touches && e.touches[0].clientX);
     velRef.current = 0;
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
+    
+    // Cancel animation frame during drag for smoother interaction
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    
+    if (e.currentTarget.setPointerCapture) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+  }, [interactive]);
 
-  const onPointerMove = e => {
+  const onPointerMove = useCallback((e) => {
     if (!interactive || !dragRef.current || !textPathRef.current) return;
-    const dx = e.clientX - lastXRef.current;
-    lastXRef.current = e.clientX;
-    velRef.current = dx;
+    e.preventDefault();
+    
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    if (!clientX) return;
+    
+    const dx = clientX - lastXRef.current;
+    lastXRef.current = clientX;
+    velRef.current = dx * 0.5; // Smooth velocity
+    
     let o = offsetRef.current + dx;
-    if (o <= -spacingRef.current) o += spacingRef.current;
-    if (o > 0) o -= spacingRef.current;
+    
+    // Efficient wrap-around
+    while (o <= -spacingRef.current) {
+      o += spacingRef.current;
+    }
+    while (o > 0) {
+      o -= spacingRef.current;
+    }
+    
     offsetRef.current = o;
     textPathRef.current.setAttribute('startOffset', o + 'px');
-  };
+  }, [interactive]);
 
-  const endDrag = () => {
+  const endDrag = useCallback(() => {
     if (!interactive || !dragRef.current) return;
     dragRef.current = false;
-    dirRef.current = velRef.current > 0 ? 'right' : 'left';
-  };
+    
+    // Update direction based on velocity
+    if (Math.abs(velRef.current) > 0.5) {
+      dirRef.current = velRef.current > 0 ? 'right' : 'left';
+    }
+    
+    // Restart animation
+    lastTimeRef.current = 0;
+    if (ready) {
+      animationFrameRef.current = requestAnimationFrame(function step(now) {
+        if (!dragRef.current && textPathRef.current && spacingRef.current) {
+          const dt = lastTimeRef.current ? Math.min(2.5, (now - lastTimeRef.current) / 16.6667) : 1;
+          const delta = (dirRef.current === "right" ? speed : -speed) * dt;
+          let o = offsetRef.current + delta;
+          
+          while (o <= -spacingRef.current) {
+            o += spacingRef.current;
+          }
+          while (o > 0) {
+            o -= spacingRef.current;
+          }
+          
+          offsetRef.current = o;
+          textPathRef.current.setAttribute("startOffset", `${o}px`);
+        }
+        lastTimeRef.current = now;
+        animationFrameRef.current = requestAnimationFrame(step);
+      });
+    }
+  }, [interactive, ready, speed]);
+
+  // iOS specific optimizations
+  useEffect(() => {
+    if (isMobile && containerRef.current) {
+      // Add passive: false to allow preventDefault
+      const options = { passive: false };
+      
+      containerRef.current.addEventListener('touchstart', onPointerDown, options);
+      containerRef.current.addEventListener('touchmove', onPointerMove, options);
+      containerRef.current.addEventListener('touchend', endDrag, options);
+      containerRef.current.addEventListener('touchcancel', endDrag, options);
+      
+      return () => {
+        if (containerRef.current) {
+          containerRef.current.removeEventListener('touchstart', onPointerDown);
+          containerRef.current.removeEventListener('touchmove', onPointerMove);
+          containerRef.current.removeEventListener('touchend', endDrag);
+          containerRef.current.removeEventListener('touchcancel', endDrag);
+        }
+      };
+    }
+  }, [isMobile, onPointerDown, onPointerMove, endDrag]);
 
   return (
     <div
+      ref={containerRef}
       style={{
         width: '100%',
         cursor: interactive ? (isMobile ? 'pointer' : 'grab') : 'auto',
         visibility: ready ? 'visible' : 'hidden',
-        touchAction: 'pan-y pinch-zoom',
+        touchAction: 'pan-y pinch-zoom', // Keep vertical scroll
+        WebkitTouchCallout: 'none', // Disable iOS callout
+        WebkitUserSelect: 'none', // Disable selection on iOS
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerLeave={endDrag}
-      onTouchStart={isMobile ? onPointerDown : undefined}
-      onTouchMove={isMobile ? onPointerMove : undefined}
-      onTouchEnd={isMobile ? endDrag : undefined}
+      onPointerDown={!isMobile ? onPointerDown : undefined}
+      onPointerMove={!isMobile ? onPointerMove : undefined}
+      onPointerUp={!isMobile ? endDrag : undefined}
+      onPointerLeave={!isMobile ? endDrag : undefined}
     >
       <svg
         ref={svgRef}
@@ -132,17 +249,41 @@ export const CurvedLoop = ({
           fontWeight: 700,
           textTransform: 'uppercase',
           lineHeight: 1,
-          opacity
+          opacity,
+          transform: 'translateZ(0)', // Force GPU acceleration
+          WebkitBackfaceVisibility: 'hidden', // iOS optimization
         }}
         viewBox="0 0 1440 120"
       >
-        <text ref={measureRef} xmlSpace="preserve" style={{ visibility: 'hidden', opacity: 0, pointerEvents: 'none' }}>{text}</text>
+        <text 
+          ref={measureRef} 
+          xmlSpace="preserve" 
+          style={{ 
+            visibility: 'hidden', 
+            opacity: 0, 
+            pointerEvents: 'none',
+            fontSize: isMobile ? '2rem' : '3.5rem', // Match main text size
+          }}
+        >
+          {text}
+        </text>
         <defs>
           <path id={pathId} d={pathD} fill="none" stroke="transparent" />
         </defs>
         {ready && (
-          <text fontWeight="bold" xmlSpace="preserve">
-            <textPath ref={textPathRef} href={`#${pathId}`} startOffset={offsetRef.current + 'px'} xmlSpace="preserve">
+          <text 
+            fontWeight="bold" 
+            xmlSpace="preserve"
+            style={{
+              transform: 'translateZ(0)', // GPU acceleration
+            }}
+          >
+            <textPath 
+              ref={textPathRef} 
+              href={`#${pathId}`} 
+              startOffset={offsetRef.current + 'px'} 
+              xmlSpace="preserve"
+            >
               {totalTextRef.current}
             </textPath>
           </text>
