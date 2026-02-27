@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Blur from "./blur";
 import Home from "./Home";  // Remove .jsx extension (optional but cleaner)
-import Research from "./research";
+import Research from "./assignment/research";
 import NotFound from "./NotFound";
 
 export default function App() {
@@ -9,7 +9,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />  {/* Now uses the imported Home */}
       <Route path="/blur" element={<Blur />} />
-      <Route path="/research" element={<Research />} />
+      <Route path="/assignment/research" element={<Research />} />
 
       {/* Must be last */}
       <Route path="*" element={<NotFound />} />

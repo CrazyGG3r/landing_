@@ -4,7 +4,7 @@ import { T, cardBase } from "../../constants/designTokens.js";
 import { CHART_DATA, PERFORMANCE_DATA, STAT_CARDS } from "../../constants/data.js";
 import { useIntersectionReveal } from "../../hooks/useIntersectionReveal.js";
 import { useMobileDetect } from "../../hooks/useMobileDetect.js";
-import { DotGrid } from "../DotGrid";
+import { DotGrid } from "../DotGrid.jsx";
 import { StatCard } from "../cards/StatCard.jsx";
 import { SectionEyebrow } from "../ui/SectionEyebrow.jsx";
 import { SectionSub } from "../ui/SectionSub.jsx";

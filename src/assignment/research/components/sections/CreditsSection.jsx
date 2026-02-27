@@ -61,10 +61,10 @@ export const CreditsSection = () => {
               pulsating={false}
             />
             <div style={{ marginBottom: "24px" }}>
-              <span style={{ fontSize: isMobile ? "12px" : "14px", fontWeight: "500", color: "#b0b5b5", textTransform: "uppercase", letterSpacing: "0.2em", background: "rgba(255,255,255,0.03)", padding: isMobile ? "4px 12px" : "4px 16px", borderRadius: "30px", border: `1px solid ${T.borderHi}`, display: "inline-block" }}>BSE-8A · RESEARCH WORK</span>
+              <span style={{ fontSize: isMobile ? "12px" : "14px", fontWeight: "500", color: "#b0b5b5", textTransform: "uppercase", letterSpacing: "0.2em", background: "rgba(255,255,255,0.03)", padding: isMobile ? "4px 12px" : "4px 16px", borderRadius: "30px", border: `1px solid ${T.borderHi}`, display: "inline-block" }}>CO-FOUNDER · GRAPHICS GENERALIST</span>
             </div>
             <div className="heading-text" style={{ fontSize: isMobile ? "clamp(32px,8vw,42px)" : "clamp(42px,6vw,58px)", marginBottom: "16px", lineHeight: 1.1 }}>Muhammad Uzair</div>
-            <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: "400", color: "#b0b5b5", marginBottom: "24px", fontFamily: `'DM Sans', monospace`, letterSpacing: "0.02em" }}>22K-5176</div>
+            <div style={{ fontSize: isMobile ? "20px" : "24px", fontWeight: "400", color: "#b0b5b5", marginBottom: "24px", fontFamily: `'DM Sans', monospace`, letterSpacing: "0.02em" }}>22K-5176 | BSE-8A</div>
             <div style={{ height: "1px", width: "120px", margin: "24px auto", background: `linear-gradient(90deg,transparent,${T.mutedHi},transparent)` }} />
             <div style={{ fontSize: isMobile ? "13px" : "14px", color: "#c8cccc", lineHeight: 1.8, maxWidth: "400px", margin: "0 auto", padding: isMobile ? "0 12px" : "0" }}>
               <p>Research compilation, interactive visualization design, and implementation of performance optimization case studies.</p>

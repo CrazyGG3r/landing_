@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { T } from "./constants/designTokens.js";
 import { GLOBAL_CSS } from "./styles/global.css.js";
 import { useFontLoader } from "./hooks/useFontLoader.js";
@@ -133,10 +134,10 @@ export default function Research() {
     let ticking = false;
     const handleScroll = () => {
       if (transitionRef.current) return;
-      
+
       const sp = window.scrollY + headerHeight + 8;
       let next = "overview";
-      
+
       if (sectionRefs.research.current && sp >= sectionRefs.research.current.offsetTop - (isMobile ? 150 : 200)) {
         next = "research";
       } else if (sectionRefs.timeline.current && sp >= sectionRefs.timeline.current.offsetTop - (isMobile ? 150 : 200)) {
@@ -160,7 +161,7 @@ export default function Research() {
 
     window.addEventListener("scroll", onScroll, { passive: true });
     handleScroll();
-    
+
     return () => window.removeEventListener("scroll", onScroll);
   }, [headerHeight, isMobile]);
 
@@ -217,7 +218,18 @@ export default function Research() {
           flexWrap: "wrap",
         }}>
           <span style={{ fontSize: isMobile ? "10px" : "11px", color: "#3a3f3f", letterSpacing: "0.08em", fontFamily: T.fontSans }}>© {new Date().getFullYear()}</span>
-          <span className="heading-text" style={{ fontSize: isMobile ? "10px" : "11px", letterSpacing: "0.12em" }}>BOLTFORGED</span>
+          <Link to="/" style={{ textDecoration: "none" }}>
+            <span
+              className="heading-text"
+              style={{
+                fontSize: isMobile ? "10px" : "11px",
+                letterSpacing: "0.12em",
+                cursor: "pointer"
+              }}
+            >
+              BOLTFORGED
+            </span>
+          </Link>
           <span style={{ fontSize: isMobile ? "10px" : "11px", color: "#3a3f3f", letterSpacing: "0.08em", fontFamily: T.fontSans }}>· All Rights Reserved</span>
         </div>
       </div>
