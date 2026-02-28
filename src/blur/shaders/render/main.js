@@ -5,7 +5,9 @@ import { noiseFunctions } from '../lens/noise.js';
 import { smokeFunctions } from '../lens/smoke.js';
 import { ditherFunctions } from '../lens/dither.js';
 import { impactFunctions } from '../lens/impact.js';
-import { activeSubject } from '../subjects/index.js';
+import { subjectFunctions } from '../subjects/index.js';
+import { layerFunctions } from '../canvas/layers.js';
+import { canvasManagerFunctions } from '../canvas/manager.js';
 
 export const fragmentShader = `
 ${uniforms}
@@ -16,81 +18,40 @@ ${noiseFunctions}
 ${smokeFunctions}
 ${ditherFunctions}
 ${impactFunctions}
-
-// SUBJECT - easily swappable!
-${activeSubject}
+${subjectFunctions}
+${layerFunctions}
+${canvasManagerFunctions}
 
 void main() {
     vec2 st = st0 + 0.5;
-    vec2 relMouse = mx * vec2(1., -1.) + 0.5;
-    vec2 shapeOff = u_shapePos - 0.5;
-    
+    vec2 relMouse = mx * vec2(1.0, -1.0) + 0.5;
+    vec2 worldPos = st - (u_shapePos - 0.5);
+
     float mInf = 1.0 - smoothstep(0.0, 0.45, length(st - relMouse));
     float baseEdge = fill(sdCircle(st, relMouse), u_impactSize, u_impactEdge);
 
-    // Lens effects
     float noiseEdge = 0.0;
-    if(u_noise > 0.0) {
+    if (u_noise > 0.0) {
         float n = vnoise(st * 16.0 + u_time * 2.0) * 2.0 - 1.0;
         noiseEdge = n * u_noise * 0.36 * mInf;
     }
-    
-    float smokeEdge = 0.0, smokeVol = 0.0;
-    if(u_smoke > 0.0) {
-        vec2 p = (st - shapeOff - 0.5) * 3.5;
+
+    float smokeEdge = 0.0;
+    float smokeVol = 0.0;
+    if (u_smoke > 0.0) {
+        vec2 p = (st - (u_shapePos - 0.5) - 0.5) * 3.5;
         float sw = smokeWarp(p);
         float df = 1.0 - smoothstep(0.0, 0.5 * max(mInf, 0.05), length(st - relMouse));
         smokeEdge = (sw - 0.5) * u_smoke * 0.6 * mInf;
         smokeVol = pow(sw, 2.5) * df * u_smoke;
     }
-    
-    float shift = mInf * 0.03;
-    vec2 stOff = st - shapeOff;
+
+    vec3 col;
+    float a;
     float extra = noiseEdge + smokeEdge;
-    
-    float eA = max(baseEdge + u_spreadA * mInf * 0.14 + extra, 0.001);
-    float eB = max(baseEdge + u_spreadB * mInf * 0.14 + extra, 0.001);
-    float eC = max(baseEdge + u_spreadC * mInf * 0.14 + extra, 0.001);
-    
-    // SUBJECTS - using the swappable sdSubject function
-    float maskA = strokeEdge(
-        sdSubject(stOff + vec2(shift, 0), 0.9), 
-        0.0, u_borderSize, eA
-    ) * 4.0 * u_intensityA;
-    
-    float maskB = strokeEdge(
-        sdSubject(stOff, 1.0), 
-        0.0, u_borderSize, eB
-    ) * 4.0 * u_intensityB;
-    
-    float maskC = strokeEdge(
-        sdSubject(stOff - vec2(shift, 0), 1.1), 
-        0.0, u_borderSize, eC
-    ) * 4.0 * u_intensityC;
-    
-    float white = strokeEdge(
-        sdSubject(stOff, 1.0), 
-        0.0, u_borderSize, baseEdge
-    ) * 4.0;
-    
-    // Color mixing
-    vec3 col = u_colorA * maskA + u_colorB * maskB + u_colorC * maskC;
-    float blend = clamp(mInf * 2.0, 0.0, 1.0);
-    col = mix(vec3(1.0) * white, col, blend);
-    
-    // Alpha
-    float rgbAlpha = max(maskA, max(maskB, maskC));
-    float whiteAlpha = white;
-    float a = mix(whiteAlpha, rgbAlpha, blend);
-    
-    // Additional effects
-    if(u_smoke > 0.0) {
-        vec3 st2 = mix(u_colorB, vec3(1.0), 0.25);
-        col += st2 * smokeVol * 0.55;
-        a = max(a, smokeVol * 0.70);
-    }
-    
-    if(u_dither > 0.0 && a > 0.001) {
+    renderCanvas(worldPos, relMouse, mInf, baseEdge, extra, smokeVol, col, a);
+
+    if (u_dither > 0.0 && a > 0.001) {
         vec2 spx = gl_FragCoord.xy / u_pixelRatio;
         vec2 dpx = spx + vec2(
             floor(mod(u_time * 7.0, 4.0)),
@@ -101,7 +62,7 @@ void main() {
         col = mix(col, col * q, u_dither);
         a = mix(a, a * q, u_dither);
     }
-    
+
     gl_FragColor = vec4(clamp(col, 0.0, 1.0), clamp(a, 0.0, 1.0));
 }
 `;

@@ -1,10 +1,39 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { vertexShader, fragmentShader } from '../shaders/index.js';
 import { hexToRgb01 } from '../storage.js';
+import { SHAPE_TYPES, BLEND_MODES, normalizeSubjectConfig } from '../shaders/subjects/index.js';
+
+const MAX_SUBJECTS = 8;
+
+const defaultSubjectFromLayers = layers => ({
+  type: SHAPE_TYPES.STAR,
+  pos: [0.5, 0.5],
+  scale: [1.0, 1.0],
+  rotation: 0,
+  size: 1.0,
+  roundness: 1.0,
+  opacity: 1.0,
+  blendMode: BLEND_MODES.NORMAL,
+  z: 0,
+  visible: true,
+  animType: 0,
+  animSpeed: 0,
+  layerA: { ...layers[0] },
+  layerB: { ...layers[1] },
+  layerC: { ...layers[2] },
+});
+
+function buildSubjectList(subjects, layers) {
+  const fallback = defaultSubjectFromLayers(layers);
+  const source = Array.isArray(subjects) && subjects.length > 0 ? subjects : [fallback];
+  return source.slice(0, MAX_SUBJECTS).map(subject => normalizeSubjectConfig(subject, fallback));
+}
 
 export const ShapeBlur = ({
   layers,
+  subjects,
+  debugSubjects = false,
   followMouse,
   impactSize, impactEdge,
   noiseEnabled, noiseIntensity,
@@ -17,13 +46,16 @@ export const ShapeBlur = ({
 
   useEffect(() => {
     stateRef.current = {
+      layers,
       followMouse,
+      subjects,
+      debugSubjects,
       impactSize, impactEdge,
       noiseEnabled, noiseIntensity,
       smokeEnabled, smokeIntensity,
       ditherEnabled, ditherIntensity,
     };
-  }, [followMouse, impactSize, impactEdge, noiseEnabled, noiseIntensity, smokeEnabled, smokeIntensity, ditherEnabled, ditherIntensity]);
+  }, [layers, followMouse, subjects, debugSubjects, impactSize, impactEdge, noiseEnabled, noiseIntensity, smokeEnabled, smokeIntensity, ditherEnabled, ditherIntensity]);
 
   // Three.js init — runs once
   useEffect(() => {
@@ -48,6 +80,59 @@ export const ShapeBlur = ({
     const [rA, gA, bA] = hexToRgb01(layers[0].color);
     const [rB, gB, bB] = hexToRgb01(layers[1].color);
     const [rC, gC, bC] = hexToRgb01(layers[2].color);
+    const subjectList = buildSubjectList(stateRef.current.subjects, stateRef.current.layers ?? layers);
+
+    const type = new Int32Array(MAX_SUBJECTS);
+    const pos = Array.from({ length: MAX_SUBJECTS }, () => new THREE.Vector2(0.5, 0.5));
+    const scale = Array.from({ length: MAX_SUBJECTS }, () => new THREE.Vector2(1, 1));
+    const rotation = new Float32Array(MAX_SUBJECTS);
+    const size = new Float32Array(MAX_SUBJECTS);
+    const roundness = new Float32Array(MAX_SUBJECTS);
+    const opacity = new Float32Array(MAX_SUBJECTS);
+    const blendMode = new Int32Array(MAX_SUBJECTS);
+    const z = new Float32Array(MAX_SUBJECTS);
+    const visible = new Float32Array(MAX_SUBJECTS);
+    const colorA = Array.from({ length: MAX_SUBJECTS }, () => new THREE.Vector3());
+    const colorB = Array.from({ length: MAX_SUBJECTS }, () => new THREE.Vector3());
+    const colorC = Array.from({ length: MAX_SUBJECTS }, () => new THREE.Vector3());
+    const spreadA = new Float32Array(MAX_SUBJECTS);
+    const spreadB = new Float32Array(MAX_SUBJECTS);
+    const spreadC = new Float32Array(MAX_SUBJECTS);
+    const intensityA = new Float32Array(MAX_SUBJECTS);
+    const intensityB = new Float32Array(MAX_SUBJECTS);
+    const intensityC = new Float32Array(MAX_SUBJECTS);
+    const animTime = new Float32Array(MAX_SUBJECTS);
+    const animType = new Int32Array(MAX_SUBJECTS);
+    const animSpeed = new Float32Array(MAX_SUBJECTS);
+
+    subjectList.forEach((subject, i) => {
+      const [aR, aG, aB] = hexToRgb01((subject.layerA ?? layers[0]).color);
+      const [bR, bG, bB] = hexToRgb01((subject.layerB ?? layers[1]).color);
+      const [cR, cG, cB] = hexToRgb01((subject.layerC ?? layers[2]).color);
+
+      type[i] = subject.type;
+      pos[i].set(subject.pos?.[0] ?? 0.5, subject.pos?.[1] ?? 0.5);
+      scale[i].set(subject.scale?.[0] ?? 1, subject.scale?.[1] ?? 1);
+      rotation[i] = subject.rotation ?? 0;
+      size[i] = subject.size ?? 1.0;
+      roundness[i] = subject.roundness ?? 1.0;
+      opacity[i] = subject.opacity ?? 1.0;
+      blendMode[i] = subject.blendMode ?? BLEND_MODES.NORMAL;
+      z[i] = subject.z ?? 0;
+      visible[i] = subject.visible === false ? 0 : 1;
+
+      colorA[i].set(aR, aG, aB);
+      colorB[i].set(bR, bG, bB);
+      colorC[i].set(cR, cG, cB);
+      spreadA[i] = subject.layerA?.spread ?? layers[0].spread;
+      spreadB[i] = subject.layerB?.spread ?? layers[1].spread;
+      spreadC[i] = subject.layerC?.spread ?? layers[2].spread;
+      intensityA[i] = subject.layerA?.intensity ?? layers[0].intensity;
+      intensityB[i] = subject.layerB?.intensity ?? layers[1].intensity;
+      intensityC[i] = subject.layerC?.intensity ?? layers[2].intensity;
+      animType[i] = subject.animType ?? 0;
+      animSpeed[i] = subject.animSpeed ?? 0;
+    });
 
     const material = new THREE.ShaderMaterial({
       vertexShader,
@@ -77,6 +162,30 @@ export const ShapeBlur = ({
         u_smoke: { value: 0 },
         u_dither: { value: 0 },
         u_time: { value: 0 },
+        u_debugSubjects: { value: stateRef.current.debugSubjects ? 1 : 0 },
+        u_subjectCount: { value: subjectList.length },
+        u_subjectType: { value: type },
+        u_subjectPos: { value: pos },
+        u_subjectScale: { value: scale },
+        u_subjectRotation: { value: rotation },
+        u_subjectSize: { value: size },
+        u_subjectRoundness: { value: roundness },
+        u_subjectOpacity: { value: opacity },
+        u_subjectBlendMode: { value: blendMode },
+        u_subjectZ: { value: z },
+        u_subjectVisible: { value: visible },
+        u_subjectColorA: { value: colorA },
+        u_subjectColorB: { value: colorB },
+        u_subjectColorC: { value: colorC },
+        u_subjectSpreadA: { value: spreadA },
+        u_subjectSpreadB: { value: spreadB },
+        u_subjectSpreadC: { value: spreadC },
+        u_subjectIntensityA: { value: intensityA },
+        u_subjectIntensityB: { value: intensityB },
+        u_subjectIntensityC: { value: intensityC },
+        u_animTime: { value: animTime },
+        u_animType: { value: animType },
+        u_animSpeed: { value: animSpeed },
       },
       transparent: true
     });
@@ -143,6 +252,39 @@ export const ShapeBlur = ({
       material.uniforms.u_smoke.value = sr.smokeEnabled ? (sr.smokeIntensity ?? 0.6) : 0;
       material.uniforms.u_dither.value = sr.ditherEnabled ? sr.ditherIntensity : 0;
       material.uniforms.u_time.value = time;
+      material.uniforms.u_debugSubjects.value = sr.debugSubjects ? 1 : 0;
+
+      const currentLayers = sr.layers ?? layers;
+      const activeSubjects = buildSubjectList(sr.subjects, currentLayers);
+      material.uniforms.u_subjectCount.value = activeSubjects.length;
+      activeSubjects.forEach((subject, i) => {
+        material.uniforms.u_subjectType.value[i] = subject.type;
+        material.uniforms.u_subjectPos.value[i].set(subject.pos?.[0] ?? 0.5, subject.pos?.[1] ?? 0.5);
+        material.uniforms.u_subjectScale.value[i].set(subject.scale?.[0] ?? 1, subject.scale?.[1] ?? 1);
+        material.uniforms.u_subjectRotation.value[i] = subject.rotation ?? 0;
+        material.uniforms.u_subjectSize.value[i] = subject.size ?? 1.0;
+        material.uniforms.u_subjectRoundness.value[i] = subject.roundness ?? 1.0;
+        material.uniforms.u_subjectOpacity.value[i] = subject.opacity ?? 1.0;
+        material.uniforms.u_subjectBlendMode.value[i] = subject.blendMode ?? BLEND_MODES.NORMAL;
+        material.uniforms.u_subjectZ.value[i] = subject.z ?? 0;
+        material.uniforms.u_subjectVisible.value[i] = subject.visible === false ? 0 : 1;
+        material.uniforms.u_animTime.value[i] = time;
+        material.uniforms.u_animType.value[i] = subject.animType ?? 0;
+        material.uniforms.u_animSpeed.value[i] = subject.animSpeed ?? 0;
+
+        const [aR, aG, aB] = hexToRgb01((subject.layerA ?? currentLayers[0]).color);
+        const [bR, bG, bB] = hexToRgb01((subject.layerB ?? currentLayers[1]).color);
+        const [cR, cG, cB] = hexToRgb01((subject.layerC ?? currentLayers[2]).color);
+        material.uniforms.u_subjectColorA.value[i].set(aR, aG, aB);
+        material.uniforms.u_subjectColorB.value[i].set(bR, bG, bB);
+        material.uniforms.u_subjectColorC.value[i].set(cR, cG, cB);
+        material.uniforms.u_subjectSpreadA.value[i] = subject.layerA?.spread ?? currentLayers[0].spread;
+        material.uniforms.u_subjectSpreadB.value[i] = subject.layerB?.spread ?? currentLayers[1].spread;
+        material.uniforms.u_subjectSpreadC.value[i] = subject.layerC?.spread ?? currentLayers[2].spread;
+        material.uniforms.u_subjectIntensityA.value[i] = subject.layerA?.intensity ?? currentLayers[0].intensity;
+        material.uniforms.u_subjectIntensityB.value[i] = subject.layerB?.intensity ?? currentLayers[1].intensity;
+        material.uniforms.u_subjectIntensityC.value[i] = subject.layerC?.intensity ?? currentLayers[2].intensity;
+      });
       
       renderer.render(scene, camera);
       animId = requestAnimationFrame(update);
