@@ -10,7 +10,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />  {/* Now uses the imported Home */}
       <Route path="/blur" element={<Blur />} />
-      <Route path="/blur1" element={<Blur />} />
+      <Route path="/blur1" element={<Blur1 />} />
       <Route path="/assignment/research" element={<Research />} />
 
       {/* Must be last */}
