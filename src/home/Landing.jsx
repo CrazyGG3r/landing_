@@ -33,11 +33,7 @@ import suzanneModel from '../assets/models/Suzanne.glb?url';
 
 // Tweak this to scale your imported model
 const MODEL_SCALE = 2.0;
-const TEXT_MIN_OPACITY = 0.05;
-const TEXT_SHADOW_INTENSITY = 0.35;
-const FXAA_ENABLED = true;
-const TEXT_BASE_OPACITY = 0.05;
-const TEXT_SHADOW = '0 18px 38px rgba(0,0,0,.45)';
+const SMAA_ENABLED = true;
 // Material tweaks
 const MODEL_ROUGHNESS = 0;
 const MODEL_FRESNEL = 3.0;
@@ -50,8 +46,17 @@ const LENS_BLUR = 0.15;
 const DOF_FOCUS = 2;
 const DOF_APERTURE = 0.00006;
 const DOF_MAX_BLUR = 0.01;
-const TEXT_LIGHT_FALLOFF = 1;
-const TEXT_GLOW = 1;
+const TEXT_LIGHT_FALLOFF = 0.7;
+const TEXT_GLOW = .65;
+// Ghost-like glare tweaks
+const GHOST_GLARE_ENABLED = true;
+const GHOST_GLARE_INTENSITY = 0.25;
+const GHOST_GLARE_THRESHOLD = 0.15;
+const GHOST_GLARE_SOFTNESS = 0.2;
+const GHOST_GLARE_GHOSTS = 4;
+const GHOST_GLARE_SPREAD = 0.62;
+const GHOST_GLARE_CHROMA = 0.35;
+const GHOST_GLARE_TINT = new THREE.Color(0.9, 0.85, 1.0);
 
 // ─────────────────────────────────────────────────────────────────
 //  Mouse Context  (single shared listener for both layers)
@@ -92,7 +97,7 @@ function MouseProvider({ children }) {
 // ─────────────────────────────────────────────────────────────────
 //  BacklitText — reveal text only where "light" passes behind it
 // ─────────────────────────────────────────────────────────────────
-const BacklitText = memo(function BacklitText({ children, containerStyle, layerStyle }) {
+const BacklitText = memo(function BacklitText({ children, style }) {
   const ref = useRef(null);
   const mouseRef = useContext(MouseContext);
 
@@ -122,31 +127,9 @@ const BacklitText = memo(function BacklitText({ children, containerStyle, layerS
     return () => cancelAnimationFrame(raf);
   }, [mouseRef]);
 
-  const layoutStyle = {
-    position:'absolute', inset:0,
-    display:'flex', flexDirection:'column',
-    alignItems:'center', justifyContent:'center', gap:16,
-    pointerEvents:'none',
-  };
-  const baseShadow = Math.max(0, Math.min(1, TEXT_SHADOW_INTENSITY));
-  const baseStyle = {
-    ...layoutStyle,
-    color:`rgba(255,255,255,${TEXT_MIN_OPACITY})`,
-    textShadow:`0 14px 34px rgba(0,0,0,${0.55 * baseShadow})`,
-  };
-  const glowStyle = {
-    ...layoutStyle,
-    color:'rgba(255,255,255,.95)',
-    mixBlendMode:'screen',
-    filter:'drop-shadow(0 0 28px rgba(255,255,255,.35))',
-    WebkitMaskImage:'radial-gradient(40vmax 40vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.6) calc(28% + var(--lg) * 12%), rgba(255,255,255,0) calc(55% + var(--lf) * 20%))',
-    maskImage:'radial-gradient(40vmax 40vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.6) calc(28% + var(--lg) * 12%), rgba(255,255,255,0) calc(55% + var(--lf) * 20%))',
-  };
-
   return (
-    <div ref={ref} style={{ ...style, position:'absolute', inset:0 }}>
-      <div style={baseStyle}>{children}</div>
-      <div style={glowStyle}>{children}</div>
+    <div ref={ref} style={style}>
+      {children}
     </div>
   );
 });
@@ -154,50 +137,8 @@ const BacklitText = memo(function BacklitText({ children, containerStyle, layerS
 // ─────────────────────────────────────────────────────────────────
 //  SHADER SOURCES  (defined once at module scope — no re-creation)
 // ─────────────────────────────────────────────────────────────────
-const BacklitTextLayered = memo(function BacklitTextLayered({ children, style, containerStyle, layerStyle }) {
-  const rawStyle = style || {};
-  const resolvedLayer = layerStyle || rawStyle;
-  const resolvedContainer = containerStyle || (() => {
-    const c = { ...rawStyle };
-    delete c.WebkitMaskImage;
-    delete c.maskImage;
-    delete c.filter;
-    delete c.mixBlendMode;
-    return c;
-  })();
-  const baseLayer = { ...resolvedLayer };
-  delete baseLayer.WebkitMaskImage;
-  delete baseLayer.maskImage;
-  delete baseLayer.filter;
-  delete baseLayer.mixBlendMode;
-  return (
-    <div style={resolvedContainer}>
-      <div style={{
-        ...baseLayer,
-        opacity: TEXT_BASE_OPACITY,
-        mixBlendMode: 'normal',
-        textShadow: TEXT_SHADOW,
-      }}>
-        {children}
-      </div>
-      <div style={{
-        ...resolvedLayer,
-        mixBlendMode:'screen',
-        filter:'drop-shadow(0 0 28px rgba(255,255,255,.35))',
-        WebkitMaskImage:'radial-gradient(40vmax 40vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.6) calc(28% + var(--lg) * 12%), rgba(255,255,255,0) calc(55% + var(--lf) * 20%))',
-        maskImage:'radial-gradient(40vmax 40vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.6) calc(28% + var(--lg) * 12%), rgba(255,255,255,0) calc(55% + var(--lf) * 20%))',
-      }}>
-        {children}
-      </div>
-    </div>
-  );
-});
-
 
 /** ColorBends — exact ReactBits port */
-// ─────────────────────────────────────────────────────────────────
-//  SHADER SOURCES  (defined once at module scope — no re-creation)
-// ─────────────────────────────────────────────────────────────────
 const CB_VERT = `
 attribute vec2 aPos;
 varying vec2 vUv;
@@ -398,6 +339,73 @@ void main(){
 `;
 
 // ─────────────────────────────────────────────────────────────────
+//  Ghost-like glare shader pass
+// ─────────────────────────────────────────────────────────────────
+const GhostGlareShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uIntensity: { value: GHOST_GLARE_INTENSITY },
+    uThreshold: { value: GHOST_GLARE_THRESHOLD },
+    uSoftness: { value: GHOST_GLARE_SOFTNESS },
+    uGhosts: { value: GHOST_GLARE_GHOSTS },
+    uSpread: { value: GHOST_GLARE_SPREAD },
+    uChroma: { value: GHOST_GLARE_CHROMA },
+    uTint: { value: GHOST_GLARE_TINT },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uIntensity;
+    uniform float uThreshold;
+    uniform float uSoftness;
+    uniform float uGhosts;
+    uniform float uSpread;
+    uniform float uChroma;
+    uniform vec3  uTint;
+    varying vec2 vUv;
+
+    vec3 sampleTex(vec2 uv, float chroma) {
+      vec2 dir = normalize(uv - 0.5);
+      vec2 off = dir * chroma;
+      float r = texture2D(tDiffuse, uv + off).r;
+      float g = texture2D(tDiffuse, uv).g;
+      float b = texture2D(tDiffuse, uv - off).b;
+      return vec3(r, g, b);
+    }
+
+    void main() {
+      vec3 base = texture2D(tDiffuse, vUv).rgb;
+      float luma = dot(base, vec3(0.2126, 0.7152, 0.0722));
+      float gate = smoothstep(uThreshold, uThreshold + uSoftness, luma);
+
+      vec2 center = vec2(0.5);
+      vec2 dir = vUv - center;
+      vec3 glare = vec3(0.0);
+
+      for (int i = 1; i <= 8; i++) {
+        if (float(i) > uGhosts) break;
+        float t = float(i) / max(uGhosts, 1.0);
+        vec2 gUv = center + dir * (1.0 + t * uSpread);
+        vec3 col = sampleTex(gUv, uChroma * t);
+        float w = (1.0 - t) * 0.85 + 0.15;
+        glare += col * w;
+      }
+
+      glare *= gate * uIntensity;
+      glare *= uTint;
+
+      gl_FragColor = vec4(base + glare, 1.0);
+    }
+  `,
+};
+
+// ─────────────────────────────────────────────────────────────────
 //  useResizeObserver  — fires callback on element resize
 // ─────────────────────────────────────────────────────────────────
 function useResizeObserver(ref, cb) {
@@ -568,10 +576,11 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     let renderPass = null;
     let bloomPass = null;
     let chromaPass = null;
+    let ghostGlarePass = null;
     let hBlurPass = null;
     let vBlurPass = null;
     let bokehPass = null;
-    let fxaaPass = null;
+    let smaaPass = null;
     let disposed = false;
 
     // ── Camera / Scenes ─────────────────────────────────────────
@@ -622,6 +631,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
       glassMat,
     );
     glScene.add(glassMesh);
+    let targetObject = glassMesh;
 
     // Load the imported GLB model
     if (modelUrl) {
@@ -644,6 +654,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
             });
             glScene.remove(glassMesh);
             glScene.add(gltf.scene);
+            targetObject = gltf.scene;
           },
           // Progress callback
           undefined,
@@ -670,7 +681,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         { HorizontalBlurShader },
         { VerticalBlurShader },
         { BokehPass },
-        { FXAAShader },
+        { SMAAPass },
       ] = await Promise.all([
         import('three/examples/jsm/postprocessing/EffectComposer'),
         import('three/examples/jsm/postprocessing/RenderPass'),
@@ -679,7 +690,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         import('three/examples/jsm/shaders/HorizontalBlurShader'),
         import('three/examples/jsm/shaders/VerticalBlurShader'),
         import('three/examples/jsm/postprocessing/BokehPass'),
-        import('three/examples/jsm/shaders/FXAAShader'),
+        import('three/examples/jsm/postprocessing/SMAAPass'),
       ]);
 
       if (disposed) return;
@@ -695,6 +706,11 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         BLOOM_THRESHOLD
       );
       composer.addPass(bloomPass);
+
+      if (GHOST_GLARE_ENABLED) {
+        ghostGlarePass = new ShaderPass(GhostGlareShader);
+        composer.addPass(ghostGlarePass);
+      }
 
       const chromaShader = {
         uniforms: {
@@ -743,13 +759,9 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
       });
       composer.addPass(bokehPass);
 
-      if (FXAA_ENABLED) {
-        fxaaPass = new ShaderPass(FXAAShader);
-        fxaaPass.material.uniforms.resolution.value.set(
-          1 / Math.max(1, mount.clientWidth),
-          1 / Math.max(1, mount.clientHeight)
-        );
-        composer.addPass(fxaaPass);
+      if (SMAA_ENABLED) {
+        smaaPass = new SMAAPass(mount.clientWidth, mount.clientHeight);
+        composer.addPass(smaaPass);
       }
 
       postReady = true;
@@ -771,14 +783,10 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
       tgt.x += (mouseRef.current.y * STR - tgt.x) * SM;
       tgt.y += (mouseRef.current.x * STR - tgt.y) * SM;
       
-      // Update rotation for either the cube or loaded model
-      // The scene will have either glassMesh or the loaded model
-      glScene.children.forEach(child => {
-        if (child.isMesh || child.isGroup) {
-          child.rotation.x = tgt.x;
-          child.rotation.y = tgt.y;
-        }
-      });
+      if (targetObject) {
+        targetObject.rotation.x = tgt.x;
+        targetObject.rotation.y = tgt.y;
+      }
       
       glassMesh.position.y = Math.sin(t * 0.65) * 0.09;
 
@@ -807,28 +815,18 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(w, h);
       if (composer) composer.setSize(w, h);
-      if (composer) composer.setSize(w, h);
       fbo.dispose(); fbo = mkFBO();
       glassMat.uniforms.uBuffer.value = fbo.texture;
       glassMat.uniforms.uRes.value.set(w, h);
       if (hBlurPass) hBlurPass.uniforms.h.value = (LENS_BLUR / w);
       if (vBlurPass) vBlurPass.uniforms.v.value = (LENS_BLUR / h);
-      if (fxaaPass) {
-        fxaaPass.material.uniforms.resolution.value.set(1 / Math.max(1, w), 1 / Math.max(1, h));
-      }
       if (bokehPass) {
         bokehPass.materialBokeh.uniforms.focus.value = DOF_FOCUS;
         bokehPass.materialBokeh.uniforms.aperture.value = DOF_APERTURE;
         bokehPass.materialBokeh.uniforms.maxblur.value = DOF_MAX_BLUR;
       }
       if (bloomPass) bloomPass.setSize(w, h);
-      if (hBlurPass) hBlurPass.uniforms.h.value = (LENS_BLUR / w);
-      if (vBlurPass) vBlurPass.uniforms.v.value = (LENS_BLUR / h);
-      if (bokehPass) {
-        bokehPass.materialBokeh.uniforms.focus.value = DOF_FOCUS;
-        bokehPass.materialBokeh.uniforms.aperture.value = DOF_APERTURE;
-        bokehPass.materialBokeh.uniforms.maxblur.value = DOF_MAX_BLUR;
-      }
+      if (smaaPass) smaaPass.setSize(w, h);
     });
     ro.observe(mount);
 
@@ -845,7 +843,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         composer.renderTarget1.dispose();
         composer.renderTarget2.dispose();
       }
-      if (fxaaPass && fxaaPass.material) fxaaPass.material.dispose();
+      if (smaaPass && smaaPass.dispose) smaaPass.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       if (renderer.domElement.parentNode === mount)
@@ -931,11 +929,15 @@ export default function Landing({
         )}
 
         {/* Layer 3 — UI */}
-        <BacklitTextLayered style={{
-          position:'absolute', inset:0, zIndex:10,
+        <BacklitText style={{
+          position:'absolute', inset:0, zIndex:10, pointerEvents:'none',
           display:'flex', flexDirection:'column',
           alignItems:'center', justifyContent:'center', gap:16,
-          pointerEvents:'none',
+          color:'rgba(255,255,255,.95)',
+          mixBlendMode:'screen',
+          filter:'drop-shadow(0 0 28px rgba(255,255,255,.35))',
+          WebkitMaskImage:'radial-gradient(40vmax 40vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.6) calc(28% + var(--lg) * 12%), rgba(255,255,255,0) calc(55% + var(--lf) * 20%))',
+          maskImage:'radial-gradient(40vmax 40vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.6) calc(28% + var(--lg) * 12%), rgba(255,255,255,0) calc(55% + var(--lf) * 20%))',
         }}>
           <span style={{ fontSize:10, letterSpacing:'0.55em', color:'rgba(255,255,255,.22)', textTransform:'uppercase' }}>
             We present to you
@@ -950,7 +952,7 @@ export default function Landing({
           <span style={{ fontSize:11, letterSpacing:'0.45em', color:'rgba(255,255,255,.18)', textTransform:'uppercase' }}>
             House of Creatives
           </span>
-        </BacklitTextLayered>
+        </BacklitText>
 
         {/* Corner brackets */}
         {[['top','left'],['top','right'],['bottom','left'],['bottom','right']].map(([v,h]) => (
