@@ -35,6 +35,7 @@ export const ShapeBlur = ({
   subjects,
   debugSubjects = false,
   followMouse,
+  trackPointer = true,
   impactSize, impactEdge,
   noiseEnabled, noiseIntensity,
   smokeEnabled, smokeIntensity,
@@ -206,9 +207,11 @@ export const ShapeBlur = ({
       }
     };
     
-    window.addEventListener('mousemove', onMove, { passive: true });
-    window.addEventListener('pointermove', onMove, { passive: true });
-    window.addEventListener('touchmove', onMove, { passive: false });
+    if (trackPointer) {
+      mount.addEventListener('mousemove', onMove, { passive: true });
+      mount.addEventListener('pointermove', onMove, { passive: true });
+      mount.addEventListener('touchmove', onMove, { passive: true });
+    }
 
     const resize = () => {
       const w = mount.clientWidth;
@@ -227,9 +230,13 @@ export const ShapeBlur = ({
     };
     
     resize();
-    window.addEventListener('resize', resize);
-    const ro = new ResizeObserver(resize);
-    ro.observe(mount);
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(resize);
+      ro.observe(mount);
+    } else {
+      window.addEventListener('resize', resize);
+    }
 
     const update = () => {
       time = performance.now() * 0.001;
@@ -293,11 +300,13 @@ export const ShapeBlur = ({
 
     return () => {
       cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resize);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('touchmove', onMove);
-      ro.disconnect();
+      if (ro) ro.disconnect();
+      else window.removeEventListener('resize', resize);
+      if (trackPointer) {
+        mount.removeEventListener('mousemove', onMove);
+        mount.removeEventListener('pointermove', onMove);
+        mount.removeEventListener('touchmove', onMove);
+      }
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement);
       renderer.dispose();
     };

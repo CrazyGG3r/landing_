@@ -13,6 +13,48 @@ export const DEFAULT_SETTINGS = {
   dither: { enabled: false, intensity: 0.5 },
 };
 
+function clamp01(v, fallback) {
+  if (typeof v !== 'number' || Number.isNaN(v)) return fallback;
+  return Math.min(1, Math.max(0, v));
+}
+
+function normalizeLayer(layer, fallback) {
+  return {
+    color: typeof layer?.color === 'string' ? layer.color : fallback.color,
+    spread: typeof layer?.spread === 'number' ? layer.spread : fallback.spread,
+    intensity: clamp01(layer?.intensity, fallback.intensity),
+  };
+}
+
+export function normalizeSettings(input) {
+  const src = input ?? {};
+  const layersOk = Array.isArray(src.layers) && src.layers.length === 3;
+  const layers = layersOk
+    ? src.layers.map((l, i) => normalizeLayer(l, DEFAULT_SETTINGS.layers[i]))
+    : DEFAULT_SETTINGS.layers.map(l => ({ ...l }));
+  return {
+    version: 1,
+    layers,
+    impact: { ...DEFAULT_SETTINGS.impact, ...(src.impact ?? {}) },
+    noise: { ...DEFAULT_SETTINGS.noise, ...(src.noise ?? {}) },
+    smoke: { ...DEFAULT_SETTINGS.smoke, ...(src.smoke ?? {}) },
+    dither: { ...DEFAULT_SETTINGS.dither, ...(src.dither ?? {}) },
+    subjects: Array.isArray(src.subjects) ? src.subjects : undefined,
+  };
+}
+
+export function parseSettings(input) {
+  if (typeof input === 'string') {
+    try {
+      const parsed = JSON.parse(input);
+      return normalizeSettings(parsed);
+    } catch (_) {
+      return normalizeSettings(null);
+    }
+  }
+  return normalizeSettings(input);
+}
+
 function getStorageAdapter() {
   const c = typeof window !== 'undefined' ? window.storage : null;
   if (c?.get && c?.set && c?.delete) return c;
@@ -39,14 +81,7 @@ export async function loadSettings() {
     const res = await s.get(STORAGE_KEY);
     if (res?.value) {
       const p = JSON.parse(res.value);
-      if (isValidSettings(p)) return {
-        ...DEFAULT_SETTINGS,
-        ...p,
-        impact: { ...DEFAULT_SETTINGS.impact, ...(p.impact ?? {}) },
-        noise: { ...DEFAULT_SETTINGS.noise, ...(p.noise ?? {}) },
-        smoke: { ...DEFAULT_SETTINGS.smoke, ...(p.smoke ?? {}) },
-        dither: { ...DEFAULT_SETTINGS.dither, ...(p.dither ?? {}) },
-      };
+      if (isValidSettings(p)) return normalizeSettings(p);
     }
   } catch (_) {}
   return DEFAULT_SETTINGS;

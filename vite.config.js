@@ -11,4 +11,5 @@ export default defineConfig({
       },
     }),
   ],
+  assetsInclude: ['**/*.glb'], // allow Vite to treat .glb files as assets
 })
