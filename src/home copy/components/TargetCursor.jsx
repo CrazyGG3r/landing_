@@ -296,7 +296,7 @@ const TargetCursor = memo(function TargetCursor({
       }
 
       spinTl.current?.kill();
-      document.body.style.cursor = originalCursor;
+      document.body.style.cursor = 'none';
 
       isActiveRef.current = false;
       targetCornerPositionsRef.current = null;

@@ -1,82 +1,86 @@
-import { memo, useState } from 'react';
-import DecryptedText from './DecryptedText';
-import { FONT_LETTERBOX_SUBTITLE, FONT_LETTERBOX_TITLE } from '../core/constants';
+import { memo, useState } from "react";
+import DecryptedText from "./DecryptedText";
+import {
+  FONT_LETTERBOX_SUBTITLE,
+  FONT_LETTERBOX_TITLE
+} from "../core/constants";
 
-const Letterboxing = memo(function Letterboxing({ isMobile }) {
+const Letterboxing = memo(function Letterboxing({
+  isMobile,
+  texture = "/assets/Backgrounds/torn_.png"
+}) {
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const [isFooterHovered, setIsFooterHovered] = useState(false);
 
   if (isMobile) return null;
 
-  const glassStyle = (isHovered) => ({
-    height: '10vh',
-    minHeight: '60px',
-    background: isHovered
-      ? 'rgba(20, 25, 35, 0.25)'
-      : 'rgba(0, 0, 0, 0.95)',
-    backdropFilter: isHovered
-      ? 'blur(12px) saturate(180%)'
-      : 'blur(2px)',
-    WebkitBackdropFilter: isHovered
-      ? 'blur(12px) saturate(180%)'
-      : 'blur(2px)',
-    border: isHovered
-      ? '1px solid rgba(255, 255, 255, 0.25)'
-      : '1px solid rgba(255, 255, 255, 0.05)',
+  const paperStyle = (isHovered) => ({
+    height: "10vh",
+    minHeight: "60px",
+
+    backgroundImage: `url(${texture})`,
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+
+    filter: isHovered
+      ? "brightness(1.1) contrast(1.1)"
+      : "brightness(0.75)",
+
+    borderTop: "1px solid rgba(255,255,255,0.05)",
+    borderBottom: "1px solid rgba(0,0,0,0.6)",
+
     boxShadow: isHovered
-      ? '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2)'
-      : 'none',
-    color: isHovered ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.45)',
+      ? "inset 0 2px 6px rgba(0,0,0,0.6), inset 0 -2px 6px rgba(0,0,0,0.5)"
+      : "inset 0 1px 3px rgba(0,0,0,0.8)",
+
+    color: isHovered
+      ? "rgba(255,255,255,0.9)"
+      : "rgba(255,255,255,0.55)",
+
     fontSize: 10,
-    letterSpacing: '0.22em',
-    padding: '10px 18px',
-    textTransform: 'uppercase',
-    display: 'flex',
-    flexDirection: 'column',
+    letterSpacing: "0.22em",
+    padding: "10px 18px",
+
+    textTransform: "uppercase",
+
+    display: "flex",
+    flexDirection: "column",
     gap: 4,
-    opacity: 1,
-    visibility: 'visible',
-    transition: 'all 0.4s cubic-bezier(0.2, 0.9, 0.3, 1)',
-    cursor: 'default',
-    pointerEvents: 'auto',
+
+    transition: "all 0.35s ease",
+
+    cursor: "default",
+    pointerEvents: "auto",
   });
 
   const textStyle = (isHovered) => ({
     fontFamily: FONT_LETTERBOX_TITLE,
-    opacity: 1,
-    visibility: 'visible',
     textShadow: isHovered
-      ? '0 2px 8px rgba(0, 0, 0, 0.5)'
-      : 'none',
-    transition: 'text-shadow 0.3s ease',
+      ? "0 2px 6px rgba(0,0,0,0.7)"
+      : "0 1px 2px rgba(0,0,0,0.7)",
   });
 
   const subTextStyle = (isHovered) => ({
     fontFamily: FONT_LETTERBOX_SUBTITLE,
     opacity: isHovered ? 0.95 : 0.7,
-    visibility: 'visible',
-    textShadow: isHovered
-      ? '0 2px 6px rgba(0, 0, 0, 0.4)'
-      : 'none',
-    transition: 'opacity 0.3s ease, text-shadow 0.3s ease',
+    textShadow: "0 1px 2px rgba(0,0,0,0.7)",
   });
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      zIndex: 9999,
-      pointerEvents: 'none',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      background: 'transparent',
-    }}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        pointerEvents: "none",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+      }}
+    >
+      {/* Header */}
       <div
-        style={glassStyle(isHeaderHovered)}
+        style={paperStyle(isHeaderHovered)}
         onMouseEnter={() => setIsHeaderHovered(true)}
         onMouseLeave={() => setIsHeaderHovered(false)}
       >
@@ -91,6 +95,7 @@ const Letterboxing = memo(function Letterboxing({ isMobile }) {
           encryptedClassName="decrypt-encrypted"
           style={textStyle(isHeaderHovered)}
         />
+
         <DecryptedText
           text="STATUS: STABLE / ROUTE: BOLTFORGED / SEQ: 0049-A"
           animateOn="view"
@@ -104,8 +109,9 @@ const Letterboxing = memo(function Letterboxing({ isMobile }) {
         />
       </div>
 
+      {/* Footer */}
       <div
-        style={glassStyle(isFooterHovered)}
+        style={paperStyle(isFooterHovered)}
         onMouseEnter={() => setIsFooterHovered(true)}
         onMouseLeave={() => setIsFooterHovered(false)}
       >
@@ -120,6 +126,7 @@ const Letterboxing = memo(function Letterboxing({ isMobile }) {
           encryptedClassName="decrypt-encrypted"
           style={textStyle(isFooterHovered)}
         />
+
         <DecryptedText
           text="SIGNAL QUALITY: STABLE / MODE: PASSIVE / LOCK: ENABLED"
           animateOn="view"
