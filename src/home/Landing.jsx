@@ -19,11 +19,32 @@ import * as THREE from 'three';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
 import gsap from 'gsap';
 
-// Import your model directly
-import suzanneModel from '../assets/models/Suzanne.glb?url';
+// Import your models dynamically
+const models = import.meta.glob('../assets/models/*.glb', { eager: false });
+
+// Model configuration for specific models
+const MODEL_CONFIGS = {
+  'Suzanne.glb': {
+    scale: 1.5,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 }
+  },
+  'Eva.glb': {
+    scale: 1.5,
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 }
+  },
+};
+
+// Default config for models not in the list
+const DEFAULT_MODEL_CONFIG = {
+  scale: 1.5,
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 }
+};
 
 // Tweak this to scale your imported model
-const MODEL_SCALE = 1.8;
+const MODEL_SCALE = 1;
 const SMAA_ENABLED = true;
 // Material tweaks
 const MODEL_ROUGHNESS = 0.2;
@@ -72,6 +93,10 @@ const SUBTITLE_SHADOW_INTENSITY = 0.6;
 const SUBTITLE_SHADOW_BLUR = 30;
 const SUBTITLE_SHADOW_DISTANCE = 8;
 
+// Text emission settings
+const TEXT_EMISSION_BASE = 0;
+const TEXT_EMISSION_MAX = 4;
+
 // ─────────────────────────────────────────────────────────────────
 //  Custom hook for orientation/size change refresh
 // ─────────────────────────────────────────────────────────────────
@@ -79,24 +104,24 @@ const useRefreshOnResize = () => {
   useEffect(() => {
     let resizeTimer;
     let orientationTimer;
-    
+
     const handleResize = () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         window.location.reload();
       }, 250);
     };
-    
+
     const handleOrientation = () => {
       clearTimeout(orientationTimer);
       orientationTimer = setTimeout(() => {
         window.location.reload();
       }, 250);
     };
-    
+
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleOrientation);
-    
+
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleOrientation);
@@ -109,12 +134,13 @@ const useRefreshOnResize = () => {
 // ─────────────────────────────────────────────────────────────────
 //  CountUp Component
 // ─────────────────────────────────────────────────────────────────
-const CountUp = memo(function CountUp({ 
-  to, 
-  from = 0, 
-  duration = 2, 
+const CountUp = memo(function CountUp({
+  to,
+  from = 0,
+  duration = 2,
   onComplete,
-  startCounting = true
+  startCounting = true,
+  onProgress
 }) {
   const ref = useRef(null);
   const motionValue = useMotionValue(from);
@@ -149,7 +175,12 @@ const CountUp = memo(function CountUp({
       if (ref.current) {
         ref.current.textContent = formatValue(latest);
       }
-      
+
+      // Call progress callback with current value
+      if (onProgress) {
+        onProgress(latest);
+      }
+
       // Check if we've reached the target
       if (!isComplete && Math.abs(latest - to) < 0.5) {
         setIsComplete(true);
@@ -158,21 +189,22 @@ const CountUp = memo(function CountUp({
     });
 
     return () => unsubscribe();
-  }, [springValue, formatValue, to, isComplete, onComplete]);
+  }, [springValue, formatValue, to, isComplete, onComplete, onProgress]);
 
   return <span ref={ref} className="count-up-text" />;
 });
 
 // ─────────────────────────────────────────────────────────────────
-//  Preloader Component with white glow
+//  Preloader Component with scaling text effect
 // ─────────────────────────────────────────────────────────────────
-const Preloader = memo(function Preloader({ 
+const Preloader = memo(function Preloader({
   onLoadComplete,
   duration = 3
 }) {
   const [progress, setProgress] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
   const [blurAmount, setBlurAmount] = useState(FINAL_BLUR_MAX);
+  const [scale, setScale] = useState(3.0); // Start very large
 
   useEffect(() => {
     const startTime = Date.now();
@@ -180,7 +212,7 @@ const Preloader = memo(function Preloader({
       const elapsed = (Date.now() - startTime) / 1000;
       const newProgress = Math.min((elapsed / duration) * 100, 100);
       setProgress(newProgress);
-      
+
       // Calculate blur: starts at max, decreases to default
       const blurProgress = newProgress / 100;
       const newBlur = FINAL_BLUR_MAX - (blurProgress * (FINAL_BLUR_MAX - FINAL_BLUR_DEFAULT));
@@ -197,6 +229,16 @@ const Preloader = memo(function Preloader({
 
     return () => clearInterval(interval);
   }, [duration, onLoadComplete]);
+
+  // Handle scale animation with power3.out easing
+  useEffect(() => {
+    // Calculate scale: starts at 3.0, ends at 1.0 with power3.out easing
+    const progressFactor = progress / 100;
+    // Power3.out easing function: 1 - (1 - t)^3
+    const easedProgress = 1 - Math.pow(1 - progressFactor, 3);
+    const newScale = 3.0 - (easedProgress * 2.0); // 3.0 -> 1.0
+    setScale(newScale);
+  }, [progress]);
 
   // Update CSS variable for blur
   useEffect(() => {
@@ -215,81 +257,199 @@ const Preloader = memo(function Preloader({
       zIndex: 100000,
       backgroundColor: 'black',
       display: 'flex',
-      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
       color: 'white',
-      fontFamily: FONT_LETTERBOX_TITLE,
+      fontFamily: FONT_TITLE,
       transition: 'opacity 0.5s ease',
       opacity: progress >= 100 ? 0 : 1,
       pointerEvents: progress >= 100 ? 'none' : 'auto',
     }}>
       <div style={{
-        fontSize: 'clamp(48px, 10vw, 120px)',
+        fontSize: 'clamp(48px, 15vw, 180px)',
         fontWeight: 800,
         letterSpacing: '0.1em',
-        marginBottom: 20,
-        textShadow: '0 0 30px rgba(255,255,255,0.8)', // White glow
+        textShadow: '0 0 30px rgba(255,255,255,0.8)',
+        transform: `scale(${scale})`,
+        transition: 'transform 0.1s linear',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        lineHeight: 1,
       }}>
-        <CountUp 
-          from={0} 
-          to={100} 
+        <CountUp
+          from={0}
+          to={100}
           duration={duration}
           startCounting={true}
         />
         <span style={{ marginLeft: 10 }}>%</span>
-      </div>
-      
-      <div style={{
-        width: 'min(400px, 80vw)',
-        height: 2,
-        background: 'rgba(255,255,255,0.2)',
-        borderRadius: 1,
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${progress}%`,
-          height: '100%',
-          background: 'linear-gradient(90deg, #ffffff, #cccccc)', // White gradient
-          transition: 'width 0.1s linear',
-        }} />
-      </div>
-      
-      <div style={{
-        marginTop: 30,
-        fontSize: 12,
-        letterSpacing: '0.3em',
-        color: 'rgba(255,255,255,0.6)',
-        textTransform: 'uppercase',
-      }}>
-        LOADING EXPERIENCE
       </div>
     </div>
   );
 });
 
 // ─────────────────────────────────────────────────────────────────
-//  TargetCursor with Label Component (targets only BOLTFORGED)
+//  CalloutWithLeader Component - Redesigned with top-right corner origin
 // ─────────────────────────────────────────────────────────────────
-const TargetCursor = memo(function TargetCursor({ 
-  targetSelector = '.title-target',
+const CalloutWithLeader = memo(function CalloutWithLeader({
+  text,
+  targetRect,
+}) {
+  const calloutRef = useRef(null);
+  const lineRef = useRef(null);
+
+  useEffect(() => {
+    if (!calloutRef.current || !lineRef.current || !targetRect) return;
+
+    // Position callout at top-right corner of target (fixed position)
+    const calloutX = targetRect.right + 20;
+    const calloutY = targetRect.top - 50;
+
+    // Set callout position
+    gsap.set(calloutRef.current, {
+      x: calloutX,
+      y: calloutY,
+      opacity: 1,
+    });
+
+    // Stretch effect on entry
+    gsap.fromTo(calloutRef.current,
+      { scaleX: 0.2, scaleY: 0.8, opacity: 0 },
+      { scaleX: 1, scaleY: 1, opacity: 1, duration: 0.5, ease: 'back.out(1.7)' }
+    );
+
+    // Create leader line from top-right corner of target to callout
+    // Start at target's top-right corner
+    const startX = targetRect.right;
+    const startY = targetRect.top;
+    
+    // End at callout's bottom-left corner (for a clean connection)
+    const endX = calloutX;
+    const endY = calloutY + 40; // Connect to bottom of callout
+
+    // Create a slight curve for elegance
+    const midX = (startX + endX) / 2;
+    const midY = Math.min(startY, endY) - 20; // Curve upward
+
+    const path = `M ${startX},${startY} Q ${midX},${midY} ${endX},${endY}`;
+
+    // Style the line with bright outline
+    gsap.set(lineRef.current, {
+      attr: { d: path },
+      opacity: 1,
+      stroke: 'rgba(180, 180, 200, 0.9)', // Brighter stroke
+      strokeWidth: 2.5,
+      fill: 'none',
+      filter: 'drop-shadow(0 0 4px rgba(255, 255, 255, 0.5))', // Glow effect
+    });
+
+    // Animate line drawing
+    const length = lineRef.current.getTotalLength();
+    gsap.set(lineRef.current, {
+      strokeDashoffset: length,
+      strokeDasharray: length
+    });
+    gsap.to(lineRef.current, {
+      strokeDashoffset: 0,
+      duration: 0.7,
+      ease: 'power3.out',
+      delay: 0.1
+    });
+
+  }, [targetRect]);
+
+  return (
+    <>
+      <svg
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 10002,
+        }}
+      >
+        <path ref={lineRef} />
+      </svg>
+      <div
+        ref={calloutRef}
+        style={{
+          position: 'fixed',
+          padding: '14px 28px',
+          background: '#2a2a35', // Dark gray base
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          border: '2px solid rgba(220, 220, 240, 0.9)', // Bright outline
+          borderRadius: '6px',
+          color: '#ffffff',
+          fontSize: '14px',
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          fontFamily: FONT_LETTERBOX_TITLE,
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          zIndex: 10003,
+          boxShadow: `
+            0 8px 24px rgba(0, 0, 0, 0.5),
+            0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+            0 0 15px rgba(200, 200, 255, 0.3)
+          `,
+          transform: 'translate(0, -50%)',
+          opacity: 0,
+          transformOrigin: 'left center',
+          textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)',
+        }}
+      >
+        {text}
+        <div style={{
+          position: 'absolute',
+          bottom: -8,
+          right: 24,
+          width: 12,
+          height: 12,
+          background: '#2a2a35',
+          borderRight: '2px solid rgba(220, 220, 240, 0.9)',
+          borderBottom: '2px solid rgba(220, 220, 240, 0.9)',
+          transform: 'rotate(45deg)',
+          backdropFilter: 'blur(12px)',
+          boxShadow: '2px 2px 6px rgba(0, 0, 0, 0.3)',
+        }} />
+      </div>
+    </>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────
+//  TargetCursor with Label Component
+// ─────────────────────────────────────────────────────────────────
+const TargetCursor = memo(function TargetCursor({
+  targetSelector = '.cursor-target',
   spinDuration = 5,
   hoverDuration = 0.2,
   parallaxOn = true,
-  labelText = 'BOLTFORGED'
+  labelText = 'TriggerCaption'
 }) {
   const cursorRef = useRef(null);
   const cornersRef = useRef(null);
-  const labelRef = useRef(null);
   const spinTl = useRef(null);
   const dotRef = useRef(null);
+  const [calloutInfo, setCalloutInfo] = useState(null);
 
   const isActiveRef = useRef(false);
   const targetCornerPositionsRef = useRef(null);
   const tickerFnRef = useRef(null);
   const activeStrengthRef = useRef(0);
 
-  const [isMobile] = useState(() => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  // More comprehensive mobile detection
+  const [isMobile] = useState(() => {
+    const ua = navigator.userAgent;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+  });
 
   const constants = useMemo(
     () => ({
@@ -329,48 +489,17 @@ const TargetCursor = memo(function TargetCursor({
       currentLeaveHandler = null;
     };
 
-    const hideLabel = () => {
-      if (labelRef.current) {
-        gsap.to(labelRef.current, {
-          opacity: 0,
-          y: -10,
-          duration: 0.2,
-          ease: 'power2.in',
-          onComplete: () => {
-            if (labelRef.current) {
-              labelRef.current.style.display = 'none';
-            }
-          }
-        });
-      }
+    const hideCallout = () => {
+      setCalloutInfo(null);
     };
 
-    const showLabel = (text, targetElement) => {
-      if (!labelRef.current || !targetElement) return;
-      
+    const showCallout = (text, targetElement) => {
+      if (!targetElement) return;
+
       const rect = targetElement.getBoundingClientRect();
-      
-      // Position label at top-right corner of target
-      const labelX = rect.right + 15;
-      const labelY = rect.top - 40;
-      
-      labelRef.current.style.display = 'block';
-      labelRef.current.textContent = text;
-      
-      gsap.killTweensOf(labelRef.current);
-      
-      gsap.set(labelRef.current, {
-        x: labelX,
-        y: labelY,
-        opacity: 0
-      });
-      
-      gsap.to(labelRef.current, {
-        opacity: 1,
-        y: labelY - 5,
-        duration: 0.3,
-        ease: 'back.out(1.2)',
-        overwrite: true
+      setCalloutInfo({
+        text,
+        targetRect: rect,
       });
     };
 
@@ -381,18 +510,17 @@ const TargetCursor = memo(function TargetCursor({
       y: window.innerHeight / 2
     });
 
-    gsap.set(labelRef.current, {
-      opacity: 0,
-      display: 'none'
-    });
-
     const createSpinTimeline = () => {
       if (spinTl.current) {
         spinTl.current.kill();
       }
       spinTl.current = gsap
         .timeline({ repeat: -1 })
-        .to(cursor, { rotation: '+=360', duration: spinDuration, ease: 'none' });
+        .to(cursor, {
+          rotation: '+=360',
+          duration: spinDuration,
+          ease: 'none'
+        });
     };
 
     createSpinTimeline();
@@ -454,7 +582,7 @@ const TargetCursor = memo(function TargetCursor({
     const enterHandler = e => {
       const target = e.target.closest(targetSelector);
       if (!target || !cursorRef.current || !cornersRef.current) return;
-      
+
       if (activeTarget === target) return;
       if (activeTarget) {
         cleanupTarget(activeTarget);
@@ -502,8 +630,8 @@ const TargetCursor = memo(function TargetCursor({
         });
       });
 
-      // Show label
-      showLabel(labelText, target);
+      // Show callout with leader line (always from top-right corner)
+      showCallout(labelText, target);
 
       const leaveHandler = () => {
         gsap.ticker.remove(tickerFnRef.current);
@@ -513,7 +641,7 @@ const TargetCursor = memo(function TargetCursor({
         gsap.set(activeStrengthRef, { current: 0, overwrite: true });
         activeTarget = null;
 
-        hideLabel();
+        hideCallout();
 
         if (cornersRef.current) {
           const corners = Array.from(cornersRef.current);
@@ -605,7 +733,12 @@ const TargetCursor = memo(function TargetCursor({
         <div className="target-cursor-corner corner-br" />
         <div className="target-cursor-corner corner-bl" />
       </div>
-      <div ref={labelRef} className="target-cursor-label" />
+      {calloutInfo && (
+        <CalloutWithLeader
+          text={calloutInfo.text}
+          targetRect={calloutInfo.targetRect}
+        />
+      )}
     </>
   );
 });
@@ -617,6 +750,7 @@ const MouseContext = createContext({ x: 0, y: 0 });
 
 function MouseProvider({ children }) {
   const mouseRef = useRef({ x: 0, y: 0 });
+  const usingGyroRef = useRef(false);
 
   useEffect(() => {
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -625,46 +759,58 @@ function MouseProvider({ children }) {
 
     const handler = e => {
       if (usingGyro) return;
-      mouseRef.current.x =  (e.clientX / window.innerWidth  - 0.5) * 2;
-      mouseRef.current.y = -((e.clientY / window.innerHeight - 0.5) * 2);
+      // Normal mouse/touch
+      mouseRef.current.x = (e.clientX / window.innerWidth - 0.5) * 2;
+      mouseRef.current.y = (e.clientY / window.innerHeight - 0.5) * 2;
+      usingGyroRef.current = false;
     };
+
     const touchHandler = e => {
-      if (usingGyro) return;
-      if (!e.touches || !e.touches[0]) return;
+      if (usingGyro || !e.touches?.[0]) return;
       const t = e.touches[0];
-      mouseRef.current.x =  (t.clientX / window.innerWidth  - 0.5) * 2;
-      mouseRef.current.y = -((t.clientY / window.innerHeight - 0.5) * 2);
+      mouseRef.current.x = (t.clientX / window.innerWidth - 0.5) * 2;
+      mouseRef.current.y = (t.clientY / window.innerHeight - 0.5) * 2;
+      usingGyroRef.current = false;
     };
+
     const orientationHandler = e => {
       if (!gyroReady) return;
+      // Inverse for gyro - tilt left = model looks right
       const gamma = Math.max(-45, Math.min(45, e.gamma || 0));
       const beta = Math.max(-45, Math.min(45, e.beta || 0));
-      mouseRef.current.x = gamma / 45;
-      mouseRef.current.y = -beta / 45;
+      
+      // Invert for natural inverse behavior
+      mouseRef.current.x = -gamma / 45;
+      mouseRef.current.y = beta / 45;
+      
+      usingGyroRef.current = true;
     };
+
     const tryEnableGyro = () => {
       if (!isMobile || gyroReady) return;
-      if (typeof DeviceOrientationEvent === 'undefined') return;
-      const req = DeviceOrientationEvent.requestPermission;
-      if (typeof req === 'function') {
-        req().then(state => {
-          if (state === 'granted') {
-            gyroReady = true;
-            usingGyro = true;
-            window.addEventListener('deviceorientation', orientationHandler, true);
-          }
-        }).catch(() => {});
-      } else {
+      if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(state => {
+            if (state === 'granted') {
+              gyroReady = true;
+              usingGyro = true;
+              window.addEventListener('deviceorientation', orientationHandler, true);
+            }
+          })
+          .catch(() => { });
+      } else if (typeof DeviceOrientationEvent !== 'undefined') {
         gyroReady = true;
         usingGyro = true;
         window.addEventListener('deviceorientation', orientationHandler, true);
       }
     };
+
     window.addEventListener('mousemove', handler, { passive: true });
     window.addEventListener('touchmove', touchHandler, { passive: true });
     window.addEventListener('touchstart', touchHandler, { passive: true });
     window.addEventListener('touchend', tryEnableGyro, { passive: true });
     window.addEventListener('click', tryEnableGyro, { passive: true });
+
     return () => {
       window.removeEventListener('mousemove', handler);
       window.removeEventListener('touchmove', touchHandler);
@@ -683,15 +829,17 @@ function MouseProvider({ children }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  BacklitText — reveal text only where "light" passes behind it
+//  BacklitText with emission based on cursor distance
 // ─────────────────────────────────────────────────────────────────
 const BacklitText = memo(function BacklitText({ children, style }) {
   const ref = useRef(null);
   const mouseRef = useContext(MouseContext);
+  const emissionRef = useRef(0);
 
   useEffect(() => {
     let raf;
     const start = performance.now();
+
     const loop = () => {
       const t = (performance.now() - start) / 1000;
       const mx = mouseRef.current?.x ?? 0;
@@ -703,21 +851,33 @@ const BacklitText = memo(function BacklitText({ children, style }) {
       const lx = ((ox * (1 - blend) + mx * blend) * 0.5 + 0.5) * 100;
       const ly = ((oy * (1 - blend) + my * blend) * 0.5 + 0.5) * 100;
 
+      // Calculate cursor distance for emission (normalized coordinates)
+      const distance = Math.sqrt(mx * mx + my * my);
+      const emissionFactor = Math.min(1, distance * 1.5);
+      const emissionValue = TEXT_EMISSION_BASE + (emissionFactor * TEXT_EMISSION_MAX);
+
+      // Smooth the emission value
+      emissionRef.current += (emissionValue - emissionRef.current) * 0.15;
+
       if (ref.current) {
         ref.current.style.setProperty('--lx', `${lx}%`);
         ref.current.style.setProperty('--ly', `${ly}%`);
         ref.current.style.setProperty('--lg', `${TEXT_GLOW}`);
         ref.current.style.setProperty('--lf', `${TEXT_LIGHT_FALLOFF}`);
+        ref.current.style.setProperty('--emission', emissionRef.current.toString());
       }
       raf = requestAnimationFrame(loop);
     };
+
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
   }, [mouseRef]);
 
   return (
-    <div ref={ref} style={style}>
-      {children}
+    <div ref={ref} style={{ ...style, pointerEvents: 'none' }}>
+      <div style={{ pointerEvents: 'auto' }}>
+        {children}
+      </div>
     </div>
   );
 });
@@ -1046,21 +1206,21 @@ function useResizeObserver(ref, cb) {
 //  ColorBends  (raw WebGL — no Three.js overhead for the bg layer)
 // ─────────────────────────────────────────────────────────────────
 const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
-  colors     = ['#ff2929', '#00ff00', '#0000ff'],
-  rotation   = 45,
+  colors = ['#ff2929', '#00ff00', '#0000ff'],
+  rotation = 45,
   autoRotate = 1,
-  speed      = 0.2,
-  scale      = 1,
-  frequency  = 1,
-  warpStrength   = 0,
+  speed = 0.2,
+  scale = 1,
+  frequency = 1,
+  warpStrength = 0,
   mouseInfluence = 1,
-  parallax   = 1,
-  noise      = 0.08,
+  parallax = 1,
+  noise = 0.08,
   transparent = true,
 }, forwardedRef) {
   const canvasRef = useRef(null);
-  const mouseRef  = useContext(MouseContext);
-  const stateRef  = useRef(null);
+  const mouseRef = useContext(MouseContext);
+  const stateRef = useRef(null);
   const setCanvasNode = useCallback((node) => {
     canvasRef.current = node;
     if (typeof forwardedRef === 'function') forwardedRef(node);
@@ -1072,9 +1232,9 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     for (let i = 0; i < 8; i++) {
       const h = (cols[i] || '#000000').replace('#', '');
       out.push(
-        parseInt(h.slice(0,2),16)/255,
-        parseInt(h.slice(2,4),16)/255,
-        parseInt(h.slice(4,6),16)/255,
+        parseInt(h.slice(0, 2), 16) / 255,
+        parseInt(h.slice(2, 4), 16) / 255,
+        parseInt(h.slice(4, 6), 16) / 255,
       );
     }
     return new Float32Array(out);
@@ -1089,14 +1249,14 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
       gl.shaderSource(s, src); gl.compileShader(s); return s;
     };
     const prog = gl.createProgram();
-    gl.attachShader(prog, mkShader(gl.VERTEX_SHADER,   CB_VERT));
+    gl.attachShader(prog, mkShader(gl.VERTEX_SHADER, CB_VERT));
     gl.attachShader(prog, mkShader(gl.FRAGMENT_SHADER, CB_FRAG));
     gl.linkProgram(prog); gl.useProgram(prog);
 
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER,
-      new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const aPos = gl.getAttribLocation(prog, 'aPos');
     gl.enableVertexAttribArray(aPos);
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
@@ -1116,16 +1276,16 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     stateRef.current = { gl, prog, buf, uniforms };
 
     gl.uniform1i(uniforms.uTransparent, transparent ? 1 : 0);
-    gl.uniform1f(uniforms.uSpeed,        speed);
-    gl.uniform1f(uniforms.uScale,        scale);
-    gl.uniform1f(uniforms.uFrequency,    frequency);
+    gl.uniform1f(uniforms.uSpeed, speed);
+    gl.uniform1f(uniforms.uScale, scale);
+    gl.uniform1f(uniforms.uFrequency, frequency);
     gl.uniform1f(uniforms.uWarpStrength, warpStrength);
     gl.uniform1f(uniforms.uMouseInfluence, mouseInfluence);
-    gl.uniform1f(uniforms.uParallax,     parallax);
-    gl.uniform1f(uniforms.uNoise,        noise);
-    gl.uniform1f(uniforms.uExposure,     CB_EXPOSURE);
-    gl.uniform3fv(uniforms.uColors,      parseColors(colors));
-    gl.uniform1i(uniforms.uColorCount,   Math.min(colors.length, 8));
+    gl.uniform1f(uniforms.uParallax, parallax);
+    gl.uniform1f(uniforms.uNoise, noise);
+    gl.uniform1f(uniforms.uExposure, CB_EXPOSURE);
+    gl.uniform3fv(uniforms.uColors, parseColors(colors));
+    gl.uniform1i(uniforms.uColorCount, Math.min(colors.length, 8));
 
     const start = performance.now();
     let raf;
@@ -1137,8 +1297,8 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
       const rad = deg * Math.PI / 180;
       ptrS.x += (mouseRef.current.x - ptrS.x) * 0.08;
       ptrS.y += (mouseRef.current.y - ptrS.y) * 0.08;
-      gl.uniform1f(uniforms.uTime,   elapsed);
-      gl.uniform2f(uniforms.uRot,    Math.cos(rad), Math.sin(rad));
+      gl.uniform1f(uniforms.uTime, elapsed);
+      gl.uniform2f(uniforms.uRot, Math.cos(rad), Math.sin(rad));
       gl.uniform2f(uniforms.uPointer, ptrS.x, ptrS.y);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       raf = requestAnimationFrame(loop);
@@ -1158,7 +1318,7 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     const canvas = canvasRef.current;
     if (!canvas || !stateRef.current) return;
     const { gl, uniforms } = stateRef.current;
-    const w = canvas.clientWidth  || window.innerWidth;
+    const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
     canvas.width = w; canvas.height = h;
     gl.viewport(0, 0, w, h);
@@ -1168,26 +1328,65 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
   return (
     <canvas
       ref={setCanvasNode}
-      style={{ position:'absolute', inset:0, width:'100%', height:'100%', display:'block' }}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}
     />
   );
 }));
 
 // ─────────────────────────────────────────────────────────────────
 //  FluidGlass  (Three.js — FBO refraction + cinematic shader)
+//  FIXED: Cursor down = model looks down
 // ─────────────────────────────────────────────────────────────────
 const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
-  const mountRef  = useRef(null);
-  const mouseRef  = useContext(MouseContext);
+  const mountRef = useRef(null);
+  const mouseRef = useContext(MouseContext);
+  const [modelConfig, setModelConfig] = useState(DEFAULT_MODEL_CONFIG);
+  const [modelPath, setModelPath] = useState(null);
+  const targetRotation = useRef({ x: 0, y: 0 });
+  const currentRotation = useRef({ x: 0, y: 0 });
+
+  // Randomly select a model on mount
+  useEffect(() => {
+    const loadModelList = async () => {
+      try {
+        const modelFiles = Object.keys(models);
+        if (modelFiles.length === 0) {
+          console.warn('No models found in ../assets/models/');
+          return;
+        }
+
+        // Pick random model
+        const randomIndex = Math.floor(Math.random() * modelFiles.length);
+        const selectedPath = modelFiles[randomIndex];
+
+        // Extract filename from path
+        const filename = selectedPath.split('/').pop();
+
+        // Get config for this model or use default
+        const config = MODEL_CONFIGS[filename] || DEFAULT_MODEL_CONFIG;
+        setModelConfig(config);
+
+        // Load the model - this returns a module with the URL
+        const module = await models[selectedPath]();
+        setModelPath(module.default);
+      } catch (error) {
+        console.error('Error loading model:', error);
+      }
+    };
+
+    loadModelList();
+  }, []);
 
   useEffect(() => {
+    if (!modelPath) return;
+
     const mount = mountRef.current;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setClearColor(0x000000, 0);
-    renderer.toneMapping       = THREE.ReinhardToneMapping;
+    renderer.toneMapping = THREE.ReinhardToneMapping;
     renderer.toneMappingExposure = 1.1;
     mount.appendChild(renderer.domElement);
 
@@ -1205,17 +1404,17 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     let ditherPass = null;
     let disposed = false;
 
-    const camera  = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 200);
+    const camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 200);
     camera.position.set(0, 0, 6.5);
-    const glScene     = new THREE.Scene();
+    const glScene = new THREE.Scene();
     const mirrorScene = new THREE.Scene();
-    const ortho       = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
     const mkFBO = () => new THREE.WebGLRenderTarget(
       mount.clientWidth, mount.clientHeight,
-      { 
-        minFilter: THREE.LinearFilter, 
-        magFilter: THREE.LinearFilter, 
+      {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat,
         samples: 4
       }
@@ -1234,19 +1433,19 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     const glassMat = new THREE.ShaderMaterial({
       uniforms: {
         uBuffer: { value: fbo.texture },
-        uRes:    { value: new THREE.Vector2(mount.clientWidth, mount.clientHeight) },
-        uTime:   { value: 0 },
-        uIOR:    { value: 1.2 },
+        uRes: { value: new THREE.Vector2(mount.clientWidth, mount.clientHeight) },
+        uTime: { value: 0 },
+        uIOR: { value: 1.2 },
         uChroma: { value: 1.0 },
-        uFrost:  { value: 1.8 },
-        uSmoke:  { value: 0.6 },
+        uFrost: { value: 1.8 },
+        uSmoke: { value: 0.6 },
         uRoughness: { value: MODEL_ROUGHNESS },
         uFresnel: { value: MODEL_FRESNEL },
         uRimIntensity: { value: RIM_INTENSITY },
         uRimPower: { value: RIM_POWER },
         uRimStart: { value: RIM_START },
       },
-      vertexShader:   GL_VERT,
+      vertexShader: GL_VERT,
       fragmentShader: GL_FRAG,
       transparent: true,
       side: THREE.FrontSide,
@@ -1259,34 +1458,49 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     glScene.add(glassMesh);
     let targetObject = glassMesh;
 
-    if (modelUrl) {
-      import('three/examples/jsm/loaders/GLTFLoader').then(({ GLTFLoader }) => {
-        const loader = new GLTFLoader();
-        loader.load(
-          modelUrl,
-          gltf => {
-            console.log('GLB loaded successfully:', modelUrl);
-            const box  = new THREE.Box3().setFromObject(gltf.scene);
-            const size = box.getSize(new THREE.Vector3()).length();
-            const cnt  = box.getCenter(new THREE.Vector3());
-            gltf.scene.position.sub(cnt);
-            gltf.scene.scale.setScalar((2.4 / size) * MODEL_SCALE);
-            gltf.scene.traverse(child => {
-              if (child.isMesh) {
-                child.material = glassMat;
-              }
-            });
-            glScene.remove(glassMesh);
-            glScene.add(gltf.scene);
-            targetObject = gltf.scene;
-          },
-          undefined,
-          error => {
-            console.error('Failed to load GLB:', error);
-          }
-        );
-      });
-    }
+    // Load the selected model
+    import('three/examples/jsm/loaders/GLTFLoader').then(({ GLTFLoader }) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        modelPath,
+        gltf => {
+          console.log('GLB loaded successfully:', modelPath);
+          const box = new THREE.Box3().setFromObject(gltf.scene);
+          const size = box.getSize(new THREE.Vector3()).length();
+          const cnt = box.getCenter(new THREE.Vector3());
+
+          // Apply position from config
+          gltf.scene.position.set(
+            modelConfig.position.x - cnt.x,
+            modelConfig.position.y - cnt.y,
+            modelConfig.position.z - cnt.z
+          );
+
+          // Apply scale from config
+          gltf.scene.scale.setScalar(modelConfig.scale);
+
+          // Apply rotation from config
+          gltf.scene.rotation.set(
+            modelConfig.rotation.x,
+            modelConfig.rotation.y,
+            modelConfig.rotation.z
+          );
+
+          gltf.scene.traverse(child => {
+            if (child.isMesh) {
+              child.material = glassMat;
+            }
+          });
+          glScene.remove(glassMesh);
+          glScene.add(gltf.scene);
+          targetObject = gltf.scene;
+        },
+        undefined,
+        error => {
+          console.error('Failed to load GLB:', error);
+        }
+      );
+    });
 
     const envLight = new THREE.PointLight(0xffffff, 3.0, 12);
     glScene.add(envLight);
@@ -1387,7 +1601,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
       // Final blur with animated value
       finalHBlurPass = new ShaderPass(HorizontalBlurShader);
       finalVBlurPass = new ShaderPass(VerticalBlurShader);
-      
+
       // Watch for CSS variable changes
       const updateBlur = () => {
         const blurValue = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--final-blur')) || FINAL_BLUR_DEFAULT;
@@ -1398,10 +1612,10 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
           finalVBlurPass.uniforms.v.value = blurValue / mount.clientHeight;
         }
       };
-      
+
       const observer = new MutationObserver(updateBlur);
       observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
-      
+
       composer.addPass(finalHBlurPass);
       composer.addPass(finalVBlurPass);
 
@@ -1413,24 +1627,35 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     };
     initPost();
 
-    const clock  = new THREE.Clock();
-    const tgt    = { x: 0, y: 0 };
-    const STR    = Math.PI * 0.3;
-    const SM     = 0.035;
+    const clock = new THREE.Clock();
+    const SMOOTH_FACTOR = 0.08;
     let raf;
 
     const loop = () => {
       raf = requestAnimationFrame(loop);
       const t = clock.getElapsedTime();
 
-      tgt.x += (mouseRef.current.y * STR - tgt.x) * SM;
-      tgt.y += (mouseRef.current.x * STR - tgt.y) * SM;
-      
+      // Get mouse/gyro values
+      const mx = mouseRef.current?.x ?? 0;
+      const my = mouseRef.current?.y ?? 0;
+
+      // Set target rotation:
+      // mx moves model left/right (y-axis rotation)
+      // my moves model up/down (x-axis rotation) - FIXED: now positive my = model looks down
+      targetRotation.current = {
+        x: my * 0.8, // Positive my = model rotates down (correct!)
+        y: mx * 0.8
+      };
+
+      // Smooth interpolation for natural movement
+      currentRotation.current.x += (targetRotation.current.x - currentRotation.current.x) * SMOOTH_FACTOR;
+      currentRotation.current.y += (targetRotation.current.y - currentRotation.current.y) * SMOOTH_FACTOR;
+
       if (targetObject) {
-        targetObject.rotation.x = tgt.x;
-        targetObject.rotation.y = tgt.y;
+        targetObject.rotation.x = currentRotation.current.x;
+        targetObject.rotation.y = currentRotation.current.y;
       }
-      
+
       glassMesh.position.y = Math.sin(t * 0.5) * 0.06;
 
       envLight.position.set(Math.sin(t * 0.3) * 4, 2.5, Math.cos(t * 0.3) * 3);
@@ -1492,59 +1717,44 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
       if (renderer.domElement.parentNode === mount)
         mount.removeChild(renderer.domElement);
     };
-  }, [bgCanvasRef, modelUrl]);
+  }, [bgCanvasRef, modelPath, modelConfig]);
 
   return (
     <div
       ref={mountRef}
-      style={{ position:'absolute', inset:0, pointerEvents:'none' }}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
     />
   );
 });
 
 // ─────────────────────────────────────────────────────────────────
-//  TitleTarget - Dedicated container for BOLTFORGED title
+//  Letterboxing component with glass effect on hover
+//  HIDDEN on mobile devices
 // ─────────────────────────────────────────────────────────────────
-const TitleTarget = memo(function TitleTarget({ children }) {
-  return (
-    <div 
-      className="title-target"
-      style={{ 
-        display: 'inline-block',
-        cursor: 'pointer',
-        position: 'relative',
-        zIndex: 20
-      }}
-    >
-      {children}
-    </div>
-  );
-});
-
-// ─────────────────────────────────────────────────────────────────
-//  Letterboxing component with glass effect on hover (no cursor target)
-// ─────────────────────────────────────────────────────────────────
-const Letterboxing = memo(function Letterboxing() {
+const Letterboxing = memo(function Letterboxing({ isMobile }) {
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const [isFooterHovered, setIsFooterHovered] = useState(false);
+
+  // Don't render on mobile
+  if (isMobile) return null;
 
   const glassStyle = (isHovered) => ({
     height: '10vh',
     minHeight: '60px',
-    background: isHovered 
+    background: isHovered
       ? 'rgba(20, 25, 35, 0.25)'
       : 'rgba(0, 0, 0, 0.95)',
-    backdropFilter: isHovered 
+    backdropFilter: isHovered
       ? 'blur(12px) saturate(180%)'
       : 'blur(2px)',
-    WebkitBackdropFilter: isHovered 
+    WebkitBackdropFilter: isHovered
       ? 'blur(12px) saturate(180%)'
       : 'blur(2px)',
     border: isHovered
       ? '1px solid rgba(255, 255, 255, 0.25)'
       : '1px solid rgba(255, 255, 255, 0.05)',
-    boxShadow: isHovered 
-      ? '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2)' 
+    boxShadow: isHovered
+      ? '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255, 255, 255, 0.2)'
       : 'none',
     color: isHovered ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.45)',
     fontSize: 10,
@@ -1565,7 +1775,7 @@ const Letterboxing = memo(function Letterboxing() {
     fontFamily: FONT_LETTERBOX_TITLE,
     opacity: 1,
     visibility: 'visible',
-    textShadow: isHovered 
+    textShadow: isHovered
       ? '0 2px 8px rgba(0, 0, 0, 0.5)'
       : 'none',
     transition: 'text-shadow 0.3s ease',
@@ -1575,7 +1785,7 @@ const Letterboxing = memo(function Letterboxing() {
     fontFamily: FONT_LETTERBOX_SUBTITLE,
     opacity: isHovered ? 0.95 : 0.7,
     visibility: 'visible',
-    textShadow: isHovered 
+    textShadow: isHovered
       ? '0 2px 6px rgba(0, 0, 0, 0.4)'
       : 'none',
     transition: 'opacity 0.3s ease, text-shadow 0.3s ease',
@@ -1595,7 +1805,7 @@ const Letterboxing = memo(function Letterboxing() {
       justifyContent: 'space-between',
       background: 'transparent',
     }}>
-      <div 
+      <div
         style={glassStyle(isHeaderHovered)}
         onMouseEnter={() => setIsHeaderHovered(true)}
         onMouseLeave={() => setIsHeaderHovered(false)}
@@ -1607,8 +1817,8 @@ const Letterboxing = memo(function Letterboxing() {
           STATUS: STABLE / ROUTE: BOLTFORGED / SEQ: 0049-A
         </span>
       </div>
-      
-      <div 
+
+      <div
         style={glassStyle(isFooterHovered)}
         onMouseEnter={() => setIsFooterHovered(true)}
         onMouseLeave={() => setIsFooterHovered(false)}
@@ -1625,12 +1835,12 @@ const Letterboxing = memo(function Letterboxing() {
 });
 
 // ─────────────────────────────────────────────────────────────────
-//  DynamicShadowText - Component for text with dynamic shadows
+//  DynamicShadowText with emission - FIXED for contrast drop shadows
 // ─────────────────────────────────────────────────────────────────
 const DynamicShadowText = memo(function DynamicShadowText({ children, style, level = 'title' }) {
   const ref = useRef(null);
   const mouseRef = useContext(MouseContext);
-  
+
   const shadowIntensity = level === 'title' ? TITLE_SHADOW_INTENSITY : SUBTITLE_SHADOW_INTENSITY;
   const shadowBlur = level === 'title' ? TITLE_SHADOW_BLUR : SUBTITLE_SHADOW_BLUR;
   const shadowDistance = level === 'title' ? TITLE_SHADOW_DISTANCE : SUBTITLE_SHADOW_DISTANCE;
@@ -1641,15 +1851,20 @@ const DynamicShadowText = memo(function DynamicShadowText({ children, style, lev
       if (ref.current && mouseRef.current) {
         const mx = mouseRef.current.x || 0;
         const my = mouseRef.current.y || 0;
-        
+
+        // Base shadow that follows cursor for contrast
         const shadowX = mx * shadowDistance;
         const shadowY = my * shadowDistance;
-        
+
+        // Get emission value for glow
+        const emission = parseFloat(getComputedStyle(ref.current).getPropertyValue('--emission')) || 0;
+
+        // Enhanced text shadow with contrast and emission
         ref.current.style.textShadow = `
           ${shadowX}px ${shadowY}px ${shadowBlur}px rgba(0,0,0,${shadowIntensity}),
-          ${shadowX * 0.5}px ${shadowY * 0.5}px ${shadowBlur * 0.5}px rgba(140,80,255,${shadowIntensity * 0.3}),
-          0 0 90px rgba(140,80,255,.7),
-          0 0 200px rgba(140,80,255,.45)
+          ${shadowX * 0.3}px ${shadowY * 0.3}px ${shadowBlur * 0.5}px rgba(0,0,0,${shadowIntensity * 0.5}),
+          0 0 ${15 + emission * 8}px rgba(140,80,255,${0.4 + emission * 0.15}),
+          0 0 ${30 + emission * 15}px rgba(140,80,255,${0.25 + emission * 0.1})
         `;
       }
       raf = requestAnimationFrame(loop);
@@ -1666,24 +1881,48 @@ const DynamicShadowText = memo(function DynamicShadowText({ children, style, lev
 });
 
 // ─────────────────────────────────────────────────────────────────
+//  TitleTarget - Component that makes the title hoverable
+// ─────────────────────────────────────────────────────────────────
+const TitleTarget = memo(function TitleTarget({ children }) {
+  return (
+    <div
+      className="title-target"
+      style={{
+        display: 'inline-block',
+        cursor: 'pointer',
+        position: 'relative',
+        zIndex: 30,
+        pointerEvents: 'auto',
+      }}
+    >
+      {children}
+    </div>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────
 //  Landing — public component with Preloader and TargetCursor
 // ─────────────────────────────────────────────────────────────────
 export default function Landing({
-  cbColors       = ['#ff2929', '#00ff00', '#0000ff'],
-  cbRotation     = 45,
-  cbAutoRotate   = 1,
-  cbSpeed        = 0.2,
-  cbScale        = 1,
-  cbFrequency    = 1,
+  cbColors = ['#ff2929', '#00ff00', '#0000ff'],
+  cbRotation = 45,
+  cbAutoRotate = 1,
+  cbSpeed = 0.2,
+  cbScale = 1,
+  cbFrequency = 1,
   cbWarpStrength = 0,
   cbMouseInfluence = 1,
-  cbParallax     = 1,
-  cbNoise        = 0.08,
+  cbParallax = 1,
+  cbNoise = 0.08,
   preloaderDuration = 3,
 }) {
   const bgCanvasRef = useRef(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
-  const [isMobile] = useState(() => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  const [isMobile] = useState(() => {
+    const ua = navigator.userAgent;
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+  });
   const [sceneLoaded, setSceneLoaded] = useState(false);
 
   // Add refresh on resize/orientation change
@@ -1692,6 +1931,7 @@ export default function Landing({
   // Set initial CSS variable for blur
   useEffect(() => {
     document.documentElement.style.setProperty('--final-blur', `${FINAL_BLUR_MAX}px`);
+    document.documentElement.style.setProperty('--emission', '0');
   }, []);
 
   const setCanvasRef = useCallback((node) => {
@@ -1744,13 +1984,18 @@ export default function Landing({
     setSceneLoaded(true);
   }, []);
 
+  // Responsive font sizes based on screen width
+  const titleFontSize = isMobile ? 'clamp(32px, 8vw, 60px)' : 'clamp(36px, 6vw, 80px)';
+  const subtitleFontSize = isMobile ? 'clamp(12px, 4vw, 20px)' : '15px';
+  const preTitleFontSize = isMobile ? 'clamp(8px, 3vw, 14px)' : '11px';
+
   return (
     <MouseProvider>
       <div style={{
-        position : 'relative',
-        width    : '100%',
-        height   : '100vh',
-        overflow : 'hidden',
+        position: 'relative',
+        width: '100%',
+        height: '100vh',
+        overflow: 'hidden',
         background: '#000',
         touchAction: 'none',
       }}>
@@ -1793,6 +2038,7 @@ export default function Landing({
           
           :root {
             --final-blur: ${FINAL_BLUR_MAX}px;
+            --emission: 0;
           }
           
           .target-cursor-wrapper {
@@ -1853,149 +2099,143 @@ export default function Landing({
             border-top: none;
           }
 
-          .target-cursor-label {
-            position: fixed;
-            top: 0;
-            left: 0;
-            padding: 8px 16px;
-            background: rgba(20, 25, 35, 0.85);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.25);
-            border-radius: 20px;
-            color: white;
-            font-size: 12px;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            font-family: ${FONT_LETTERBOX_TITLE};
-            white-space: nowrap;
-            pointer-events: none;
-            z-index: 10002;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            transform-origin: top right;
-          }
-
           .title-target {
             display: inline-block;
             cursor: pointer;
             position: relative;
-            z-index: 20;
+            zIndex: 30;
+            pointerEvents: auto;
           }
         `}</style>
 
         {/* Preloader */}
-        <Preloader 
-          duration={preloaderDuration} 
+        <Preloader
+          duration={preloaderDuration}
           onLoadComplete={handleLoadComplete}
         />
 
         {/* Layer 0 — ColorBends */}
         <ColorBendsGL
           ref={setCanvasRef}
-          colors        = {cbColors}
-          rotation      = {cbRotation}
-          autoRotate    = {cbAutoRotate}
-          speed         = {cbSpeed}
-          scale         = {cbScale}
-          frequency     = {cbFrequency}
-          warpStrength  = {cbWarpStrength}
-          mouseInfluence= {cbMouseInfluence}
-          parallax      = {cbParallax}
-          noise         = {cbNoise}
+          colors={cbColors}
+          rotation={cbRotation}
+          autoRotate={cbAutoRotate}
+          speed={cbSpeed}
+          scale={cbScale}
+          frequency={cbFrequency}
+          warpStrength={cbWarpStrength}
+          mouseInfluence={cbMouseInfluence}
+          parallax={cbParallax}
+          noise={cbNoise}
           transparent
         />
 
         {/* Layer 1 — vignette */}
         <div style={{
-          position  : 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
+          position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
           background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,.68) 100%)',
         }} />
 
         {/* Layer 2 — Glass mesh - only render when canvas is ready */}
         {isCanvasReady && (
-          <div style={{ position:'absolute', inset:0, zIndex:2 }}>
-            <FluidGlass bgCanvasRef={bgCanvasRef} modelUrl={suzanneModel} />
+          <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
+            <FluidGlass bgCanvasRef={bgCanvasRef} />
           </div>
         )}
 
-        {/* Layer 3 — UI with improved subtitle visibility and dynamic shadows */}
+        {/* Layer 3 — UI with left-aligned text */}
         <BacklitText style={{
-          position:'absolute', inset:0, zIndex:10, pointerEvents:'none',
-          display:'flex', flexDirection:'column',
-          alignItems:'center', justifyContent:'center', gap:24,
-          color:'rgba(255,255,255,1)',
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '100%',
+          maxWidth: '1200px',
+          zIndex: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          gap: isMobile ? 16 : 24,
+          color: 'rgba(255,255,255,1)',
           mixBlendMode: isMobile ? 'normal' : 'screen',
-          filter:'none',
-          WebkitMaskImage: isMobile ? 'none' : 'radial-gradient(45vmax 45vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.7) calc(35% + var(--lg) * 10%), rgba(255,255,255,0.2) calc(65% + var(--lf) * 15%))',
-          maskImage: isMobile ? 'none' : 'radial-gradient(45vmax 45vmax at var(--lx) var(--ly), rgba(255,255,255,1) 0%, rgba(255,255,255,.7) calc(35% + var(--lg) * 10%), rgba(255,255,255,0.2) calc(65% + var(--lf) * 15%))',
+          filter: 'none',
+          padding: '0 20px',
         }}>
-          <span style={{ 
-            fontSize: 11,
-            letterSpacing: '0.55em', 
-            color: 'rgba(255,255,255,0.25)',
-            textTransform: 'uppercase', 
-            textShadow: '0 0 30px rgba(140,80,255,0.4), 0 4px 8px rgba(0,0,0,0.8)',
-            marginBottom: 8,
-            fontWeight: 300,
-            fontFamily: FONT_SUBTITLE,
-          }}>
-            We present to you
-          </span>
-          
-          {/* Dedicated container for BOLTFORGED with cursor target */}
-          <TitleTarget>
-            <DynamicShadowText level="title" style={{
-              fontWeight: 800,
-              fontSize: 'clamp(36px,6vw,80px)', 
-              letterSpacing: '0.22em',
-              color: 'rgba(255,255,255,1)', 
-              textTransform: 'uppercase', 
-              margin: 0,
-              lineHeight: 1.2,
-              fontFamily: FONT_TITLE,
-              textShadow: '0 0 90px rgba(140,80,255,.7), 0 0 200px rgba(140,80,255,.45)',
+          <div style={{ pointerEvents: 'auto', width: '100%' }}>
+            <span style={{
+              fontSize: preTitleFontSize,
+              letterSpacing: '0.55em',
+              color: 'rgba(255,255,255,0.25)',
+              textTransform: 'uppercase',
+              textShadow: '0 0 30px rgba(140,80,255,0.4), 0 4px 8px rgba(0,0,0,0.8)',
+              marginBottom: 8,
+              fontWeight: 300,
+              fontFamily: FONT_SUBTITLE,
+              display: 'block',
+              textAlign: 'left',
             }}>
-              BOLTFORGED
+              We present to you
+            </span>
+
+            {/* Title with cursor target */}
+            <TitleTarget>
+              <DynamicShadowText level="title" style={{
+                fontWeight: 800,
+                fontSize: titleFontSize,
+                letterSpacing: '0.22em',
+                color: 'rgba(255,255,255,1)',
+                textTransform: 'uppercase',
+                margin: 0,
+                lineHeight: 1.2,
+                fontFamily: FONT_TITLE,
+                display: 'block',
+                textAlign: 'left',
+              }}>
+                BOLTFORGED
+              </DynamicShadowText>
+            </TitleTarget>
+
+            <DynamicShadowText level="subtitle" style={{
+              fontSize: subtitleFontSize,
+              letterSpacing: '0.45em',
+              color: 'rgba(255,255,255,0.4)',
+              textTransform: 'uppercase',
+              marginTop: isMobile ? 4 : 8,
+              fontWeight: 300,
+              fontFamily: FONT_SUBTITLE,
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(200,180,255,0.3) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              padding: '0',
+              display: 'block',
+              textAlign: 'left',
+            }}>
+              House of Creatives
             </DynamicShadowText>
-          </TitleTarget>
-          
-          <DynamicShadowText level="subtitle" style={{
-            fontSize: 15,
-            letterSpacing: '0.45em', 
-            color: 'rgba(255,255,255,0.4)',
-            textTransform: 'uppercase', 
-            marginTop: 8,
-            fontWeight: 300,
-            fontFamily: FONT_SUBTITLE,
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(200,180,255,0.3) 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            padding: '0 20px',
-          }}>
-            House of Creatives
-          </DynamicShadowText>
+          </div>
         </BacklitText>
 
-        {/* Corner brackets - without cursor target */}
-        {[['top','left'],['top','right'],['bottom','left'],['bottom','right']].map(([v,h]) => (
+        {/* Corner brackets - hidden on mobile */}
+        {!isMobile && [['top', 'left'], ['top', 'right'], ['bottom', 'left'], ['bottom', 'right']].map(([v, h]) => (
           <div
-            key={v+h}
+            key={v + h}
             style={{
-              position:'absolute', [v]:24, [h]:24, width:22, height:22, zIndex:12,
-              borderColor:'rgba(255,255,255,.15)',
-              borderStyle:'solid',
-              borderWidth: `${v==='top'?1:0}px ${h==='right'?1:0}px ${v==='bottom'?1:0}px ${h==='left'?1:0}px`,
+              position: 'absolute', [v]: 24, [h]: 24, width: 22, height: 22, zIndex: 12,
+              borderColor: 'rgba(255,255,255,.15)',
+              borderStyle: 'solid',
+              borderWidth: `${v === 'top' ? 1 : 0}px ${h === 'right' ? 1 : 0}px ${v === 'bottom' ? 1 : 0}px ${h === 'left' ? 1 : 0}px`,
             }}
           />
         ))}
 
-        {/* Layer 4 — Letterboxing with glass effect (no cursor target) */}
-        <Letterboxing />
+        {/* Layer 4 — Letterboxing with glass effect (hidden on mobile) */}
+        <Letterboxing isMobile={isMobile} />
 
-        {/* TargetCursor - only on BOLTFORGED title */}
+        {/* TargetCursor - only on desktop */}
         {sceneLoaded && !isMobile && (
-          <TargetCursor 
+          <TargetCursor
             targetSelector=".title-target"
             spinDuration={5}
             hoverDuration={0.2}
