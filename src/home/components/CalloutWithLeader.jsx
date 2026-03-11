@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useResizeObserver } from '../core/hooks';
-import { FONT_LETTERBOX_TITLE } from '../core/constants';
+import { FONT_LETTERBOX_SUBTITLE } from '../core/constants';
 
 const CalloutWithLeader = memo(function CalloutWithLeader({
   text,
@@ -161,8 +161,8 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
           color: 'rgba(245, 248, 255, 0.96)',
           fontSize: '12px',
           letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-          fontFamily: FONT_LETTERBOX_TITLE,
+          textTransform: 'none',
+          fontFamily: FONT_LETTERBOX_SUBTITLE,
           fontWeight: 600,
           whiteSpace: 'nowrap',
           pointerEvents: 'none',

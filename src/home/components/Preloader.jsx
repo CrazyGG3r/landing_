@@ -70,26 +70,39 @@ const Preloader = memo(function Preloader({
   const [scale, setScale] = useState(3.0);
 
   useEffect(() => {
-    const startTime = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const newProgress = Math.min((elapsed / duration) * 100, 100);
-      setProgress(newProgress);
+    const startTime = performance.now();
+    let raf;
+    let done = false;
 
-      const blurProgress = newProgress / 100;
-      const newBlur = FINAL_BLUR_MAX - (blurProgress * (FINAL_BLUR_MAX - FINAL_BLUR_DEFAULT));
-      setBlurAmount(Math.max(FINAL_BLUR_DEFAULT, newBlur));
+    const tick = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const nextProgress = Math.min((elapsed / duration) * 100, 100);
+      setProgress(prev => (Math.abs(prev - nextProgress) > 0.1 ? nextProgress : prev));
 
-      if (newProgress >= 100) {
-        clearInterval(interval);
+      const blurProgress = nextProgress / 100;
+      const nextBlur = FINAL_BLUR_MAX - (blurProgress * (FINAL_BLUR_MAX - FINAL_BLUR_DEFAULT));
+      setBlurAmount(prev => {
+        const clamped = Math.max(FINAL_BLUR_DEFAULT, nextBlur);
+        return Math.abs(prev - clamped) > 0.01 ? clamped : prev;
+      });
+
+      if (nextProgress >= 100 && !done) {
+        done = true;
         setTimeout(() => {
           setIsVisible(false);
           if (onLoadComplete) onLoadComplete();
         }, 500);
       }
-    }, 16);
 
-    return () => clearInterval(interval);
+      if (!done) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [duration, onLoadComplete]);
 
   useEffect(() => {

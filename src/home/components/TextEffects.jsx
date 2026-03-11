@@ -55,6 +55,7 @@ export const BacklitText = memo(function BacklitText({ children, style }) {
         }
         if (last.emission === null || Math.abs(last.emission - emission) > 0.02) {
           ref.current.style.setProperty('--emission', emission.toString());
+          ref.current.dataset.emission = emission.toString();
           last.emission = emission;
         }
         ref.current.style.setProperty('--lg', `${TEXT_GLOW}`);
@@ -68,7 +69,7 @@ export const BacklitText = memo(function BacklitText({ children, style }) {
   }, [mouseRef]);
 
   return (
-    <div ref={ref} style={{ ...style, pointerEvents: 'none' }}>
+    <div ref={ref} data-emission="0" style={{ ...style, pointerEvents: 'none' }}>
       <div style={{ pointerEvents: 'auto' }}>
         {children}
       </div>
@@ -80,6 +81,7 @@ export const DynamicShadowText = memo(function DynamicShadowText({ children, sty
   const ref = useRef(null);
   const mouseRef = useContext(MouseContext);
   const lastShadowRef = useRef('');
+  const emissionHostRef = useRef(null);
 
   const shadowIntensity = level === 'title' ? TITLE_SHADOW_INTENSITY : SUBTITLE_SHADOW_INTENSITY;
   const shadowBlur = level === 'title' ? TITLE_SHADOW_BLUR : SUBTITLE_SHADOW_BLUR;
@@ -95,7 +97,10 @@ export const DynamicShadowText = memo(function DynamicShadowText({ children, sty
         const shadowX = mx * shadowDistance;
         const shadowY = my * shadowDistance;
 
-        const emission = parseFloat(getComputedStyle(ref.current).getPropertyValue('--emission')) || 0;
+        if (!emissionHostRef.current) {
+          emissionHostRef.current = ref.current.closest('[data-emission]');
+        }
+        const emission = parseFloat(emissionHostRef.current?.dataset?.emission || '0') || 0;
 
         const shadow = `
           ${shadowX}px ${shadowY}px ${shadowBlur}px rgba(0,0,0,${shadowIntensity}),

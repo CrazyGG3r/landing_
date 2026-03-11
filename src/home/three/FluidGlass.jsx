@@ -106,6 +106,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     let finalVBlurPass = null;
     let ditherPass = null;
     let disposed = false;
+    let blurObserver = null;
 
     const camera = new THREE.PerspectiveCamera(42, mount.clientWidth / mount.clientHeight, 0.1, 200);
     camera.position.set(0, 0, 6.5);
@@ -309,8 +310,8 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         }
       };
 
-      const observer = new MutationObserver(updateBlur);
-      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+      blurObserver = new MutationObserver(updateBlur);
+      blurObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
 
       composer.addPass(finalHBlurPass);
       composer.addPass(finalVBlurPass);
@@ -412,6 +413,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         composer.renderTarget1.dispose();
         composer.renderTarget2.dispose();
       }
+      if (blurObserver) blurObserver.disconnect();
       renderer.dispose();
       renderer.forceContextLoss();
       if (renderer.domElement.parentNode === mount)

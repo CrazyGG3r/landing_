@@ -281,6 +281,21 @@ const TargetCursor = memo(function TargetCursor({
 
     window.addEventListener('mouseover', enterHandler, { passive: true });
 
+    const visibilityHandler = () => {
+      if (document.hidden) {
+        if (tickerFnRef.current) {
+          gsap.ticker.remove(tickerFnRef.current);
+        }
+        spinTl.current?.pause();
+      } else {
+        if (isActiveRef.current && tickerFnRef.current) {
+          gsap.ticker.add(tickerFnRef.current);
+        }
+        spinTl.current?.resume();
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+
     return () => {
       if (tickerFnRef.current) {
         gsap.ticker.remove(tickerFnRef.current);
@@ -296,6 +311,7 @@ const TargetCursor = memo(function TargetCursor({
       }
 
       spinTl.current?.kill();
+      document.removeEventListener('visibilitychange', visibilityHandler);
       document.body.style.cursor = originalCursor;
 
       isActiveRef.current = false;

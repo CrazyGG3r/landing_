@@ -1,4 +1,4 @@
-import { forwardRef, memo, useCallback, useContext, useEffect, useRef } from 'react';
+import { forwardRef, memo, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { CB_EXPOSURE } from '../core/constants';
 import { useResizeObserver } from '../core/hooks';
 import { MouseContext } from '../core/MouseContext';
@@ -20,13 +20,17 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
   const canvasRef = useRef(null);
   const mouseRef = useContext(MouseContext);
   const stateRef = useRef(null);
+  const propsRef = useRef({
+    rotation,
+    autoRotate,
+  });
   const setCanvasNode = useCallback((node) => {
     canvasRef.current = node;
     if (typeof forwardedRef === 'function') forwardedRef(node);
     else if (forwardedRef && typeof forwardedRef === 'object') forwardedRef.current = node;
   }, [forwardedRef]);
 
-  const parseColors = useCallback(cols => {
+  const parseColors = useCallback((cols) => {
     const out = [];
     for (let i = 0; i < 8; i++) {
       const h = (cols[i] || '#000000').replace('#', '');
@@ -39,9 +43,18 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     return new Float32Array(out);
   }, []);
 
+  const colorArray = useMemo(() => parseColors(colors), [colors, parseColors]);
+
+  useEffect(() => {
+    propsRef.current.rotation = rotation;
+    propsRef.current.autoRotate = autoRotate;
+  }, [rotation, autoRotate]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+    if (!canvas) return;
+    const gl = canvas.getContext('webgl', { antialias: true, alpha: transparent });
+    if (!gl) return;
 
     const mkShader = (type, src) => {
       const s = gl.createShader(type);
@@ -76,17 +89,7 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
 
     stateRef.current = { gl, prog, buf, uniforms, vShader, fShader };
 
-    gl.uniform1i(uniforms.uTransparent, transparent ? 1 : 0);
-    gl.uniform1f(uniforms.uSpeed, speed);
-    gl.uniform1f(uniforms.uScale, scale);
-    gl.uniform1f(uniforms.uFrequency, frequency);
-    gl.uniform1f(uniforms.uWarpStrength, warpStrength);
-    gl.uniform1f(uniforms.uMouseInfluence, mouseInfluence);
-    gl.uniform1f(uniforms.uParallax, parallax);
-    gl.uniform1f(uniforms.uNoise, noise);
     gl.uniform1f(uniforms.uExposure, CB_EXPOSURE);
-    gl.uniform3fv(uniforms.uColors, parseColors(colors));
-    gl.uniform1i(uniforms.uColorCount, Math.min(colors.length, 8));
 
     const start = performance.now();
     let raf;
@@ -94,7 +97,8 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
 
     const loop = () => {
       const elapsed = (performance.now() - start) / 1000;
-      const deg = (rotation % 360) + autoRotate * elapsed;
+      const { rotation: rot, autoRotate: ar } = propsRef.current;
+      const deg = (rot % 360) + ar * elapsed;
       const rad = deg * Math.PI / 180;
       ptrS.x += (mouseRef.current.x - ptrS.x) * 0.08;
       ptrS.y += (mouseRef.current.y - ptrS.y) * 0.08;
@@ -114,8 +118,26 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
       gl.deleteShader(fShader);
       const loseExt = gl.getExtension('WEBGL_lose_context');
       if (loseExt && loseExt.loseContext) loseExt.loseContext();
+      stateRef.current = null;
     };
-  }, [colors, rotation, autoRotate, speed, scale, frequency, warpStrength, mouseInfluence, parallax, noise, transparent, mouseRef, parseColors]);
+  }, [mouseRef, transparent]);
+
+  useEffect(() => {
+    const st = stateRef.current;
+    if (!st) return;
+    const { gl, prog, uniforms } = st;
+    gl.useProgram(prog);
+    gl.uniform1i(uniforms.uTransparent, transparent ? 1 : 0);
+    gl.uniform1f(uniforms.uSpeed, speed);
+    gl.uniform1f(uniforms.uScale, scale);
+    gl.uniform1f(uniforms.uFrequency, frequency);
+    gl.uniform1f(uniforms.uWarpStrength, warpStrength);
+    gl.uniform1f(uniforms.uMouseInfluence, mouseInfluence);
+    gl.uniform1f(uniforms.uParallax, parallax);
+    gl.uniform1f(uniforms.uNoise, noise);
+    gl.uniform3fv(uniforms.uColors, colorArray);
+    gl.uniform1i(uniforms.uColorCount, Math.min(colors.length, 8));
+  }, [transparent, speed, scale, frequency, warpStrength, mouseInfluence, parallax, noise, colorArray, colors.length]);
 
   useResizeObserver(canvasRef, () => {
     const canvas = canvasRef.current;
@@ -123,9 +145,11 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     const { gl, uniforms } = stateRef.current;
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
-    canvas.width = w; canvas.height = h;
-    gl.viewport(0, 0, w, h);
-    gl.uniform2f(uniforms.uCanvas, w, h);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(w * dpr);
+    canvas.height = Math.floor(h * dpr);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(uniforms.uCanvas, canvas.width, canvas.height);
   });
 
   return (
