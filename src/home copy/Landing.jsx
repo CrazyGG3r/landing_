@@ -22,6 +22,7 @@ import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
 import PaperFish from './components/fish/Fish';
 import ChalkStick from '../assets/fonts/Chalk Stick.otf';
+import IKarm from './components/arm/IKarm';
 export default function Landing({
   preloaderDuration = 3,
 
@@ -30,7 +31,7 @@ export default function Landing({
   fishFramePath  = '/anims/fish/',  // → public/anims/fish/fish_001.png etc.
   fishFrameExt   = 'png',
   fishFramePad   = 3,
-  fishFps        = 2,
+  fishFps        = 0.75,
   fishCount      = 3,
 }) {
   const [isMobile] = useState(() => {
@@ -280,6 +281,21 @@ export default function Landing({
         ))}
 
         <Letterboxing isMobile={isMobile} />
+        
+        {/* ── IK Arm ─────────────────────────────────────── z: 20 */}
+        {!isMobile && (
+          <IKarm
+          corner="top-right"
+          flip={-1}
+          zIndex={20}
+          upperArmColor="#c8a882"
+          forearmColor="#a8805a"
+          jointColor="#e2c090"
+          handColor="#d4a870"
+          shadowColor="#b9b9b9"
+          />
+        )}
+
 
         {/* ── Cursor ─────────────────────────────────────── z: 10001 */}
         {sceneLoaded && !isMobile && (
