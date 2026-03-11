@@ -5,14 +5,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BLMelodyBold from '../assets/fonts/BLMelody-Bold.otf';
 import BLMelodyExtraLight from '../assets/fonts/BLMelody-ExtraLight.otf';
 import BLMelodyMonoBold from '../assets/fonts/BLMelodyMono-Bold.otf';
 import BLMelodyMonoExtraLight from '../assets/fonts/BLMelodyMono-ExtraLight.otf';
 import TRTCENZOExtraBold from '../assets/fonts/TRTCENZODEMO-ExtraBold.ttf';
 import { FINAL_BLUR_MAX, FONT_SUBTITLE, FONT_TITLE } from './core/constants';
-import { useRefreshOnResize, useViewport } from './core/hooks';
+import { useViewport } from './core/hooks';
 import { MouseProvider } from './core/MouseContext';
 import { BacklitText, DynamicShadowText } from './components/TextEffects';
 import TitleTarget from './components/TitleTarget';
@@ -22,8 +22,10 @@ import FluidGlass from './three/FluidGlass';
 import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
 
+const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
+
 export default function Landing({
-  cbColors = ['#ff2929', '#00ff00', '#0000ff'],
+  cbColors = DEFAULT_CB_COLORS,
   cbRotation = 45,
   cbAutoRotate = 1,
   cbSpeed = 0.2,
@@ -46,87 +48,7 @@ export default function Landing({
   const { width: viewportWidth, height: viewportHeight } = useViewport();
   const isCompact = viewportWidth < 900 || viewportHeight < 560;
   const isTight = viewportWidth < 680;
-  useRefreshOnResize();
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--final-blur', `${FINAL_BLUR_MAX}px`);
-    document.documentElement.style.setProperty('--emission', '0');
-  }, []);
-
-  const setCanvasRef = useCallback((node) => {
-    bgCanvasRef.current = node;
-    if (node) {
-      setTimeout(() => setIsCanvasReady(true), 100);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile) return;
-    const prevOverflow = document.body.style.overflow;
-    const prevTouch = document.body.style.touchAction;
-    document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
-    const preventScroll = e => e.preventDefault();
-    window.addEventListener('touchmove', preventScroll, { passive: false });
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouch;
-      window.removeEventListener('touchmove', preventScroll);
-    };
-  }, [isMobile]);
-
-  useEffect(() => {
-    const preventZoom = e => {
-      if (e.ctrlKey || e.metaKey) e.preventDefault();
-    };
-    const preventKeys = e => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')) {
-        e.preventDefault();
-      }
-    };
-    const preventGesture = e => e.preventDefault();
-    window.addEventListener('wheel', preventZoom, { passive: false });
-    window.addEventListener('keydown', preventKeys, { passive: false });
-    window.addEventListener('gesturestart', preventGesture, { passive: false });
-    window.addEventListener('gesturechange', preventGesture, { passive: false });
-    window.addEventListener('gestureend', preventGesture, { passive: false });
-    return () => {
-      window.removeEventListener('wheel', preventZoom);
-      window.removeEventListener('keydown', preventKeys);
-      window.removeEventListener('gesturestart', preventGesture);
-      window.removeEventListener('gesturechange', preventGesture);
-      window.removeEventListener('gestureend', preventGesture);
-    };
-  }, []);
-
-  const handleLoadComplete = useCallback(() => {
-    setSceneLoaded(true);
-  }, []);
-
-  const titleFontSize = isTight
-    ? 'clamp(30px, 9.5vw, 64px)'
-    : 'clamp(38px, 6vw, 92px)';
-  const subtitleFontSize = isTight
-    ? 'clamp(11px, 3.6vw, 18px)'
-    : 'clamp(12px, 1.6vw, 16px)';
-  const preTitleFontSize = isTight
-    ? 'clamp(8px, 2.8vw, 12px)'
-    : 'clamp(9px, 1.2vw, 12px)';
-  const preTitleLetterSpacing = isTight ? '0.32em' : '0.55em';
-  const titleLetterSpacing = isTight ? '0.14em' : '0.22em';
-  const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
-
-  return (
-    <MouseProvider>
-      <div style={{
-        position: 'relative',
-        width: '100%',
-        height: '100vh',
-        overflow: 'hidden',
-        background: '#000',
-        touchAction: 'none',
-      }}>
-        <style>{`
+  const cssText = useMemo(() => `
           * {
             -webkit-user-select: none;
             -moz-user-select: none;
@@ -253,7 +175,87 @@ export default function Landing({
           .decrypt-encrypted {
             color: rgba(255, 255, 255, 0.28);
           }
-        `}</style>
+        `, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--final-blur', `${FINAL_BLUR_MAX}px`);
+    document.documentElement.style.setProperty('--emission', '0');
+  }, []);
+
+  const setCanvasRef = useCallback((node) => {
+    bgCanvasRef.current = node;
+    if (node) {
+      setTimeout(() => setIsCanvasReady(true), 100);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouch = document.body.style.touchAction;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    const preventScroll = e => e.preventDefault();
+    window.addEventListener('touchmove', preventScroll, { passive: false });
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouch;
+      window.removeEventListener('touchmove', preventScroll);
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
+    const preventZoom = e => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    };
+    const preventKeys = e => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '0')) {
+        e.preventDefault();
+      }
+    };
+    const preventGesture = e => e.preventDefault();
+    window.addEventListener('wheel', preventZoom, { passive: false });
+    window.addEventListener('keydown', preventKeys, { passive: false });
+    window.addEventListener('gesturestart', preventGesture, { passive: false });
+    window.addEventListener('gesturechange', preventGesture, { passive: false });
+    window.addEventListener('gestureend', preventGesture, { passive: false });
+    return () => {
+      window.removeEventListener('wheel', preventZoom);
+      window.removeEventListener('keydown', preventKeys);
+      window.removeEventListener('gesturestart', preventGesture);
+      window.removeEventListener('gesturechange', preventGesture);
+      window.removeEventListener('gestureend', preventGesture);
+    };
+  }, []);
+
+  const handleLoadComplete = useCallback(() => {
+    setSceneLoaded(true);
+  }, []);
+
+  const titleFontSize = isTight
+    ? 'clamp(30px, 9.5vw, 64px)'
+    : 'clamp(38px, 6vw, 92px)';
+  const subtitleFontSize = isTight
+    ? 'clamp(11px, 3.6vw, 18px)'
+    : 'clamp(12px, 1.6vw, 16px)';
+  const preTitleFontSize = isTight
+    ? 'clamp(8px, 2.8vw, 12px)'
+    : 'clamp(9px, 1.2vw, 12px)';
+  const preTitleLetterSpacing = isTight ? '0.32em' : '0.55em';
+  const titleLetterSpacing = isTight ? '0.14em' : '0.22em';
+  const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
+
+  return (
+    <MouseProvider>
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        height: '100vh',
+        overflow: 'hidden',
+        background: '#000',
+        touchAction: 'none',
+      }}>
+        <style>{cssText}</style>
 
         <Preloader
           duration={preloaderDuration}
