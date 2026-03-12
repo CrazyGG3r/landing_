@@ -2,13 +2,13 @@ import { memo, useState } from 'react';
 import DecryptedText from './DecryptedText';
 import { FONT_LETTERBOX_SUBTITLE, FONT_LETTERBOX_TITLE } from '../core/constants';
 
-const Letterboxing = memo(function Letterboxing({ isMobile }) {
+const Letterboxing = memo(function Letterboxing({ isMobile, showOnMobile = false, headerRef, footerRef }) {
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const [isFooterHovered, setIsFooterHovered] = useState(false);
 
-  if (isMobile) return null;
+  if (isMobile && !showOnMobile) return null;
 
-  const glassStyle = (isHovered) => ({
+  const glassStyle = (isHovered, position) => ({
     height: '10vh',
     minHeight: '60px',
     background: isHovered
@@ -33,12 +33,14 @@ const Letterboxing = memo(function Letterboxing({ isMobile }) {
     textTransform: 'uppercase',
     display: 'flex',
     flexDirection: 'column',
+    justifyContent: position === 'footer' ? 'flex-end' : 'flex-start',
     gap: 4,
     opacity: 1,
     visibility: 'visible',
     transition: 'all 0.4s cubic-bezier(0.2, 0.9, 0.3, 1)',
     cursor: 'default',
     pointerEvents: 'auto',
+    overflow: 'hidden',
   });
 
   const textStyle = (isHovered) => ({
@@ -76,7 +78,12 @@ const Letterboxing = memo(function Letterboxing({ isMobile }) {
       background: 'transparent',
     }}>
       <div
-        style={glassStyle(isHeaderHovered)}
+        ref={headerRef}
+        style={{
+          ...glassStyle(isHeaderHovered, 'header'),
+          transformOrigin: 'top',
+          willChange: 'transform',
+        }}
         onMouseEnter={() => setIsHeaderHovered(true)}
         onMouseLeave={() => setIsHeaderHovered(false)}
       >
@@ -105,7 +112,12 @@ const Letterboxing = memo(function Letterboxing({ isMobile }) {
       </div>
 
       <div
-        style={glassStyle(isFooterHovered)}
+        ref={footerRef}
+        style={{
+          ...glassStyle(isFooterHovered, 'footer'),
+          transformOrigin: 'bottom',
+          willChange: 'transform',
+        }}
         onMouseEnter={() => setIsFooterHovered(true)}
         onMouseLeave={() => setIsFooterHovered(false)}
       >

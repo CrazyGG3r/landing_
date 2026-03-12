@@ -1,6 +1,6 @@
 import { memo } from 'react';
 
-const TitleTarget = memo(function TitleTarget({ children }) {
+const TitleTarget = memo(function TitleTarget({ children, ...props }) {
   return (
     <div
       className="title-target"
@@ -11,6 +11,7 @@ const TitleTarget = memo(function TitleTarget({ children }) {
         zIndex: 30,
         pointerEvents: 'auto',
       }}
+      {...props}
     >
       {children}
     </div>

@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import Blur from "./blur";
 import Blur1 from "./blur1";
 import Home from "./home";
+import Portfolio from "./portfolio/Portfolio";
 import Research from "./assignment/research";
 import NotFound from "./NotFound";
 import Kitchen from "./home copy/Landing"
@@ -11,6 +12,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/blur" element={<Blur />} />
       <Route path="/blur1" element={<Blur1 />} />
       <Route path="/assignment/research" element={<Research />} />

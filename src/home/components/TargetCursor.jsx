@@ -7,7 +7,8 @@ const TargetCursor = memo(function TargetCursor({
   spinDuration = 5,
   hoverDuration = 0.2,
   parallaxOn = true,
-  labelText = 'TriggerCaption'
+  labelText = 'TriggerCaption',
+  showCallout = true,
 }) {
   const cursorRef = useRef(null);
   const cornersRef = useRef(null);
@@ -75,7 +76,8 @@ const TargetCursor = memo(function TargetCursor({
       setCalloutInfo(null);
     };
 
-    const showCallout = (text, targetElement) => {
+    const showCalloutForTarget = (text, targetElement) => {
+      if (!showCallout) return;
       if (!targetElement) return;
 
       const rect = targetElement.getBoundingClientRect();
@@ -146,26 +148,15 @@ const TargetCursor = memo(function TargetCursor({
 
     tickerFnRef.current = tickerFn;
 
-    const moveHandler = e => moveCursor(e.clientX, e.clientY);
-    window.addEventListener('mousemove', moveHandler);
-
-    const mouseDownHandler = () => {
-      if (!dotRef.current) return;
-      gsap.to(dotRef.current, { scale: 0.7, duration: 0.3 });
-      gsap.to(cursorRef.current, { scale: 0.9, duration: 0.2 });
+    const findTargetAt = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      if (el.matches && el.matches(targetSelector)) return el;
+      if (el.closest) return el.closest(targetSelector);
+      return null;
     };
 
-    const mouseUpHandler = () => {
-      if (!dotRef.current) return;
-      gsap.to(dotRef.current, { scale: 1, duration: 0.3 });
-      gsap.to(cursorRef.current, { scale: 1, duration: 0.2 });
-    };
-
-    window.addEventListener('mousedown', mouseDownHandler);
-    window.addEventListener('mouseup', mouseUpHandler);
-
-    const enterHandler = e => {
-      const target = e.target.closest(targetSelector);
+    const handleTargetEnter = (target) => {
       if (!target || !cursorRef.current || !cornersRef.current) return;
 
       if (activeTarget === target) return;
@@ -215,7 +206,7 @@ const TargetCursor = memo(function TargetCursor({
         });
       });
 
-      showCallout(labelText, target);
+      showCalloutForTarget(labelText, target);
 
       const leaveHandler = () => {
         gsap.ticker.remove(tickerFnRef.current);
@@ -279,7 +270,49 @@ const TargetCursor = memo(function TargetCursor({
       target.addEventListener('mouseleave', leaveHandler);
     };
 
+    const moveHandler = e => {
+      moveCursor(e.clientX, e.clientY);
+      if (!activeTarget) {
+        const t = findTargetAt(e.clientX, e.clientY);
+        if (t) handleTargetEnter(t);
+      }
+    };
+    window.addEventListener('mousemove', moveHandler);
+
+    const mouseDownHandler = () => {
+      if (!dotRef.current) return;
+      gsap.to(dotRef.current, { scale: 0.7, duration: 0.3 });
+      gsap.to(cursorRef.current, { scale: 0.9, duration: 0.2 });
+    };
+
+    const mouseUpHandler = () => {
+      if (!dotRef.current) return;
+      gsap.to(dotRef.current, { scale: 1, duration: 0.3 });
+      gsap.to(cursorRef.current, { scale: 1, duration: 0.2 });
+    };
+
+    window.addEventListener('mousedown', mouseDownHandler);
+    window.addEventListener('mouseup', mouseUpHandler);
+
+    const getTargetFromEvent = (event) => {
+      const t = event?.target;
+      if (t && t.closest) {
+        return t.closest(targetSelector);
+      }
+      const path = event?.composedPath ? event.composedPath() : [];
+      for (const node of path) {
+        if (node && node.matches && node.matches(targetSelector)) return node;
+      }
+      return null;
+    };
+
+    const enterHandler = e => {
+      const target = getTargetFromEvent(e);
+      handleTargetEnter(target);
+    };
+
     window.addEventListener('mouseover', enterHandler, { passive: true });
+    window.addEventListener('pointerover', enterHandler, { passive: true });
 
     const visibilityHandler = () => {
       if (document.hidden) {
@@ -303,6 +336,7 @@ const TargetCursor = memo(function TargetCursor({
 
       window.removeEventListener('mousemove', moveHandler);
       window.removeEventListener('mouseover', enterHandler);
+      window.removeEventListener('pointerover', enterHandler);
       window.removeEventListener('mousedown', mouseDownHandler);
       window.removeEventListener('mouseup', mouseUpHandler);
 
@@ -333,7 +367,7 @@ const TargetCursor = memo(function TargetCursor({
         <div className="target-cursor-corner corner-br" />
         <div className="target-cursor-corner corner-bl" />
       </div>
-      {calloutInfo && (
+      {showCallout && calloutInfo && (
         <CalloutWithLeader
           text={calloutInfo.text}
           targetRect={calloutInfo.targetRect}

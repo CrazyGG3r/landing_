@@ -6,13 +6,14 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import gsap from 'gsap';
 import BLMelodyBold from '../assets/fonts/BLMelody-Bold.otf';
 import BLMelodyExtraLight from '../assets/fonts/BLMelody-ExtraLight.otf';
 import BLMelodyMonoBold from '../assets/fonts/BLMelodyMono-Bold.otf';
 import BLMelodyMonoExtraLight from '../assets/fonts/BLMelodyMono-ExtraLight.otf';
 import TRTCENZOExtraBold from '../assets/fonts/TRTCENZODEMO-ExtraBold.ttf';
 import { FINAL_BLUR_MAX, FONT_SUBTITLE, FONT_TITLE } from './core/constants';
-import { useViewport } from './core/hooks';
+import { useResizeObserver, useViewport } from './core/hooks';
 import { MouseProvider } from './core/MouseContext';
 import { BacklitText, DynamicShadowText } from './components/TextEffects';
 import TitleTarget from './components/TitleTarget';
@@ -21,8 +22,10 @@ import ColorBendsGL from './three/ColorBendsGL';
 import FluidGlass from './three/FluidGlass';
 import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
+import Options from './Options';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
+const LOGO_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><rect width='400' height='400' fill='%230b0d12'/><rect x='26' y='26' width='348' height='348' fill='none' stroke='%23d9e6ff' stroke-width='10'/><circle cx='200' cy='200' r='84' fill='none' stroke='%23d9e6ff' stroke-width='8'/></svg>";
 
 export default function Landing({
   cbColors = DEFAULT_CB_COLORS,
@@ -38,7 +41,19 @@ export default function Landing({
   preloaderDuration = 3,
 }) {
   const bgCanvasRef = useRef(null);
+  const logoRef = useRef(null);
+  const landingLogoSlotRef = useRef(null);
+  const optionsLogoSlotRef = useRef(null);
+  const titleTextRef = useRef(null);
+  const letterboxHeaderRef = useRef(null);
+  const letterboxFooterRef = useRef(null);
+  const optionsRef = useRef(null);
+  const shimmerRef = useRef(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
+  const [scene, setScene] = useState('landing');
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showMobileShutter, setShowMobileShutter] = useState(false);
+  const [logoSize, setLogoSize] = useState(140);
   const [isMobile] = useState(() => {
     const ua = navigator.userAgent;
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
@@ -182,6 +197,49 @@ export default function Landing({
     document.documentElement.style.setProperty('--emission', '0');
   }, []);
 
+  const syncLogoToSlot = useCallback((slotRef) => {
+    const logo = logoRef.current;
+    const slot = slotRef.current;
+    if (!logo || !slot) return;
+    const rect = slot.getBoundingClientRect();
+    const size = Math.min(rect.width, rect.height) || logoSize;
+    logo.style.width = `${size}px`;
+    logo.style.height = `${size}px`;
+    gsap.set(logo, { x: rect.left, y: rect.top });
+  }, [logoSize]);
+
+  useResizeObserver(landingLogoSlotRef, () => {
+    if (!isTransitioning && scene === 'landing') syncLogoToSlot(landingLogoSlotRef);
+  });
+  useResizeObserver(optionsLogoSlotRef, () => {
+    if (!isTransitioning && scene === 'options') syncLogoToSlot(optionsLogoSlotRef);
+  });
+  useResizeObserver(titleTextRef, () => {
+    if (!titleTextRef.current) return;
+    const rect = titleTextRef.current.getBoundingClientRect();
+    const size = Math.max(80, Math.floor(rect.height));
+    if (size !== logoSize) setLogoSize(size);
+  });
+
+  useEffect(() => {
+    if (!isTransitioning && scene === 'landing') syncLogoToSlot(landingLogoSlotRef);
+    if (!isTransitioning && scene === 'options') syncLogoToSlot(optionsLogoSlotRef);
+  }, [isTransitioning, scene, syncLogoToSlot]);
+
+  useEffect(() => {
+    let raf1;
+    let raf2;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        if (!isTransitioning && scene === 'landing') syncLogoToSlot(landingLogoSlotRef);
+      });
+    });
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [isTransitioning, scene, syncLogoToSlot]);
+
   const setCanvasRef = useCallback((node) => {
     bgCanvasRef.current = node;
     if (node) {
@@ -245,6 +303,120 @@ export default function Landing({
   const titleLetterSpacing = isTight ? '0.14em' : '0.22em';
   const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
 
+  const handleTitleClick = useCallback(() => {
+    if (isTransitioning || scene !== 'landing') return;
+    setIsTransitioning(true);
+    if (isMobile) setShowMobileShutter(true);
+
+    const logo = logoRef.current;
+    const header = letterboxHeaderRef.current;
+    const footer = letterboxFooterRef.current;
+    const text = titleTextRef.current;
+    if (!logo || !header || !footer || !text) {
+      setIsTransitioning(false);
+      return;
+    }
+
+    const headerRect = header.getBoundingClientRect();
+    const footerRect = footer.getBoundingClientRect();
+    const closeHeight = Math.floor(window.innerHeight / 2);
+    const headerBaseHeight = Math.max(1, headerRect.height);
+    const footerBaseHeight = Math.max(1, footerRect.height);
+    const mobileHidden = '12vh';
+
+    if (isMobile) {
+      gsap.set(header, { y: `-${mobileHidden}`, height: headerBaseHeight });
+      gsap.set(footer, { y: `${mobileHidden}`, height: footerBaseHeight });
+    } else {
+      gsap.set(header, { y: 0, height: headerBaseHeight });
+      gsap.set(footer, { y: 0, height: footerBaseHeight });
+    }
+
+    const startRect = landingLogoSlotRef.current.getBoundingClientRect();
+    const endRect = optionsLogoSlotRef.current.getBoundingClientRect();
+    const size = Math.min(startRect.width, startRect.height) || logoSize;
+    const startPos = { x: startRect.left, y: startRect.top };
+    const centerPos = {
+      x: Math.round(window.innerWidth / 2 - size / 2),
+      y: Math.round(window.innerHeight / 2 - size / 2),
+    };
+    const endPos = { x: endRect.left, y: endRect.top };
+
+    gsap.set(logo, { width: size, height: size, x: startPos.x, y: startPos.y });
+
+    const tl = gsap.timeline({
+      defaults: { ease: 'power3.out' },
+      onComplete: () => {
+        setIsTransitioning(false);
+        if (isMobile) setShowMobileShutter(false);
+      },
+    });
+
+    tl.to(header, {
+      y: 0,
+      height: closeHeight,
+      duration: 0.7,
+    }, 0);
+    tl.to(footer, {
+      y: 0,
+      height: closeHeight,
+      duration: 0.7,
+    }, 0);
+    tl.to(text, { opacity: 0, duration: 0.6 }, 0);
+
+    tl.to(logo, {
+      x: centerPos.x,
+      y: centerPos.y,
+      duration: 0.7,
+    }, 0);
+
+    tl.add(() => {
+      if (shimmerRef.current) shimmerRef.current.kill();
+      shimmerRef.current = gsap.to(logo, {
+        filter: 'drop-shadow(0 0 26px rgba(210,240,255,0.85))',
+        duration: 1.6,
+        yoyo: true,
+        repeat: -1,
+        ease: 'sine.inOut',
+      });
+    }, '+=0.05');
+
+    tl.to({}, { duration: 1.0 });
+
+    tl.add(() => {
+      setScene('options');
+      if (shimmerRef.current) {
+        shimmerRef.current.kill();
+        shimmerRef.current = null;
+      }
+      gsap.to(logo, { filter: 'drop-shadow(0 0 10px rgba(210,240,255,0.35))', duration: 0.3 });
+    });
+    tl.to({}, { duration: 0.08 });
+
+    tl.to(logo, {
+      x: endPos.x,
+      y: endPos.y,
+      duration: 0.7,
+    }, '<');
+
+    tl.to(header, {
+      y: isMobile ? `-${mobileHidden}` : 0,
+      height: headerBaseHeight,
+      duration: 0.7,
+    }, '<');
+    tl.to(footer, {
+      y: isMobile ? `${mobileHidden}` : 0,
+      height: footerBaseHeight,
+      duration: 0.7,
+    }, '<');
+
+    tl.add(() => {
+      if (optionsRef.current) {
+        gsap.to(optionsRef.current, { opacity: 1, duration: 0.6, ease: 'power3.out' });
+      }
+    }, '<+=0.12');
+  }, [isTransitioning, isMobile, scene, syncLogoToSlot]);
+
   return (
     <MouseProvider>
       <div style={{
@@ -277,6 +449,23 @@ export default function Landing({
           transparent
         />
 
+        <img
+          ref={logoRef}
+          src={LOGO_PLACEHOLDER}
+          alt="Boltforged logo placeholder"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            zIndex: 10005,
+            pointerEvents: 'none',
+            filter: 'drop-shadow(0 0 6px rgba(160,200,255,0.35))',
+            willChange: 'transform, filter',
+            opacity: 1,
+            display: 'block',
+          }}
+        />
+
         <div style={{
           position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
           background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,.68) 100%)',
@@ -305,56 +494,83 @@ export default function Landing({
           filter: 'none',
           padding: isCompact ? '0 12px' : '0 24px',
         }}>
-          <div style={{ pointerEvents: 'auto', width: '100%' }}>
-            <DynamicShadowText level="subtitle" style={{
-              fontSize: preTitleFontSize,
-              letterSpacing: preTitleLetterSpacing,
-              color: 'rgba(255,255,255,0.25)',
-              textTransform: 'uppercase',
-              marginBottom: 8,
-              fontWeight: 300,
-              fontFamily: FONT_SUBTITLE,
-              display: 'block',
-              textAlign: isCompact ? 'center' : 'left',
-            }}>
-              We present to you
-            </DynamicShadowText>
-
-            <TitleTarget>
-              <DynamicShadowText level="title" style={{
-                fontWeight: 800,
-                fontSize: titleFontSize,
-                letterSpacing: titleLetterSpacing,
-                color: 'rgba(255,255,255,1)',
+          <div style={{
+            pointerEvents: 'auto',
+            width: '100%',
+            display: 'flex',
+            flexDirection: isCompact ? 'column' : 'row',
+            alignItems: isCompact ? 'center' : 'stretch',
+            gap: isCompact ? 16 : 28,
+          }}>
+            <div
+              ref={landingLogoSlotRef}
+              style={{
+                width: `${logoSize}px`,
+                height: `${logoSize}px`,
+                aspectRatio: '1 / 1',
+                flex: '0 0 auto',
+              }}
+            />
+            <div
+              ref={titleTextRef}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: isCompact ? 'center' : 'flex-start',
+                justifyContent: 'center',
+              }}
+            >
+              <DynamicShadowText level="subtitle" style={{
+                fontSize: preTitleFontSize,
+                letterSpacing: preTitleLetterSpacing,
+                color: 'rgba(255,255,255,0.25)',
                 textTransform: 'uppercase',
-                margin: 0,
-                lineHeight: 1.2,
-                fontFamily: FONT_TITLE,
+                marginBottom: 8,
+                fontWeight: 300,
+                fontFamily: FONT_SUBTITLE,
                 display: 'block',
                 textAlign: isCompact ? 'center' : 'left',
               }}>
-                BOLTFORGED
+                We present to you
               </DynamicShadowText>
-            </TitleTarget>
 
-            <DynamicShadowText level="subtitle" style={{
-              fontSize: subtitleFontSize,
-              letterSpacing: subtitleLetterSpacing,
-              color: 'rgba(255,255,255,0.4)',
-              textTransform: 'uppercase',
-              marginTop: isMobile ? 4 : 8,
-              fontWeight: 300,
-              fontFamily: FONT_SUBTITLE,
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(200,180,255,0.3) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              padding: '0',
-              display: 'block',
-              textAlign: isCompact ? 'center' : 'left',
-            }}>
-              House of Creatives
-            </DynamicShadowText>
+              <TitleTarget onClick={handleTitleClick}>
+                <DynamicShadowText level="title" style={{
+                  fontWeight: 800,
+                  fontSize: titleFontSize,
+                  letterSpacing: titleLetterSpacing,
+                  color: 'rgba(255,255,255,1)',
+                  textTransform: 'uppercase',
+                  margin: 0,
+                  lineHeight: 1.2,
+                  fontFamily: FONT_TITLE,
+                  display: 'block',
+                  textAlign: isCompact ? 'center' : 'left',
+                  cursor: 'pointer',
+                }}>
+                  BOLTFORGED
+                </DynamicShadowText>
+              </TitleTarget>
+
+              <DynamicShadowText level="subtitle" style={{
+                fontSize: subtitleFontSize,
+                letterSpacing: subtitleLetterSpacing,
+                color: 'rgba(255,255,255,0.4)',
+                textTransform: 'uppercase',
+                marginTop: isMobile ? 4 : 8,
+                fontWeight: 300,
+                fontFamily: FONT_SUBTITLE,
+                background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(200,180,255,0.3) 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                padding: '0',
+                display: 'block',
+                textAlign: isCompact ? 'center' : 'left',
+              }}>
+                House of Creatives
+              </DynamicShadowText>
+            </div>
           </div>
         </BacklitText>
 
@@ -370,15 +586,37 @@ export default function Landing({
           />
         ))}
 
-        <Letterboxing isMobile={isMobile} />
+        <Letterboxing
+          isMobile={isMobile}
+          showOnMobile={showMobileShutter}
+          headerRef={letterboxHeaderRef}
+          footerRef={letterboxFooterRef}
+        />
 
-        {sceneLoaded && !isMobile && (
+        <Options
+          rootRef={optionsRef}
+          logoSlotRef={optionsLogoSlotRef}
+          active={scene === 'options'}
+        />
+
+        {sceneLoaded && !isMobile && scene === 'landing' && (
           <TargetCursor
             targetSelector=".title-target"
             spinDuration={5}
             hoverDuration={0.2}
             parallaxOn={true}
             labelText="Click to Proceed"
+          />
+        )}
+
+        {sceneLoaded && !isMobile && scene === 'options' && (
+          <TargetCursor
+            targetSelector='[data-cursor-target="options"]'
+            spinDuration={5}
+            hoverDuration={0.2}
+            parallaxOn={true}
+            labelText=""
+            showCallout={false}
           />
         )}
       </div>

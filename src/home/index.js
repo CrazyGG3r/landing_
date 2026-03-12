@@ -10,6 +10,7 @@ export { default as TitleTarget } from './components/TitleTarget';
 export { default as DecryptedText } from './components/DecryptedText';
 export { BacklitText, DynamicShadowText } from './components/TextEffects';
 export { MouseContext, MouseProvider } from './core/MouseContext';
+export { default as Options } from './Options';
 export * from './core/constants';
 export * from './core/hooks';
 export * from './three/shaders';
