@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useMotionValue, useSpring } from 'framer-motion';
 import { FINAL_BLUR_DEFAULT, FINAL_BLUR_MAX, FONT_TITLE } from '../core/constants';
+import { preloadBinary, preloadImages, preloadJson } from '../core/assetCache';
 
 const CountUp = memo(function CountUp({
   to,
@@ -62,16 +63,72 @@ const CountUp = memo(function CountUp({
 
 const Preloader = memo(function Preloader({
   onLoadComplete,
-  duration = 3
+  duration = 3,
+  assets = { images: [], json: [], binary: [], preloaders: [] },
+  maxWaitMs = 5000,
 }) {
   const [progress, setProgress] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
   const [blurAmount, setBlurAmount] = useState(FINAL_BLUR_MAX);
   const [scale, setScale] = useState(3.0);
+  const [assetsReady, setAssetsReady] = useState(true);
+  const assetsReadyRef = useRef(true);
+  const assetsKeyRef = useRef('');
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    assetsReadyRef.current = assetsReady;
+  }, [assetsReady]);
+
+  useEffect(() => {
+    const images = Array.from(new Set((assets?.images || []).filter(Boolean)));
+    const json = Array.from(new Set((assets?.json || []).filter(Boolean)));
+    const binary = Array.from(new Set((assets?.binary || []).filter(Boolean)));
+    const preloaders = Array.isArray(assets?.preloaders) ? assets.preloaders : [];
+
+    const assetsKey = JSON.stringify({ images, json, binary });
+    if (assetsKeyRef.current === assetsKey) return undefined;
+    assetsKeyRef.current = assetsKey;
+
+    const hasPreloaders = preloaders.length > 0;
+    if (images.length === 0 && json.length === 0 && binary.length === 0 && !hasPreloaders) {
+      setAssetsReady(true);
+      return undefined;
+    }
+
+    setAssetsReady(false);
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setAssetsReady(true);
+    };
+    const timer = setTimeout(finish, maxWaitMs);
+
+    const tasks = [];
+    if (images.length > 0) tasks.push(preloadImages(images));
+    if (json.length > 0) tasks.push(preloadJson(json));
+    if (binary.length > 0) tasks.push(preloadBinary(binary));
+    if (hasPreloaders) {
+      preloaders.forEach((fn) => {
+        try {
+          const result = fn?.();
+          if (result && typeof result.then === 'function') tasks.push(result);
+        } catch {
+          // ignore preloader errors
+        }
+      });
+    }
+
+    Promise.allSettled(tasks).then(finish);
+    return () => {
+      clearTimeout(timer);
+      done = true;
+    };
+  }, [assets, maxWaitMs]);
 
   useEffect(() => {
     const startTime = performance.now();
-    let raf;
     let done = false;
 
     const tick = () => {
@@ -86,7 +143,7 @@ const Preloader = memo(function Preloader({
         return Math.abs(prev - clamped) > 0.01 ? clamped : prev;
       });
 
-      if (nextProgress >= 100 && !done) {
+      if (nextProgress >= 100 && assetsReadyRef.current && !done) {
         done = true;
         setTimeout(() => {
           setIsVisible(false);
@@ -95,13 +152,13 @@ const Preloader = memo(function Preloader({
       }
 
       if (!done) {
-        raf = requestAnimationFrame(tick);
+        rafRef.current = requestAnimationFrame(tick);
       }
     };
 
-    raf = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(tick);
     return () => {
-      if (raf) cancelAnimationFrame(raf);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [duration, onLoadComplete]);
 

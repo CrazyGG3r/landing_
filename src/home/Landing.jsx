@@ -7,11 +7,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
-import BLMelodyBold from '../assets/fonts/BLMelody-Bold.otf';
-import BLMelodyExtraLight from '../assets/fonts/BLMelody-ExtraLight.otf';
-import BLMelodyMonoBold from '../assets/fonts/BLMelodyMono-Bold.otf';
-import BLMelodyMonoExtraLight from '../assets/fonts/BLMelodyMono-ExtraLight.otf';
-import TRTCENZOExtraBold from '../assets/fonts/TRTCENZODEMO-ExtraBold.ttf';
+import BLMelodyBold from '/fonts/BLMelody-Bold.otf';
+import BLMelodyExtraLight from '/fonts/BLMelody-ExtraLight.otf';
+import BLMelodyMonoBold from '/fonts/BLMelodyMono-Bold.otf';
+import BLMelodyMonoExtraLight from '/fonts/BLMelodyMono-ExtraLight.otf';
+import TRTCENZOExtraBold from '/fonts/TRTCENZODEMO-ExtraBold.ttf';
 import { FINAL_BLUR_MAX, FONT_SUBTITLE, FONT_TITLE } from './core/constants';
 import { useResizeObserver, useViewport } from './core/hooks';
 import { MouseProvider } from './core/MouseContext';
@@ -23,6 +23,7 @@ import FluidGlass from './three/FluidGlass';
 import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
 import Options from './Options';
+import { getCachedJson, preloadJson } from './core/assetCache';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
 const LOGO_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><rect width='400' height='400' fill='%230b0d12'/><rect x='26' y='26' width='348' height='348' fill='none' stroke='%23d9e6ff' stroke-width='10'/><circle cx='200' cy='200' r='84' fill='none' stroke='%23d9e6ff' stroke-width='8'/></svg>";
@@ -61,6 +62,7 @@ export default function Landing({
       (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
   });
   const [sceneLoaded, setSceneLoaded] = useState(false);
+  const [modelUrl, setModelUrl] = useState(null);
   const { width: viewportWidth, height: viewportHeight } = useViewport();
   const isCompact = viewportWidth < 900 || viewportHeight < 560;
   const isTight = viewportWidth < 680;
@@ -203,6 +205,28 @@ export default function Landing({
     document.documentElement.style.setProperty('--emission', '0');
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const manifestUrl = '/models/manifest.json';
+    const pickModel = async () => {
+      try {
+        await preloadJson([manifestUrl]);
+        const manifest = getCachedJson(manifestUrl) || [];
+        const files = Array.isArray(manifest) ? manifest : (manifest.files || []);
+        if (!files.length) {
+          console.warn('Model manifest is empty:', manifestUrl);
+          return;
+        }
+        const chosen = files[Math.floor(Math.random() * files.length)];
+        if (!cancelled) setModelUrl(`/models/${chosen}`);
+      } catch (err) {
+        console.warn('Failed to load model manifest:', err);
+      }
+    };
+    pickModel();
+    return () => { cancelled = true; };
+  }, []);
+
   const syncLogoToSlot = useCallback((slotRef) => {
     const logo = logoRef.current;
     const slot = slotRef.current;
@@ -311,6 +335,12 @@ export default function Landing({
   const titleLetterSpacing = isTight ? '0.14em' : '0.22em';
   const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
   const showLandingText = scene === 'landing' || isTransitioning;
+  const preloaderAssets = useMemo(() => ({
+    images: ['/assets/images/banners/NGE.jpg'],
+    json: ['/models/manifest.json'],
+    binary: modelUrl ? [modelUrl] : [],
+    preloaders: [],
+  }), [modelUrl]);
 
   const handleTitleClick = useCallback(() => {
     if (isTransitioning || scene !== 'landing') return;
@@ -443,6 +473,7 @@ export default function Landing({
         <Preloader
           duration={preloaderDuration}
           onLoadComplete={handleLoadComplete}
+          assets={preloaderAssets}
         />
 
         <ColorBendsGL
@@ -484,7 +515,7 @@ export default function Landing({
 
         {isCanvasReady && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
-            <FluidGlass bgCanvasRef={bgCanvasRef} />
+            <FluidGlass bgCanvasRef={bgCanvasRef} modelUrl={modelUrl} />
           </div>
         )}
 

@@ -7,11 +7,11 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import BLMelodyBold from '../assets/fonts/BLMelody-Bold.otf';
-import BLMelodyExtraLight from '../assets/fonts/BLMelody-ExtraLight.otf';
-import BLMelodyMonoBold from '../assets/fonts/BLMelodyMono-Bold.otf';
-import BLMelodyMonoExtraLight from '../assets/fonts/BLMelodyMono-ExtraLight.otf';
-import TRTCENZOExtraBold from '../assets/fonts/TRTCENZODEMO-ExtraBold.ttf';
+import BLMelodyBold from '/fonts/BLMelody-Bold.otf';
+import BLMelodyExtraLight from '/fonts/BLMelody-ExtraLight.otf';
+import BLMelodyMonoBold from '/fonts/BLMelodyMono-Bold.otf';
+import BLMelodyMonoExtraLight from '/fonts/BLMelodyMono-ExtraLight.otf';
+import TRTCENZOExtraBold from '/fonts/TRTCENZODEMO-ExtraBold.ttf';
 import { FINAL_BLUR_MAX, FONT_SUBTITLE, FONT_TITLE } from './core/constants';
 import { useRefreshOnResize, useViewport } from './core/hooks';
 import { MouseProvider } from './core/MouseContext';
@@ -21,7 +21,7 @@ import Preloader from './components/Preloader';
 import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
 import PaperFish from './components/fish/Fish';
-import ChalkStick from '../assets/fonts/Chalk Stick.otf';
+import ChalkStick from '/fonts/Chalk Stick.otf';
 import IKarm from './components/arm/IKarm';
 import Background from './components/Background/Background';
 export default function Landing({

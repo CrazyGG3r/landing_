@@ -21,9 +21,7 @@ import {
 } from '../core/constants';
 import { DitherNoiseShader, GhostGlareShader } from './postfx';
 import { GL_FRAG, GL_VERT } from './shaders';
-
-// Import your models dynamically
-const models = import.meta.glob('../../assets/models/*.glb', { eager: false });
+import { getCachedBinary } from '../core/assetCache';
 
 // Model configuration for specific models
 const MODEL_CONFIGS = {
@@ -54,31 +52,15 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
   const currentRotation = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    const loadModelList = async () => {
-      try {
-        const modelFiles = Object.keys(models);
-        if (modelFiles.length === 0) {
-          console.warn('No models found in ../assets/models/');
-          return;
-        }
-
-        const randomIndex = Math.floor(Math.random() * modelFiles.length);
-        const selectedPath = modelFiles[randomIndex];
-
-        const filename = selectedPath.split('/').pop();
-
-        const config = MODEL_CONFIGS[filename] || DEFAULT_MODEL_CONFIG;
-        setModelConfig(config);
-
-        const module = await models[selectedPath]();
-        setModelPath(module.default);
-      } catch (error) {
-        console.error('Error loading model:', error);
-      }
-    };
-
-    loadModelList();
-  }, []);
+    if (!modelUrl) {
+      setModelPath(null);
+      return;
+    }
+    const filename = modelUrl.split('/').pop();
+    const config = MODEL_CONFIGS[filename] || DEFAULT_MODEL_CONFIG;
+    setModelConfig(config);
+    setModelPath(modelUrl);
+  }, [modelUrl]);
 
   useEffect(() => {
     if (!modelPath) return;
@@ -164,9 +146,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
 
     import('three/examples/jsm/loaders/GLTFLoader').then(({ GLTFLoader }) => {
       const loader = new GLTFLoader();
-      loader.load(
-        modelPath,
-        gltf => {
+      const onLoad = (gltf) => {
           console.log('GLB loaded successfully:', modelPath);
           const box = new THREE.Box3().setFromObject(gltf.scene);
           const cnt = box.getCenter(new THREE.Vector3());
@@ -193,12 +173,17 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
           glScene.remove(glassMesh);
           glScene.add(gltf.scene);
           targetObject = gltf.scene;
-        },
-        undefined,
-        error => {
-          console.error('Failed to load GLB:', error);
-        }
-      );
+      };
+      const onError = (error) => {
+        console.error('Failed to load GLB:', error);
+      };
+
+      const cached = getCachedBinary(modelPath);
+      if (cached) {
+        loader.parse(cached, '', onLoad, onError);
+      } else {
+        loader.load(modelPath, onLoad, undefined, onError);
+      }
     });
 
     const envLight = new THREE.PointLight(0xffffff, 3.0, 12);

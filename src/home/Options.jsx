@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FONT_LETTERBOX_TITLE } from './core/constants';
 import FaultyTerminal, { useDeadZonesFromRefs } from './components/FaultyTerminal';
 
@@ -7,6 +7,8 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   const portfolioRef = useRef(null);
   const aboutRef = useRef(null);
   const contactRef = useRef(null);
+  const [activeImage, setActiveImage] = useState(null);
+  const [imageOpacity, setImageOpacity] = useState(0);
 
   const deadZones = useDeadZonesFromRefs(containerRef, [portfolioRef, aboutRef, contactRef]);
 
@@ -14,6 +16,17 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
     containerRef.current = node;
     if (rootRef) rootRef.current = node;
   }, [rootRef]);
+
+  useEffect(() => {
+    if (!active) setImageOpacity(0);
+  }, [active]);
+
+  const imageForLabel = useMemo(() => ({
+    Portfolio: '/assets/images/banners/NGE.jpg',
+    About: '/assets/images/banners/NGE.jpg',
+    Contact: '/assets/images/banners/NGE.jpg',
+  }), []);
+  const preloadUrls = useMemo(() => Object.values(imageForLabel), [imageForLabel]);
 
   return (
     <div
@@ -39,8 +52,9 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
           inset: 0,
           zIndex: 1,
         }}
-        imageUrl="assets/images/banners"
-        imageOpacity={0.35}
+        imageUrl={activeImage}
+        imageOpacity={imageOpacity}
+        preloadUrls={preloadUrls}
       />
       <div style={{
         width: 'min(1200px, 92vw)',
@@ -92,10 +106,14 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = 'rgba(255,255,255,1)';
                 e.currentTarget.style.textShadow = '0 0 10px rgba(180,220,255,0.45)';
+                const nextImage = imageForLabel[label];
+                setActiveImage((prev) => (prev === nextImage ? prev : nextImage));
+                setImageOpacity(1);
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.color = 'rgba(230, 235, 245, 0.8)';
                 e.currentTarget.style.textShadow = 'none';
+                setImageOpacity(0);
               }}
             >
               <span ref={ref}>{label}</span>

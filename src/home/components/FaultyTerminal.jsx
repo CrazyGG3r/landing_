@@ -1,4 +1,5 @@
 import { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import { getCachedImage, preloadImages } from '../core/assetCache';
 
 // useDeadZonesFromRefs (exported)
 export function useDeadZonesFromRefs(containerRef, elementRefs = []) {
@@ -256,20 +257,43 @@ function hexToRgb(hex){
 function mkShader(gl,t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); return s; }
 function mkProg(gl,v,f){ const p=gl.createProgram(); gl.attachShader(p,mkShader(gl,gl.VERTEX_SHADER,v)); gl.attachShader(p,mkShader(gl,gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
 
-function loadImgTex(gl,url){
+function loadImgTex(gl,url, isRemote, cachedImg){
   const tex=gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
-  const img=new Image(); img.crossOrigin='anonymous';
-  img.onload=()=>{
+  const applyToTex = (imgEl) => {
     gl.bindTexture(gl.TEXTURE_2D,tex);
-    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,img);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,imgEl);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
   };
-  img.src=url; return tex;
+
+  if (cachedImg) {
+    if (cachedImg.complete && cachedImg.naturalWidth > 0) {
+      applyToTex(cachedImg);
+    } else {
+      cachedImg.addEventListener('load', () => applyToTex(cachedImg), { once: true });
+    }
+    return tex;
+  }
+
+  const img=new Image();
+  if (isRemote) img.crossOrigin='anonymous';
+  img.onload=()=>applyToTex(img);
+  img.onerror=()=>console.warn('FaultyTerminal image failed to load:', url);
+  img.src=url;
+  return tex;
+}
+
+function resolveImageUrl(imageUrl){
+  if (!imageUrl) return { url: null, isRemote: false };
+  const isRemote = /^https?:\/\//i.test(imageUrl);
+  if (isRemote) {
+    return { url: `https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`, isRemote: true };
+  }
+  return { url: imageUrl, isRemote: false };
 }
 
 function buildDeadMask(gl, deadZones, gridMul, scale, aspect){
@@ -295,13 +319,14 @@ function buildDeadMask(gl, deadZones, gridMul, scale, aspect){
 }
 
 export default function FaultyTerminal({
-  scale=2.3, gridMul=[2,1], digitSize=1.1, timeScale=0.5, pause=false,
+  scale=2, gridMul=[2,1], digitSize=1.1, timeScale=0.5, pause=false,
   scanlineIntensity=0.5, glitchAmount=1, flickerAmount=1, noiseAmp=1,
   chromaticAberration=1.5, dither=0, curvature=0.1, tint='#eef0f2',
   mouseReact=true, mouseStrength=0.5,
   dpr=Math.min(typeof window!=='undefined'?window.devicePixelRatio||1:1,2),
   pageLoadAnimation=true, brightness=0.6,
-  imageUrl=null, imageOpacity=0.35,
+  imageUrl=null, imageOpacity=1,
+  preloadUrls=[],
   deadZones=[],
   style,
 }){
@@ -311,7 +336,9 @@ export default function FaultyTerminal({
   const uniRef=useRef({});
   const deadRef=useRef(null);
   const deadDirtyRef=useRef(true);
+  const deadZonesRef=useRef(deadZones);
   const imgTexRef=useRef(null);
+  const texCacheRef=useRef(new Map());
   const mouseRef=useRef({x:0.5,y:0.5});
   const smoothRef=useRef({x:0.5,y:0.5});
   const mouseDirtyRef=useRef(false);
@@ -321,13 +348,103 @@ export default function FaultyTerminal({
   const timeOffRef=useRef(Math.random()*100);
   const clickRef=useRef({x:0,y:0,startT:0,active:false});
   const aspectRef=useRef(1);
+  const opacityRef=useRef(imageOpacity);
+  const opacityTargetRef=useRef(imageOpacity);
+
+  const pauseRef = useRef(pause);
+  const mouseReactRef = useRef(mouseReact);
+  const pageLoadAnimationRef = useRef(pageLoadAnimation);
+  const brightnessRef = useRef(brightness);
+  const mouseStrengthRef = useRef(mouseStrength);
+  const scanlineIntensityRef = useRef(scanlineIntensity);
+  const glitchAmountRef = useRef(glitchAmount);
+  const flickerAmountRef = useRef(flickerAmount);
+  const noiseAmpRef = useRef(noiseAmp);
+  const chromaticAberrationRef = useRef(chromaticAberration);
+  const ditherValRef = useRef(0);
+  const curvatureRef = useRef(curvature);
+  const tintVecRef = useRef(hexToRgb(tint));
+  const scaleRef = useRef(scale);
+  const gridMulRef = useRef(gridMul);
+  const digitSizeRef = useRef(digitSize);
+  const timeScaleRef = useRef(timeScale);
 
   const tintVec=useMemo(()=>hexToRgb(tint),[tint]);
   const ditherVal=useMemo(()=>typeof dither==='boolean'?(dither?1:0):dither,[dither]);
 
-  useEffect(()=>{ deadDirtyRef.current=true; },[deadZones]);
+  useEffect(()=>{
+    deadZonesRef.current = deadZones;
+    deadDirtyRef.current = true;
+  },[deadZones]);
+  useEffect(()=>{ opacityTargetRef.current = imageOpacity; },[imageOpacity]);
+  useEffect(()=>{ pauseRef.current = pause; },[pause]);
+  useEffect(()=>{ mouseReactRef.current = mouseReact; },[mouseReact]);
+  useEffect(()=>{ pageLoadAnimationRef.current = pageLoadAnimation; },[pageLoadAnimation]);
+  useEffect(()=>{ brightnessRef.current = brightness; },[brightness]);
+  useEffect(()=>{ mouseStrengthRef.current = mouseStrength; },[mouseStrength]);
+  useEffect(()=>{ scanlineIntensityRef.current = scanlineIntensity; },[scanlineIntensity]);
+  useEffect(()=>{ glitchAmountRef.current = glitchAmount; },[glitchAmount]);
+  useEffect(()=>{ flickerAmountRef.current = flickerAmount; },[flickerAmount]);
+  useEffect(()=>{ noiseAmpRef.current = noiseAmp; },[noiseAmp]);
+  useEffect(()=>{ chromaticAberrationRef.current = chromaticAberration; },[chromaticAberration]);
+  useEffect(()=>{ ditherValRef.current = ditherVal; },[ditherVal]);
+  useEffect(()=>{ curvatureRef.current = curvature; },[curvature]);
+  useEffect(()=>{ tintVecRef.current = tintVec; },[tintVec]);
+  useEffect(()=>{ scaleRef.current = scale; },[scale]);
+  useEffect(()=>{ gridMulRef.current = gridMul; },[gridMul]);
+  useEffect(()=>{ digitSizeRef.current = digitSize; },[digitSize]);
+  useEffect(()=>{ timeScaleRef.current = timeScale; },[timeScale]);
+
+  const loadImageTexture = useCallback((url) => {
+    const gl = glRef.current;
+    if (!gl) return;
+    const resolved = resolveImageUrl(url);
+    if (!resolved.url) {
+      imgTexRef.current = null;
+      return;
+    }
+    const cached = texCacheRef.current.get(resolved.url);
+    if (cached) {
+      imgTexRef.current = cached;
+      return;
+    }
+    const cachedImg = getCachedImage(resolved.url);
+    const tex = loadImgTex(gl, resolved.url, resolved.isRemote, cachedImg);
+    const entry = { tex, ready: !!(cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) };
+    if (!entry.ready && cachedImg) {
+      cachedImg.addEventListener('load', () => { entry.ready = true; }, { once: true });
+    }
+    texCacheRef.current.set(resolved.url, entry);
+    imgTexRef.current = entry;
+  }, []);
+
+  useEffect(() => {
+    loadImageTexture(imageUrl);
+  }, [imageUrl, loadImageTexture]);
+
+  useEffect(() => {
+    const gl = glRef.current;
+    if (!gl) return;
+    const urls = Array.from(new Set((preloadUrls || []).filter(Boolean)));
+    if (urls.length === 0) return;
+    const resolvedUrls = urls.map((url) => resolveImageUrl(url)).filter((r) => r.url);
+    const preloadList = resolvedUrls.map((r) => r.url);
+    preloadImages(preloadList).finally(() => {
+      resolvedUrls.forEach((r) => {
+        if (texCacheRef.current.has(r.url)) return;
+        const cachedImg = getCachedImage(r.url);
+        const tex = loadImgTex(gl, r.url, r.isRemote, cachedImg);
+        const entry = { tex, ready: !!(cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) };
+        if (!entry.ready && cachedImg) {
+          cachedImg.addEventListener('load', () => { entry.ready = true; }, { once: true });
+        }
+        texCacheRef.current.set(r.url, entry);
+      });
+    });
+  }, [preloadUrls]);
 
   const onMouseMove=useCallback(e=>{
+    if (!mouseReactRef.current) return;
     const ctn=ctnRef.current; if(!ctn) return;
     const r=ctn.getBoundingClientRect();
     mouseRef.current={x:(e.clientX-r.left)/r.width, y:1-(e.clientY-r.top)/r.height};
@@ -379,31 +496,27 @@ export default function FaultyTerminal({
     ].forEach(n=>{ uni[n]=gl.getUniformLocation(prog,n); });
     uniRef.current=uni;
 
-    const proxyUrl=imageUrl?`https://api.allorigins.win/raw?url=${encodeURIComponent(imageUrl)}`:null;
-    imgTexRef.current=proxyUrl?loadImgTex(gl,proxyUrl):null;
-
     function uploadStatics(){
-      gl.uniform1f(uni.uScale,scale);
-      gl.uniform2fv(uni.uGridMul,gridMul);
-      gl.uniform1f(uni.uDigitSize,digitSize);
-      gl.uniform1f(uni.uScanlineIntensity,scanlineIntensity);
-      gl.uniform1f(uni.uGlitchAmount,glitchAmount);
-      gl.uniform1f(uni.uFlickerAmount,flickerAmount);
-      gl.uniform1f(uni.uNoiseAmp,noiseAmp);
-      gl.uniform1f(uni.uChromaticAberration,chromaticAberration);
-      gl.uniform1f(uni.uDither,ditherVal);
-      gl.uniform1f(uni.uCurvature,curvature);
-      gl.uniform3f(uni.uTint,tintVec[0],tintVec[1],tintVec[2]);
-      gl.uniform1f(uni.uMouseStrength,mouseStrength);
-      gl.uniform1f(uni.uUseMouse,mouseReact?1:0);
-      gl.uniform1f(uni.uUsePageLoadAnimation,pageLoadAnimation?1:0);
-      gl.uniform1f(uni.uBrightness,brightness);
-      gl.uniform1f(uni.uUseImage,imgTexRef.current?1:0);
-      gl.uniform1f(uni.uImageOpacity,imageOpacity);
+      gl.uniform1f(uni.uScale,scaleRef.current);
+      gl.uniform2fv(uni.uGridMul,gridMulRef.current);
+      gl.uniform1f(uni.uDigitSize,digitSizeRef.current);
+      gl.uniform1f(uni.uScanlineIntensity,scanlineIntensityRef.current);
+      gl.uniform1f(uni.uGlitchAmount,glitchAmountRef.current);
+      gl.uniform1f(uni.uFlickerAmount,flickerAmountRef.current);
+      gl.uniform1f(uni.uNoiseAmp,noiseAmpRef.current);
+      gl.uniform1f(uni.uChromaticAberration,chromaticAberrationRef.current);
+      gl.uniform1f(uni.uDither,ditherValRef.current);
+      gl.uniform1f(uni.uCurvature,curvatureRef.current);
+      gl.uniform3f(uni.uTint,tintVecRef.current[0],tintVecRef.current[1],tintVecRef.current[2]);
+      gl.uniform1f(uni.uMouseStrength,mouseStrengthRef.current);
+      gl.uniform1f(uni.uUseMouse,mouseReactRef.current?1:0);
+      gl.uniform1f(uni.uUsePageLoadAnimation,pageLoadAnimationRef.current?1:0);
+      gl.uniform1f(uni.uBrightness,brightnessRef.current);
       gl.uniform1i(uni.uImage,0);
       gl.uniform1i(uni.uDeadMask,1);
     }
     uploadStatics();
+    loadImageTexture(imageUrl);
 
     function resize(){
       const w=ctn.offsetWidth, h=ctn.offsetHeight;
@@ -419,21 +532,21 @@ export default function FaultyTerminal({
 
     const update=t=>{
       rafRef.current=requestAnimationFrame(update);
-      if(pageLoadAnimation&&loadStartRef.current===0) loadStartRef.current=t;
+      if(pageLoadAnimationRef.current&&loadStartRef.current===0) loadStartRef.current=t;
       gl.useProgram(prog);
 
-      if(!pause){
-        const e=(t*0.001+timeOffRef.current)*timeScale;
+      if(!pauseRef.current){
+        const e=(t*0.001+timeOffRef.current)*timeScaleRef.current;
         gl.uniform1f(uni.iTime,e); frozenRef.current=e;
       } else gl.uniform1f(uni.iTime,frozenRef.current);
 
-      if(pageLoadAnimation&&loadStartRef.current>0)
+      if(pageLoadAnimationRef.current&&loadStartRef.current>0)
         gl.uniform1f(uni.uPageLoadProgress,Math.min((t-loadStartRef.current)/2000,1));
 
-      if(mouseReact&&mouseDirtyRef.current){
+      if(mouseReactRef.current&&mouseDirtyRef.current){
         const sm=smoothRef.current, m=mouseRef.current;
         sm.x+=(m.x-sm.x)*0.08; sm.y+=(m.y-sm.y)*0.08;
-        gl.uniform2f(uni.uMouse, sm.x*scale*aspectRef.current, sm.y*scale);
+        gl.uniform2f(uni.uMouse, sm.x*scaleRef.current*aspectRef.current, sm.y*scaleRef.current);
         if(Math.abs(m.x-sm.x)<0.0001&&Math.abs(m.y-sm.y)<0.0001) mouseDirtyRef.current=false;
       }
 
@@ -448,13 +561,22 @@ export default function FaultyTerminal({
 
       if(deadDirtyRef.current){
         if(deadRef.current) gl.deleteTexture(deadRef.current.tex);
-        deadRef.current=buildDeadMask(gl,deadZones,gridMul,scale,aspectRef.current);
+        deadRef.current=buildDeadMask(gl,deadZonesRef.current,gridMulRef.current,scaleRef.current,aspectRef.current);
         gl.uniform2f(uni.uDeadMaskSize,deadRef.current.gx,deadRef.current.gy);
         deadDirtyRef.current=false;
       }
 
-      const imgTex=imgTexRef.current;
-      if(imgTex){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,imgTex); }
+      uploadStatics();
+
+      const imgEntry=imgTexRef.current;
+      if(imgEntry?.tex){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,imgEntry.tex); }
+      const targetOpacity = opacityTargetRef.current;
+      const currentOpacity = opacityRef.current;
+      const nextOpacity = currentOpacity + (targetOpacity - currentOpacity) * 0.08;
+      opacityRef.current = nextOpacity;
+      const useImage = imgEntry && imgEntry.ready && nextOpacity > 0.001;
+      gl.uniform1f(uni.uUseImage, useImage ? 1 : 0);
+      gl.uniform1f(uni.uImageOpacity,nextOpacity);
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D,deadRef.current.tex);
 
@@ -462,21 +584,21 @@ export default function FaultyTerminal({
     };
     rafRef.current=requestAnimationFrame(update);
 
-    if(mouseReact) ctn.addEventListener('mousemove',onMouseMove);
+    ctn.addEventListener('mousemove',onMouseMove);
     ctn.addEventListener('click',onClick);
 
     return()=>{
       cancelAnimationFrame(rafRef.current); ro.disconnect();
-      if(mouseReact) ctn.removeEventListener('mousemove',onMouseMove);
+      ctn.removeEventListener('mousemove',onMouseMove);
       ctn.removeEventListener('click',onClick);
       if(canvas.parentElement===ctn) ctn.removeChild(canvas);
+      texCacheRef.current.forEach((entry) => gl.deleteTexture(entry.tex));
+      texCacheRef.current.clear();
       gl.getExtension('WEBGL_lose_context')?.loseContext();
       loadStartRef.current=0; timeOffRef.current=Math.random()*100;
     };
   },[
-    dpr,pause,timeScale,scale,gridMul,digitSize,scanlineIntensity,glitchAmount,
-    flickerAmount,noiseAmp,chromaticAberration,ditherVal,curvature,tintVec,
-    mouseReact,mouseStrength,pageLoadAnimation,brightness,imageUrl,imageOpacity,
+    dpr,
     onMouseMove,onClick,
   ]);
 
