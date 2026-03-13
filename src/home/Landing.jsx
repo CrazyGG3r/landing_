@@ -47,6 +47,7 @@ export default function Landing({
   const titleTextRef = useRef(null);
   const letterboxHeaderRef = useRef(null);
   const letterboxFooterRef = useRef(null);
+  const lockedLogoSizeRef = useRef(null);
   const optionsRef = useRef(null);
   const shimmerRef = useRef(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
@@ -190,6 +191,11 @@ export default function Landing({
           .decrypt-encrypted {
             color: rgba(255, 255, 255, 0.28);
           }
+
+          .cursor-hide,
+          .cursor-hide * {
+            cursor: none !important;
+          }
         `, []);
 
   useEffect(() => {
@@ -202,7 +208,8 @@ export default function Landing({
     const slot = slotRef.current;
     if (!logo || !slot) return;
     const rect = slot.getBoundingClientRect();
-    const size = Math.min(rect.width, rect.height) || logoSize;
+    const lockedSize = lockedLogoSizeRef.current;
+    const size = lockedSize || Math.min(rect.width, rect.height) || logoSize;
     logo.style.width = `${size}px`;
     logo.style.height = `${size}px`;
     gsap.set(logo, { x: rect.left, y: rect.top });
@@ -215,6 +222,7 @@ export default function Landing({
     if (!isTransitioning && scene === 'options') syncLogoToSlot(optionsLogoSlotRef);
   });
   useResizeObserver(titleTextRef, () => {
+    if (isTransitioning) return;
     if (!titleTextRef.current) return;
     const rect = titleTextRef.current.getBoundingClientRect();
     const size = Math.max(80, Math.floor(rect.height));
@@ -302,6 +310,7 @@ export default function Landing({
   const preTitleLetterSpacing = isTight ? '0.32em' : '0.55em';
   const titleLetterSpacing = isTight ? '0.14em' : '0.22em';
   const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
+  const showLandingText = scene === 'landing' || isTransitioning;
 
   const handleTitleClick = useCallback(() => {
     if (isTransitioning || scene !== 'landing') return;
@@ -335,6 +344,7 @@ export default function Landing({
     const startRect = landingLogoSlotRef.current.getBoundingClientRect();
     const endRect = optionsLogoSlotRef.current.getBoundingClientRect();
     const size = Math.min(startRect.width, startRect.height) || logoSize;
+    lockedLogoSizeRef.current = size;
     const startPos = { x: startRect.left, y: startRect.top };
     const centerPos = {
       x: Math.round(window.innerWidth / 2 - size / 2),
@@ -347,6 +357,7 @@ export default function Landing({
     const tl = gsap.timeline({
       defaults: { ease: 'power3.out' },
       onComplete: () => {
+        lockedLogoSizeRef.current = null;
         setIsTransitioning(false);
         if (isMobile) setShowMobileShutter(false);
       },
@@ -477,7 +488,16 @@ export default function Landing({
           </div>
         )}
 
-        <BacklitText style={{
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 10,
+          pointerEvents: showLandingText ? 'auto' : 'none',
+          visibility: showLandingText ? 'visible' : 'hidden',
+          opacity: showLandingText ? 1 : 0,
+          transition: 'opacity 0.25s ease',
+        }}>
+          <BacklitText style={{
           position: 'absolute',
           top: '50%',
           left: '50%',
@@ -572,7 +592,8 @@ export default function Landing({
               </DynamicShadowText>
             </div>
           </div>
-        </BacklitText>
+          </BacklitText>
+        </div>
 
         {!isMobile && [['top', 'left'], ['top', 'right'], ['bottom', 'left'], ['bottom', 'right']].map(([v, h]) => (
           <div
@@ -611,7 +632,7 @@ export default function Landing({
 
         {sceneLoaded && !isMobile && scene === 'options' && (
           <TargetCursor
-            targetSelector='[data-cursor-target="options"]'
+            targetSelector=".options-link"
             spinDuration={5}
             hoverDuration={0.2}
             parallaxOn={true}

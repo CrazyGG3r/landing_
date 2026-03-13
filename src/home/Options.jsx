@@ -42,6 +42,7 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
               href="#"
               className="options-link"
               data-cursor-target="options"
+              data-cursor-label={label}
               style={{
                 fontFamily: FONT_LETTERBOX_TITLE,
                 fontSize: 'clamp(12px, 1.6vw, 16px)',

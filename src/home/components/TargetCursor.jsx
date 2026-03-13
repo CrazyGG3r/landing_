@@ -57,6 +57,7 @@ const TargetCursor = memo(function TargetCursor({
 
     const originalCursor = document.body.style.cursor;
     document.body.style.cursor = 'none';
+    document.documentElement.classList.add('cursor-hide');
 
     const cursor = cursorRef.current;
     cornersRef.current = cursor.querySelectorAll('.target-cursor-corner');
@@ -80,9 +81,13 @@ const TargetCursor = memo(function TargetCursor({
       if (!showCallout) return;
       if (!targetElement) return;
 
+      const fallbackText = targetElement.getAttribute?.('data-cursor-label') || targetElement.textContent?.trim() || '';
+      const finalText = text || fallbackText;
+      if (!finalText) return;
+
       const rect = targetElement.getBoundingClientRect();
       setCalloutInfo({
-        text,
+        text: finalText,
         targetRect: rect,
       });
     };
@@ -272,10 +277,8 @@ const TargetCursor = memo(function TargetCursor({
 
     const moveHandler = e => {
       moveCursor(e.clientX, e.clientY);
-      if (!activeTarget) {
-        const t = findTargetAt(e.clientX, e.clientY);
-        if (t) handleTargetEnter(t);
-      }
+      const t = findTargetAt(e.clientX, e.clientY);
+      if (!activeTarget && t) handleTargetEnter(t);
     };
     window.addEventListener('mousemove', moveHandler);
 
@@ -347,12 +350,13 @@ const TargetCursor = memo(function TargetCursor({
       spinTl.current?.kill();
       document.removeEventListener('visibilitychange', visibilityHandler);
       document.body.style.cursor = originalCursor;
+      document.documentElement.classList.remove('cursor-hide');
 
       isActiveRef.current = false;
       targetCornerPositionsRef.current = null;
       activeStrengthRef.current = 0;
     };
-  }, [targetSelector, spinDuration, moveCursor, constants, hoverDuration, parallaxOn, labelText, isMobile]);
+  }, [targetSelector, spinDuration, moveCursor, constants, hoverDuration, parallaxOn, labelText, isMobile, showCallout]);
 
   if (isMobile) {
     return null;
