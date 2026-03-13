@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { FONT_LETTERBOX_TITLE } from './core/constants';
+import FaultyTerminal from './components/FaultyTerminal';
 
 const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   return (
@@ -15,12 +16,27 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
         justifyContent: 'center',
         pointerEvents: active ? 'auto' : 'none',
         opacity: active ? 1 : 0,
+        overflow: 'hidden',
       }}>
+      <FaultyTerminal
+        pause={!active}
+        mouseReact={active}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+        imageUrl="assets/images/banners"
+        imageOpacity={0.35}
+      />
       <div style={{
         width: 'min(1200px, 92vw)',
         display: 'flex',
         alignItems: 'center',
         gap: 'clamp(24px, 6vw, 90px)',
+        position: 'relative',
+        zIndex: 3,
       }}>
         <div
           ref={logoSlotRef}
