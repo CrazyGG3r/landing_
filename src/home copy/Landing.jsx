@@ -18,12 +18,19 @@ import { MouseProvider } from './core/MouseContext';
 import { BacklitText, DynamicShadowText } from './components/TextEffects';
 import TitleTarget from './components/TitleTarget';
 import Preloader from './components/Preloader';
-import Letterboxing from './components/Letterboxing';
+// Letterboxing removed per request
+// import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
-import PaperFish from './components/fish/Fish';
+// PaperFish animation commented out (disabled)
+// import PaperFish from './components/fish/Fish';
 import ChalkStick from '/fonts/Chalk Stick.otf';
-import IKarm from './components/arm/IKarm';
-import Background from './components/Background/Background';
+// IK arm commented out (disabled)
+// import IKarm from './components/arm/IKarm';
+// ── CHANGED: replaced Background with FaultyTerminal ──────────────
+import FaultyTerminal from './components/FaultyTerminal';
+import { ANIMATION_FRAMES } from './components/Animationframes';
+// ──────────────────────────────────────────────────────────────────
+
 export default function Landing({
   preloaderDuration = 3,
 
@@ -175,22 +182,23 @@ export default function Landing({
           .decrypt-revealed  { color: inherit; }
           .decrypt-encrypted { color: rgba(255,255,255,0.28); }
         `}</style>
-      
+
         {/* ── Preloader ──────────────────────────────────── z: auto */}
         <Preloader duration={preloaderDuration} onLoadComplete={handleLoadComplete} />
 
-    
-        <Background texture="/assets/Backgounds/main_.jpg" zIndex={0} />
-        {/* ── Fish ───────────────────────────────────────── z: 3 */}
-        <PaperFish
-          frameCount={fishFrameCount}
-          framePath={fishFramePath}
-          frameExt={fishFrameExt}
-          framePad={fishFramePad}
-          fps={fishFps}
-          fishCount={isMobile ? Math.min(fishCount, 3) : fishCount}
-          zIndex={3}
+        {/* ── CHANGED: FaultyTerminal replaces Background ─── z: 0 */}
+        <FaultyTerminal
+          style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+          mouseReact={!isMobile}
+          pageLoadAnimation={true}
+          pixelFrames={ANIMATION_FRAMES}
+          pixelFps={12}
+          pixelFrameOpacity={0.92}
+          pixelFrameCenter={[0.5, 0.5]}
+          pixelFrameScale={[0.85, 0.85]}
         />
+
+        {/* PaperFish animation disabled per request */}
 
         {/* ── Title text ─────────────────────────────────── z: 10 */}
         <BacklitText style={{
@@ -271,22 +279,9 @@ export default function Landing({
           }} />
         ))}
 
-        <Letterboxing isMobile={isMobile} />
-        
-        {/* ── IK Arm ─────────────────────────────────────── z: 20 */}
-        {!isMobile && (
-          <IKarm
-          corner="top-right"
-          flip={-1}
-          zIndex={20}
-          upperArmColor="#c8a882"
-          forearmColor="#a8805a"
-          jointColor="#e2c090"
-          handColor="#d4a870"
-          shadowColor="#b9b9b9"
-          />
-        )}
+        {/* Letterboxing removed per request */}
 
+        {/* IK arm disabled per request */}
 
         {/* ── Cursor ─────────────────────────────────────── z: 10001 */}
         {sceneLoaded && !isMobile && (
