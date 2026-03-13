@@ -96,6 +96,7 @@ uniform float uBrightness;
 uniform sampler2D uImage;
 uniform float     uUseImage;
 uniform float     uImageOpacity;
+uniform vec2      uImageSize;
 uniform vec2  uClickPos;
 uniform float uClickTime;
 uniform float uHasClick;
@@ -179,7 +180,7 @@ float displace(vec2 l){
   return sin(l.y*20.0+iTime)*0.0125*onOff(4.0,2.0,0.8)*(1.0+cos(iTime*60.0))/(1.0+50.0*y*y);
 }
 
-vec3 getColor(vec2 wp){
+vec3 getColor(vec2 wp, out float emission){
   float bar=(step(mod(wp.y/uAspect+time*20.0,1.0),0.2)*0.4+1.0)*uScanlineIntensity;
   float d=displace(wp);
   wp.x += d + (uGlitchAmount!=1.0 ? d*(uGlitchAmount-1.0) : 0.0);
@@ -189,23 +190,27 @@ vec3 getColor(vec2 wp){
   vec2 p = wp*grid;
 
   float intensity;
+  
+  // Check if this is a dead cell
   if(isDeadCell(s)){
-    intensity = -9999.0;
-  } else {
-    vec2 q,r;
-    intensity = pattern(s*0.1,q,r)*1.3-0.03;
+    emission = 0.0;
+    return vec3(0.0); // Pure black for dead zones
+  }
 
-    if(uUseMouse>0.5){
-      float dist = distance(s, uMouse);
-      intensity -= exp(-dist*8.0)*uMouseStrength*10.0;
-    }
-    float rpl = rippleMask(s);
-    intensity -= rpl*(1.0-smoothstep(0.1,0.35,intensity))*0.8;
+  // Normal (non-dead) processing
+  vec2 q,r;
+  intensity = pattern(s*0.1,q,r)*1.3-0.03;
 
-    if(uUsePageLoadAnimation>0.5){
-      float cr = fract(sin(dot(s,vec2(12.9898,78.233)))*43758.5453);
-      intensity *= smoothstep(0.0,1.0,clamp((uPageLoadProgress-cr*0.8)/0.2,0.0,1.0));
-    }
+  if(uUseMouse>0.5){
+    float dist = distance(s, uMouse);
+    intensity -= exp(-dist*8.0)*uMouseStrength*10.0;
+  }
+  float rpl = rippleMask(s);
+  intensity -= rpl*(1.0-smoothstep(0.1,0.35,intensity))*0.8;
+
+  if(uUsePageLoadAnimation>0.5){
+    float cr = fract(sin(dot(s,vec2(12.9898,78.233)))*43758.5453);
+    intensity *= smoothstep(0.0,1.0,clamp((uPageLoadProgress-cr*0.8)/0.2,0.0,1.0));
   }
 
   float mid = cellBrightness(p, intensity);
@@ -221,10 +226,32 @@ vec3 getColor(vec2 wp){
     cellBrightness(p+vec2( 0.0,  off)*grid, intensity)+
     cellBrightness(p+vec2( off,  off)*grid, intensity);
 
+  float active = step(0.15, mid);
+  float emit = mix(0.3, 1.0, active);
+  emission = emit;
   return vec3(bgGrid(wp)) + vec3(0.9)*mid + sum*0.1*bar;
 }
 
 vec2 barrel(vec2 uv){ vec2 c=uv*2.0-1.0; c*=1.0+uCurvature*dot(c,c); return c*0.5+0.5; }
+
+vec2 fitUv(vec2 uv, out float mask){
+  if (uImageSize.x <= 0.0 || uImageSize.y <= 0.0) {
+    mask = 0.0;
+    return uv;
+  }
+  float ar = iResolution.x / iResolution.y;
+  float imgAr = uImageSize.x / uImageSize.y;
+  vec2 tuv = uv;
+  if (imgAr > ar) {
+    float scale = ar / imgAr;
+    tuv.y = (uv.y - 0.5) * scale + 0.5;
+  } else {
+    float scale = imgAr / ar;
+    tuv.x = (uv.x - 0.5) * scale + 0.5;
+  }
+  mask = step(0.0, tuv.x) * step(tuv.x, 1.0) * step(0.0, tuv.y) * step(tuv.y, 1.0);
+  return clamp(tuv, 0.0, 1.0);
+}
 
 void main(){
   time = iTime*0.333333;
@@ -232,22 +259,36 @@ void main(){
   if(uCurvature!=0.0) uv=barrel(uv);
   vec2 wp = worldPos(uv);
 
-  vec3 col = getColor(wp);
+  float emission;
+  vec3 col = getColor(wp, emission);
 
   if(uChromaticAberration!=0.0){
     float caX = uChromaticAberration/iResolution.x*uScale*uAspect;
-    vec3 colR = getColor(wp+vec2(caX, 0.0));
-    vec3 colB = getColor(wp-vec2(caX, 0.0));
+    float e0;
+    vec3 colR = getColor(wp+vec2(caX, 0.0), e0);
+    vec3 colB = getColor(wp-vec2(caX, 0.0), e0);
     col += (colR*vec3(1,0,0) + col*vec3(0,1,0) + colB*vec3(0,0,1))*0.35;
   }
 
-  if(uUseImage>0.5) col+=texture2D(uImage,uv).rgb*uImageOpacity;
-  col *= uTint*uBrightness;
-  if(uDither>0.0) col+=(hash21(gl_FragCoord.xy)-0.5)*(uDither*0.003922);
-  gl_FragColor=vec4(col,1.0);
+  if(uUseImage>0.5){
+    float imgMask;
+    vec2 imgUv = fitUv(uv, imgMask);
+    vec3 imgCol = texture2D(uImage, imgUv).rgb * imgMask;
+    vec3 factor = max(col, vec3(emission));
+    vec3 mult = imgCol * factor;
+    col = mix(col, mult, uImageOpacity);
+  }
+  
+  col *= uTint * uBrightness;
+  
+  if(uDither>0.0) {
+    col += (hash21(gl_FragCoord.xy)-0.5)*(uDither*0.003922);
+  }
+  
+  gl_FragColor = vec4(col, 1.0);
 }`;
 
-// GL helpers
+// GL helpers (unchanged)
 function hexToRgb(hex){
   let h=hex.replace('#','').trim();
   if(h.length===3) h=h.split('').map(c=>c+c).join('');
@@ -257,7 +298,7 @@ function hexToRgb(hex){
 function mkShader(gl,t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); return s; }
 function mkProg(gl,v,f){ const p=gl.createProgram(); gl.attachShader(p,mkShader(gl,gl.VERTEX_SHADER,v)); gl.attachShader(p,mkShader(gl,gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
 
-function loadImgTex(gl,url, isRemote, cachedImg){
+function loadImgTex(gl,url, isRemote, cachedImg, onReady){
   const tex=gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D,tex);
   gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
@@ -268,6 +309,7 @@ function loadImgTex(gl,url, isRemote, cachedImg){
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    if (onReady) onReady(imgEl);
   };
 
   if (cachedImg) {
@@ -409,10 +451,15 @@ export default function FaultyTerminal({
       return;
     }
     const cachedImg = getCachedImage(resolved.url);
-    const tex = loadImgTex(gl, resolved.url, resolved.isRemote, cachedImg);
-    const entry = { tex, ready: !!(cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) };
-    if (!entry.ready && cachedImg) {
-      cachedImg.addEventListener('load', () => { entry.ready = true; }, { once: true });
+    const entry = { tex: null, ready: false, size: null };
+    const tex = loadImgTex(gl, resolved.url, resolved.isRemote, cachedImg, (imgEl) => {
+      entry.ready = true;
+      entry.size = { w: imgEl.naturalWidth || imgEl.width, h: imgEl.naturalHeight || imgEl.height };
+    });
+    entry.tex = tex;
+    if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
+      entry.ready = true;
+      entry.size = { w: cachedImg.naturalWidth, h: cachedImg.naturalHeight };
     }
     texCacheRef.current.set(resolved.url, entry);
     imgTexRef.current = entry;
@@ -433,10 +480,15 @@ export default function FaultyTerminal({
       resolvedUrls.forEach((r) => {
         if (texCacheRef.current.has(r.url)) return;
         const cachedImg = getCachedImage(r.url);
-        const tex = loadImgTex(gl, r.url, r.isRemote, cachedImg);
-        const entry = { tex, ready: !!(cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) };
-        if (!entry.ready && cachedImg) {
-          cachedImg.addEventListener('load', () => { entry.ready = true; }, { once: true });
+        const entry = { tex: null, ready: false, size: null };
+        const tex = loadImgTex(gl, r.url, r.isRemote, cachedImg, (imgEl) => {
+          entry.ready = true;
+          entry.size = { w: imgEl.naturalWidth || imgEl.width, h: imgEl.naturalHeight || imgEl.height };
+        });
+        entry.tex = tex;
+        if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
+          entry.ready = true;
+          entry.size = { w: cachedImg.naturalWidth, h: cachedImg.naturalHeight };
         }
         texCacheRef.current.set(r.url, entry);
       });
@@ -491,7 +543,7 @@ export default function FaultyTerminal({
       'uScanlineIntensity','uGlitchAmount','uFlickerAmount','uNoiseAmp',
       'uChromaticAberration','uDither','uCurvature','uTint','uMouse',
       'uMouseStrength','uUseMouse','uPageLoadProgress','uUsePageLoadAnimation',
-      'uBrightness','uImage','uUseImage','uImageOpacity',
+      'uBrightness','uImage','uUseImage','uImageOpacity','uImageSize',
       'uClickPos','uClickTime','uHasClick','uDeadMask','uDeadMaskSize',
     ].forEach(n=>{ uni[n]=gl.getUniformLocation(prog,n); });
     uniRef.current=uni;
@@ -577,6 +629,11 @@ export default function FaultyTerminal({
       const useImage = imgEntry && imgEntry.ready && nextOpacity > 0.001;
       gl.uniform1f(uni.uUseImage, useImage ? 1 : 0);
       gl.uniform1f(uni.uImageOpacity,nextOpacity);
+      if (imgEntry?.size) {
+        gl.uniform2f(uni.uImageSize, imgEntry.size.w, imgEntry.size.h);
+      } else {
+        gl.uniform2f(uni.uImageSize, 1, 1);
+      }
       gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(gl.TEXTURE_2D,deadRef.current.tex);
 
