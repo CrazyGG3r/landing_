@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import TextPressure from './hooks/TextPressure.jsx';
 
 // ============================================
@@ -66,15 +66,37 @@ const CONFIG = {
 };
 
 // ============================================
+// RANDOM TITLES ARRAY
+// ============================================
+const RANDOM_TITLES = [
+  "Yikes!",
+  "Must have hit the 4th wall",
+  "Bombaclat!",
+  "Page is incomprehinsible"
+];
+
+// ============================================
 // NOT FOUND COMPONENT
 // ============================================
 export default function NotFound() {
+  // Set random document title on component mount
+  useEffect(() => {
+    const randomTitle = RANDOM_TITLES[Math.floor(Math.random() * RANDOM_TITLES.length)];
+    document.title = randomTitle;
+    
+    // Optional: Cleanup function to reset title when component unmounts
+    return () => {
+      document.title = '404 - Not Found'; // or whatever default you want
+    };
+  }, []); // Empty dependency array = runs once on mount
+
   return (
     <div style={{
       height: "100vh",
       width: "100vw",
       position: "relative",
       overflow: "hidden",
+      backgroundColor: CONFIG.colors.background,
     }}>
       <TextPressure
         text={CONFIG.text}
