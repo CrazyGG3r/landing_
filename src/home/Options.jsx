@@ -1,11 +1,23 @@
-import { memo } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { FONT_LETTERBOX_TITLE } from './core/constants';
-import FaultyTerminal from './components/FaultyTerminal';
+import FaultyTerminal, { useDeadZonesFromRefs } from './components/FaultyTerminal';
 
 const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
+  const containerRef = useRef(null);
+  const portfolioRef = useRef(null);
+  const aboutRef = useRef(null);
+  const contactRef = useRef(null);
+
+  const deadZones = useDeadZonesFromRefs(containerRef, [portfolioRef, aboutRef, contactRef]);
+
+  const setRootRef = useCallback(node => {
+    containerRef.current = node;
+    if (rootRef) rootRef.current = node;
+  }, [rootRef]);
+
   return (
     <div
-      ref={rootRef}
+      ref={setRootRef}
       style={{
         position: 'absolute',
         inset: 0,
@@ -21,11 +33,11 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
       <FaultyTerminal
         pause={!active}
         mouseReact={active}
+        deadZones={deadZones}
         style={{
           position: 'absolute',
           inset: 0,
           zIndex: 1,
-          pointerEvents: 'none',
         }}
         imageUrl="assets/images/banners"
         imageOpacity={0.35}
@@ -52,7 +64,11 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
           alignItems: 'center',
           pointerEvents: 'auto',
         }}>
-          {['Portfolio', 'About', 'Contact'].map(label => (
+          {[
+            { label: 'Portfolio', ref: portfolioRef },
+            { label: 'About', ref: aboutRef },
+            { label: 'Contact', ref: contactRef },
+          ].map(({ label, ref }) => (
             <a
               key={label}
               href="#"
@@ -82,7 +98,7 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
                 e.currentTarget.style.textShadow = 'none';
               }}
             >
-              {label}
+              <span ref={ref}>{label}</span>
             </a>
           ))}
         </nav>
