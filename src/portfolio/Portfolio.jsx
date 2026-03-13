@@ -7,7 +7,7 @@ import * as THREE from 'three'
 // ============= CONFIGURATION =============
 const CONFIG = {
   // Model path (relative to public folder)
-  modelPath: "/src/assets/scenes/Scene1.glb",
+  modelPath: "assets/scenes/Scene1.glb",
 
   // Camera Path
   cameraPathObjectName: "CameraPath",
