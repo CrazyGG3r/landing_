@@ -36,8 +36,8 @@ const CONFIG = {
   // Path
   pathLookAheadDistance: 2.5,
   curveTension: 0.5,
-  curveSampleMultiplier: 5, // For higher quality curves
-  markerSearchSamples: 1500, // For more precise marker matching
+  curveSampleMultiplier: 5,
+  markerSearchSamples: 1500,
 
   // UI
   showScrollIndicator: true,
@@ -97,7 +97,14 @@ function MarkerPathCamera({ curve }) {
 
 // ============= SCENE LOADER =============
 function SceneLoader({ onLoad, onError }) {
-  const gltf = useLoader(GLTFLoader, CONFIG.modelPath, undefined, onError)
+  // Fix: Properly handle progress events vs actual errors
+  const gltf = useLoader(GLTFLoader, CONFIG.modelPath, undefined, (error) => {
+    // Only treat it as an error if it's not a progress event
+    if (error && !error.type?.includes('progress')) {
+      console.error('❌ Failed to load scene:', error)
+      onError?.(error)
+    }
+  })
 
   useEffect(() => {
     if (gltf) {
@@ -220,13 +227,14 @@ function findClosestTOnCurve(curve, targetPosition) {
   return closestT
 }
 
-function buildTrimmedCurve(curve, startT, endT) {
+function buildTrimmedCurve(curve, rawStartT, rawEndT) {
   if (!curve) return null
 
-  // Ensure startT < endT
-  if (startT > endT) {
-    [startT, endT] = [endT, startT]
-  }
+  // CRITICAL FIX: Ensure we use the smaller value as start, larger as end
+  const startT = Math.min(rawStartT, rawEndT)
+  const endT = Math.max(rawStartT, rawEndT)
+
+  console.log(`🔄 Normalized range: ${(startT * 100).toFixed(1)}% → ${(endT * 100).toFixed(1)}%`)
 
   const length = Math.max(200, Math.round(curve.getLength() * 5))
   const points = []
@@ -289,18 +297,27 @@ export default function Portfolio() {
   useEffect(() => {
     if (!fullCurve || !markers.start || !markers.end) return
 
-    const startT = findClosestTOnCurve(fullCurve, markers.start)
-    const endT = findClosestTOnCurve(fullCurve, markers.end)
+    const rawStartT = findClosestTOnCurve(fullCurve, markers.start)
+    const rawEndT = findClosestTOnCurve(fullCurve, markers.end)
+
+    // CRITICAL FIX: Store the normalized values (start < end)
+    const normalizedStartT = Math.min(rawStartT, rawEndT)
+    const normalizedEndT = Math.max(rawStartT, rawEndT)
 
     setTrimInfo({
-      startT,
-      endT
+      startT: normalizedStartT,
+      endT: normalizedEndT,
+      rawStartT,
+      rawEndT
     })
 
-    const trimmed = buildTrimmedCurve(fullCurve, startT, endT)
+    const trimmed = buildTrimmedCurve(fullCurve, rawStartT, rawEndT)
     setTrimmedCurve(trimmed)
 
-    console.log(`📐 Path trimmed: ${(startT * 100).toFixed(1)}% → ${(endT * 100).toFixed(1)}%`)
+    console.log(`📐 Path trimmed: ${(normalizedStartT * 100).toFixed(1)}% → ${(normalizedEndT * 100).toFixed(1)}%`)
+    if (rawStartT > rawEndT) {
+      console.log('🔄 Note: Start and End markers were automatically swapped to ensure correct path direction')
+    }
     setIsLoading(false)
   }, [fullCurve, markers])
 
@@ -311,8 +328,11 @@ export default function Portfolio() {
   }, [])
 
   const handleError = useCallback((err) => {
-    console.error('❌ Failed to load scene:', err)
-    setError(err.message)
+    // Only set error state for actual errors, not progress events
+    if (err && !err.type?.includes('progress')) {
+      console.error('❌ Failed to load scene:', err)
+      setError(err.message)
+    }
     setIsLoading(false)
 
     // Create fallback path for development
@@ -363,6 +383,9 @@ export default function Portfolio() {
           {trimInfo.startT !== undefined && (
             <>
               <div>Active range: {(trimInfo.startT * 100).toFixed(1)}% → {(trimInfo.endT * 100).toFixed(1)}%</div>
+              {trimInfo.rawStartT > trimInfo.rawEndT && (
+                <div style={{ color: '#ffaa00' }}>🔄 Markers auto-swapped</div>
+              )}
               <div>Current: {(progress * 100).toFixed(1)}%</div>
               <div style={{ marginTop: 8 }}>
                 <div style={{
@@ -405,7 +428,7 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Error display */}
+      {/* Error display - only show for actual errors */}
       {error && (
         <div style={{
           position: 'fixed',
