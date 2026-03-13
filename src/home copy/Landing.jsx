@@ -22,6 +22,8 @@ import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
 import PaperFish from './components/fish/Fish';
 import ChalkStick from '../assets/fonts/Chalk Stick.otf';
+import IKarm from './components/arm/IKarm';
+import Background from './components/Background/Background';
 export default function Landing({
   preloaderDuration = 3,
 
@@ -30,7 +32,7 @@ export default function Landing({
   fishFramePath  = '/anims/fish/',  // → public/anims/fish/fish_001.png etc.
   fishFrameExt   = 'png',
   fishFramePad   = 3,
-  fishFps        = 2,
+  fishFps        = 0.75,
   fishCount      = 3,
 }) {
   const [isMobile] = useState(() => {
@@ -173,22 +175,12 @@ export default function Landing({
           .decrypt-revealed  { color: inherit; }
           .decrypt-encrypted { color: rgba(255,255,255,0.28); }
         `}</style>
-
+      
         {/* ── Preloader ──────────────────────────────────── z: auto */}
         <Preloader duration={preloaderDuration} onLoadComplete={handleLoadComplete} />
 
-        {/* ── Background ─────────────────────────────────── z: 0 */}
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 0,
-          background: 'radial-gradient(ellipse at 60% 40%, #0d1a2e 0%, #000 100%)',
-        }} />
-
-        {/* ── Vignette ───────────────────────────────────── z: 1 */}
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none',
-          background: 'radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,.68) 100%)',
-        }} />
-
+    
+        <Background texture="/assets/Backgounds/main_.jpg" zIndex={0} />
         {/* ── Fish ───────────────────────────────────────── z: 3 */}
         <PaperFish
           frameCount={fishFrameCount}
@@ -280,6 +272,21 @@ export default function Landing({
         ))}
 
         <Letterboxing isMobile={isMobile} />
+        
+        {/* ── IK Arm ─────────────────────────────────────── z: 20 */}
+        {!isMobile && (
+          <IKarm
+          corner="top-right"
+          flip={-1}
+          zIndex={20}
+          upperArmColor="#c8a882"
+          forearmColor="#a8805a"
+          jointColor="#e2c090"
+          handColor="#d4a870"
+          shadowColor="#b9b9b9"
+          />
+        )}
+
 
         {/* ── Cursor ─────────────────────────────────────── z: 10001 */}
         {sceneLoaded && !isMobile && (
