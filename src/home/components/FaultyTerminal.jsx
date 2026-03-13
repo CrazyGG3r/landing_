@@ -190,27 +190,24 @@ vec3 getColor(vec2 wp, out float emission){
   vec2 p = wp*grid;
 
   float intensity;
-  
-  // Check if this is a dead cell
-  if(isDeadCell(s)){
-    emission = 0.0;
-    return vec3(0.0); // Pure black for dead zones
-  }
+  float dead = isDeadCell(s) ? 1.0 : 0.0;
+  if(dead > 0.5){
+    intensity = -9999.0;
+  } else {
+    vec2 q,r;
+    intensity = pattern(s*0.1,q,r)*1.3-0.03;
 
-  // Normal (non-dead) processing
-  vec2 q,r;
-  intensity = pattern(s*0.1,q,r)*1.3-0.03;
+    if(uUseMouse>0.5){
+      float dist = distance(s, uMouse);
+      intensity -= exp(-dist*8.0)*uMouseStrength*10.0;
+    }
+    float rpl = rippleMask(s);
+    intensity -= rpl*(1.0-smoothstep(0.1,0.35,intensity))*0.8;
 
-  if(uUseMouse>0.5){
-    float dist = distance(s, uMouse);
-    intensity -= exp(-dist*8.0)*uMouseStrength*10.0;
-  }
-  float rpl = rippleMask(s);
-  intensity -= rpl*(1.0-smoothstep(0.1,0.35,intensity))*0.8;
-
-  if(uUsePageLoadAnimation>0.5){
-    float cr = fract(sin(dot(s,vec2(12.9898,78.233)))*43758.5453);
-    intensity *= smoothstep(0.0,1.0,clamp((uPageLoadProgress-cr*0.8)/0.2,0.0,1.0));
+    if(uUsePageLoadAnimation>0.5){
+      float cr = fract(sin(dot(s,vec2(12.9898,78.233)))*43758.5453);
+      intensity *= smoothstep(0.0,1.0,clamp((uPageLoadProgress-cr*0.8)/0.2,0.0,1.0));
+    }
   }
 
   float mid = cellBrightness(p, intensity);
@@ -228,7 +225,7 @@ vec3 getColor(vec2 wp, out float emission){
 
   float active = step(0.15, mid);
   float emit = mix(0.3, 1.0, active);
-  emission = emit;
+  emission = mix(emit, 0.05, dead);
   return vec3(bgGrid(wp)) + vec3(0.9)*mid + sum*0.1*bar;
 }
 
@@ -278,17 +275,12 @@ void main(){
     vec3 mult = imgCol * factor;
     col = mix(col, mult, uImageOpacity);
   }
-  
-  col *= uTint * uBrightness;
-  
-  if(uDither>0.0) {
-    col += (hash21(gl_FragCoord.xy)-0.5)*(uDither*0.003922);
-  }
-  
-  gl_FragColor = vec4(col, 1.0);
+  col *= uTint*uBrightness;
+  if(uDither>0.0) col+=(hash21(gl_FragCoord.xy)-0.5)*(uDither*0.003922);
+  gl_FragColor=vec4(col,1.0);
 }`;
 
-// GL helpers (unchanged)
+// GL helpers
 function hexToRgb(hex){
   let h=hex.replace('#','').trim();
   if(h.length===3) h=h.split('').map(c=>c+c).join('');

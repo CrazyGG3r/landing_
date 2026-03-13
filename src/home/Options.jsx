@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FONT_LETTERBOX_TITLE } from './core/constants';
 import FaultyTerminal, { useDeadZonesFromRefs } from './components/FaultyTerminal';
 
@@ -7,26 +8,47 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   const portfolioRef = useRef(null);
   const aboutRef = useRef(null);
   const contactRef = useRef(null);
+
   const [activeImage, setActiveImage] = useState(null);
   const [imageOpacity, setImageOpacity] = useState(0);
 
-  const deadZones = useDeadZonesFromRefs(containerRef, [portfolioRef, aboutRef, contactRef]);
+  const deadZones = useDeadZonesFromRefs(containerRef, [
+    portfolioRef,
+    aboutRef,
+    contactRef,
+  ]);
 
-  const setRootRef = useCallback(node => {
-    containerRef.current = node;
-    if (rootRef) rootRef.current = node;
-  }, [rootRef]);
+  const setRootRef = useCallback(
+    (node) => {
+      containerRef.current = node;
+      if (rootRef) rootRef.current = node;
+    },
+    [rootRef]
+  );
 
   useEffect(() => {
     if (!active) setImageOpacity(0);
   }, [active]);
 
-  const imageForLabel = useMemo(() => ({
-    Portfolio: '/assets/images/banners/NGE.jpg',
-    About: '/assets/images/banners/NGE.jpg',
-    Contact: '/assets/images/banners/NGE.jpg',
-  }), []);
-  const preloadUrls = useMemo(() => Object.values(imageForLabel), [imageForLabel]);
+  const imageForLabel = useMemo(
+    () => ({
+      Portfolio: '/assets/images/banners/NGE.jpg',
+      About: '/assets/images/banners/NGE.jpg',
+      Contact: '/assets/images/banners/NGE.jpg',
+    }),
+    []
+  );
+
+  const preloadUrls = useMemo(
+    () => Object.values(imageForLabel),
+    [imageForLabel]
+  );
+
+  const links = [
+    { label: 'Portfolio', ref: portfolioRef, path: '/portfolio' },
+    { label: 'About', ref: aboutRef, path: '/about' },
+    { label: 'Contact', ref: contactRef, path: '/contact' },
+  ];
 
   return (
     <div
@@ -42,7 +64,8 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
         pointerEvents: active ? 'auto' : 'none',
         opacity: active ? 1 : 0,
         overflow: 'hidden',
-      }}>
+      }}
+    >
       <FaultyTerminal
         pause={!active}
         mouseReact={active}
@@ -56,14 +79,17 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
         imageOpacity={imageOpacity}
         preloadUrls={preloadUrls}
       />
-      <div style={{
-        width: 'min(1200px, 92vw)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'clamp(24px, 6vw, 90px)',
-        position: 'relative',
-        zIndex: 3,
-      }}>
+
+      <div
+        style={{
+          width: 'min(1200px, 92vw)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'clamp(24px, 6vw, 90px)',
+          position: 'relative',
+          zIndex: 3,
+        }}
+      >
         <div
           ref={logoSlotRef}
           style={{
@@ -72,20 +98,19 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
             flex: '0 0 auto',
           }}
         />
-        <nav style={{
-          display: 'flex',
-          gap: 'clamp(18px, 4vw, 64px)',
-          alignItems: 'center',
-          pointerEvents: 'auto',
-        }}>
-          {[
-            { label: 'Portfolio', ref: portfolioRef },
-            { label: 'About', ref: aboutRef },
-            { label: 'Contact', ref: contactRef },
-          ].map(({ label, ref }) => (
-            <a
+
+        <nav
+          style={{
+            display: 'flex',
+            gap: 'clamp(18px, 4vw, 64px)',
+            alignItems: 'center',
+            pointerEvents: 'auto',
+          }}
+        >
+          {links.map(({ label, ref, path }) => (
+            <Link
               key={label}
-              href="#"
+              to={path}
               className="options-link"
               data-cursor-target="options"
               data-cursor-label={label}
@@ -105,9 +130,13 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = 'rgba(255,255,255,1)';
-                e.currentTarget.style.textShadow = '0 0 10px rgba(180,220,255,0.45)';
+                e.currentTarget.style.textShadow =
+                  '0 0 10px rgba(180,220,255,0.45)';
+
                 const nextImage = imageForLabel[label];
-                setActiveImage((prev) => (prev === nextImage ? prev : nextImage));
+                setActiveImage((prev) =>
+                  prev === nextImage ? prev : nextImage
+                );
                 setImageOpacity(1);
               }}
               onMouseLeave={(e) => {
@@ -117,7 +146,7 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
               }}
             >
               <span ref={ref}>{label}</span>
-            </a>
+            </Link>
           ))}
         </nav>
       </div>
