@@ -17,6 +17,9 @@ const CONFIG = {
   cameraSpeed: 1.0,
   cameraOffset: 0.0,
 
+  // Direction
+  reverseDirection: true, // set to true to reverse travel (end → start)
+
   // Controls
   enableOrbitControls: false,
 
@@ -56,38 +59,46 @@ function MarkerPathCamera({ curve }) {
   const tempRef = useRef(new THREE.Vector3())
   const lastTRef = useRef(0)
 
-  // Initialize camera at start position
+  // Initialize camera at the appropriate start (0 for normal, 1 for reversed)
   useEffect(() => {
     if (!curve) return
-    const startPos = curve.getPointAt(0, tempRef.current)
+
+    const startT = CONFIG.reverseDirection ? 1 : 0
+    const startPos = curve.getPointAt(startT, tempRef.current)
     camera.position.copy(startPos)
 
     const len = Math.max(0.0001, curve.getLength())
     const delta = CONFIG.pathLookAheadDistance / len
-    const lookPos = curve.getPointAt(Math.min(1, delta), lookAheadRef.current)
+    // Always look ahead in the positive t direction (original forward)
+    const lookT = Math.min(1, startT + delta)
+    const lookPos = curve.getPointAt(lookT, lookAheadRef.current)
     camera.lookAt(lookPos)
   }, [curve, camera])
 
   useFrame(() => {
     if (!scroll || !curve) return
 
-    const t = Math.min(1, Math.max(0, scroll.offset))
-    
+    // Map scroll offset to effective t according to direction
+    const rawT = scroll.offset
+    const t = CONFIG.reverseDirection ? 1 - rawT : rawT
+    const clampedT = Math.min(1, Math.max(0, t))
+
     // Only update if t changed significantly
-    if (Math.abs(t - lastTRef.current) > 0.001) {
-      const position = curve.getPointAt(t, tempRef.current)
+    if (Math.abs(clampedT - lastTRef.current) > 0.001) {
+      const position = curve.getPointAt(clampedT, tempRef.current)
       camera.position.copy(position)
 
       const len = Math.max(0.0001, curve.getLength())
       const delta = CONFIG.pathLookAheadDistance / len
-      const lookT = Math.min(1, t + delta)
+      // Always look ahead in the positive t direction (original forward)
+      const lookT = Math.min(1, clampedT + delta)
       const lookTarget = curve.getPointAt(lookT, lookAheadRef.current)
       camera.lookAt(lookTarget)
 
-      lastTRef.current = t
+      lastTRef.current = clampedT
 
-      if (CONFIG.debugMode && Math.abs(t - 0.5) < 0.01) {
-        console.log(`📍 Scroll: ${(t * 100).toFixed(1)}%`)
+      if (CONFIG.debugMode && Math.abs(clampedT - 0.5) < 0.01) {
+        console.log(`📍 Scroll: ${(rawT * 100).toFixed(1)}% → t: ${(clampedT * 100).toFixed(1)}%`)
       }
     }
   })
@@ -347,11 +358,15 @@ export default function Portfolio() {
       ))
     }
     setPathPoints(points)
+    // Use first and last points as markers (safe)
     setMarkers({
-      start: points[20],
-      end: points[80]
+      start: points[0],
+      end: points[points.length - 1]
     })
   }, [])
+
+  // For debug: compute effective progress if reversed (for display only)
+  const effectiveProgress = CONFIG.reverseDirection ? 1 - progress : progress
 
   return (
     <div style={{
@@ -380,13 +395,19 @@ export default function Portfolio() {
           <div>Path points: {pathPoints.length}</div>
           <div>Start marker: {markers.start ? '✅' : '❌'}</div>
           <div>End marker: {markers.end ? '✅' : '❌'}</div>
+          {CONFIG.reverseDirection && (
+            <div style={{ color: '#ffaa00' }}>🔁 Direction: REVERSED (end → start)</div>
+          )}
           {trimInfo.startT !== undefined && (
             <>
               <div>Active range: {(trimInfo.startT * 100).toFixed(1)}% → {(trimInfo.endT * 100).toFixed(1)}%</div>
               {trimInfo.rawStartT > trimInfo.rawEndT && (
                 <div style={{ color: '#ffaa00' }}>🔄 Markers auto-swapped</div>
               )}
-              <div>Current: {(progress * 100).toFixed(1)}%</div>
+              <div>Scroll: {(progress * 100).toFixed(1)}%</div>
+              {CONFIG.reverseDirection && (
+                <div>Camera t: {(effectiveProgress * 100).toFixed(1)}%</div>
+              )}
               <div style={{ marginTop: 8 }}>
                 <div style={{
                   width: 200,
@@ -414,7 +435,7 @@ export default function Portfolio() {
                   }} />
                   <div style={{
                     position: 'absolute',
-                    left: `${progress * 100}%`,
+                    left: `${effectiveProgress * 100}%`,
                     width: 4,
                     height: 12,
                     background: 'yellow',
@@ -463,7 +484,10 @@ export default function Portfolio() {
           zIndex: 1000,
           pointerEvents: 'none'
         }}>
-          <div>Progress: {(progress * 100).toFixed(1)}%</div>
+          <div>Scroll: {(progress * 100).toFixed(1)}%</div>
+          {CONFIG.reverseDirection && (
+            <div>Camera: {(effectiveProgress * 100).toFixed(1)}%</div>
+          )}
           <div style={{
             width: 200,
             height: 4,
@@ -472,7 +496,7 @@ export default function Portfolio() {
             borderRadius: 2
           }}>
             <div style={{
-              width: `${progress * 100}%`,
+              width: `${effectiveProgress * 100}%`,
               height: '100%',
               background: '#4caf50',
               borderRadius: 2
