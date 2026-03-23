@@ -7,6 +7,8 @@ import Portfolio from "./portfolio/Portfolio";
 import Research from "./assignment/research";
 import NotFound from "./NotFound";
 import Kitchen from "./home copy/Landing"
+import Scribble from "./nextmodel/Landing"
+import Dashboard from "./iot_testing/Landing"
 
 export default function App() {
   return (
@@ -17,7 +19,8 @@ export default function App() {
       <Route path="/blur1" element={<Blur1 />} />
       <Route path="/assignment/research" element={<Research />} />
       <Route path="/animation" element={<Kitchen />} />
-      
+      <Route path="/test" element={<Scribble />} />
+      <Route path="/pi_dashboard" element={<Dashboard />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -28,7 +28,7 @@ import ChalkStick from '/fonts/Chalk Stick.otf';
 // import IKarm from './components/arm/IKarm';
 // ── CHANGED: replaced Background with FaultyTerminal ──────────────
 import FaultyTerminal from './components/FaultyTerminal';
-import { ANIMATION_FRAMES } from './components/Animationframes';
+import { ANIMATION_FRAMES, box, third } from './components/Animationframes';
 // ──────────────────────────────────────────────────────────────────
 
 export default function Landing({
@@ -198,7 +198,16 @@ export default function Landing({
           pixelFrameScale={[0.85, 0.85]}
         />
 
-        {/* PaperFish animation disabled per request */}
+        {/* ── Fish ───────────────────────────────────────── z: 3 */}
+        {/* <PaperFish
+          frameCount={fishFrameCount}
+          framePath={fishFramePath}
+          frameExt={fishFrameExt}
+          framePad={fishFramePad}
+          fps={fishFps}
+          fishCount={isMobile ? Math.min(fishCount, 3) : fishCount}
+          zIndex={3}
+        /> */}
 
         {/* ── Title text ─────────────────────────────────── z: 10 */}
         <BacklitText style={{
@@ -236,14 +245,13 @@ export default function Landing({
                 fontWeight: 800,
                 fontSize: titleFontSize,
                 letterSpacing: titleSpacing,
-                color: 'rgba(255,255,255,1)',
+                color: 'rgb(0, 0, 0)',
                 textTransform: 'uppercase',
                 margin: 0, lineHeight: 1.2,
                 fontFamily: 'Chalk Stick',
                 display: 'block',
                 textAlign: isCompact ? 'center' : 'left',
-              }}>
-                BOLTFORGED
+              }}>.
               </DynamicShadowText>
             </TitleTarget>
 
@@ -279,9 +287,21 @@ export default function Landing({
           }} />
         ))}
 
-        {/* Letterboxing removed per request */}
+        {/* <Letterboxing isMobile={isMobile} /> */}
 
-        {/* IK arm disabled per request */}
+        {/* ── IK Arm ─────────────────────────────────────── z: 20 */}
+        {/* {!isMobile && (
+          <IKarm
+            corner="top-right"
+            flip={-1}
+            zIndex={20}
+            upperArmColor="#c8a882"
+            forearmColor="#a8805a"
+            jointColor="#e2c090"
+            handColor="#d4a870"
+            shadowColor="#b9b9b9"
+          />
+        )} */}
 
         {/* ── Cursor ─────────────────────────────────────── z: 10001 */}
         {sceneLoaded && !isMobile && (

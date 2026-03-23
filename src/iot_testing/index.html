@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pico W · Live Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:          #0a0c10;
+      --surface:     #111318;
+      --surface2:    #181b22;
+      --border:      rgba(255,255,255,0.06);
+      --text:        #e8eaf0;
+      --muted:       #5a6070;
+      --accent:      #00e5ff;
+      --accent2:     #7c4dff;
+      --accent3:     #ff4081;
+      --green:       #00e676;
+      --yellow:      #ffd740;
+      --card-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      --glow:        0 0 24px rgba(0,229,255,0.18);
+      --radius:      16px;
+      --mono:        'Space Mono', monospace;
+      --sans:        'Syne', sans-serif;
+      --transition:  0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    [data-theme="light"] {
+      --bg:          #f0f2f7;
+      --surface:     #ffffff;
+      --surface2:    #e8ecf3;
+      --border:      rgba(0,0,0,0.07);
+      --text:        #111318;
+      --muted:       #8a92a8;
+      --accent:      #0077cc;
+      --accent2:     #5c00d6;
+      --accent3:     #e91e63;
+      --green:       #00c853;
+      --yellow:      #f9a825;
+      --card-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      --glow:        0 0 24px rgba(0,119,204,0.10);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background var(--transition), color var(--transition);
+      overflow-x: hidden;
+    }
+
+    /* Ambient background blobs */
+    .bg-blobs {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      overflow: hidden;
+    }
+    .blob {
+      position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.12;
+      transition: opacity var(--transition);
+    }
+    .blob-1 { width: 500px; height: 500px; background: var(--accent2); top: -100px; left: -120px; animation: drift 14s ease-in-out infinite alternate; }
+    .blob-2 { width: 400px; height: 400px; background: var(--accent); bottom: -80px; right: -80px; animation: drift 18s ease-in-out infinite alternate-reverse; }
+    .blob-3 { width: 300px; height: 300px; background: var(--accent3); top: 40%; left: 60%; animation: drift 22s ease-in-out infinite alternate; }
+    [data-theme="light"] .blob { opacity: 0.07; }
+
+    @keyframes drift {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(40px, 30px) scale(1.08); }
+    }
+
+    /* Layout */
+    .shell {
+      position: relative; z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 24px 60px;
+    }
+
+    /* Header */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 40px;
+      animation: slideDown 0.6s ease both;
+    }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-18px); } to { opacity:1; transform:none; } }
+
+    .logo-wrap { display: flex; align-items: center; gap: 14px; }
+    .logo-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      display: grid; place-items: center; font-size: 20px;
+      box-shadow: var(--glow);
+    }
+    .logo-text { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.5px; }
+    .logo-sub { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+
+    .header-right { display: flex; align-items: center; gap: 14px; }
+
+    .status-pill {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-family: var(--mono); font-size: 0.72rem;
+      color: var(--muted);
+      box-shadow: var(--card-shadow);
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%,100% { box-shadow: 0 0 0 0 rgba(0,230,118,0.5); }
+      50%      { box-shadow: 0 0 0 5px rgba(0,230,118,0); }
+    }
+    .status-dot.offline { background: var(--accent3); animation: none; }
+
+    /* Theme toggle */
+    .theme-btn {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      cursor: pointer; display: grid; place-items: center;
+      font-size: 18px; transition: all var(--transition);
+      box-shadow: var(--card-shadow);
+    }
+    .theme-btn:hover { transform: scale(1.08); background: var(--surface2); }
+
+    /* Stat cards */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+      animation: fadeUp 0.7s 0.1s ease both;
+    }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      box-shadow: var(--card-shadow);
+      position: relative; overflow: hidden;
+      transition: transform var(--transition), box-shadow var(--transition);
+    }
+    .stat-card:hover { transform: translateY(-3px); box-shadow: var(--glow), var(--card-shadow); }
+    .stat-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+    }
+    .stat-card.green-top::before { background: linear-gradient(90deg, var(--green), var(--accent)); }
+    .stat-card.pink-top::before  { background: linear-gradient(90deg, var(--accent3), var(--yellow)); }
+    .stat-card.yellow-top::before { background: linear-gradient(90deg, var(--yellow), var(--accent2)); }
+
+    .stat-label {
+      font-family: var(--mono); font-size: 0.65rem; color: var(--muted);
+      letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .stat-value {
+      font-size: 2rem; font-weight: 800; letter-spacing: -1px;
+      line-height: 1; transition: color 0.3s;
+    }
+    .stat-value span { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); font-weight: 400; margin-left: 4px; }
+    .stat-sub { margin-top: 8px; font-size: 0.8rem; color: var(--muted); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 999px;
+      font-family: var(--mono); font-size: 0.62rem;
+      background: rgba(0,230,118,0.12); color: var(--green);
+    }
+    .badge.warn { background: rgba(255,64,129,0.12); color: var(--accent3); }
+
+    /* Chart card */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 28px 22px;
+      box-shadow: var(--card-shadow);
+      margin-bottom: 24px;
+      animation: fadeUp 0.7s 0.2s ease both;
+      position: relative;
+    }
+    .chart-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .chart-title { font-size: 1.05rem; font-weight: 700; }
+    .chart-subtitle { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); margin-top: 4px; }
+    .chart-actions { display: flex; gap: 8px; }
+    .range-btn {
+      padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-family: var(--mono); font-size: 0.68rem; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .range-btn:hover, .range-btn.active {
+      background: var(--accent); color: #000; border-color: var(--accent);
+    }
+
+    .chart-wrap { position: relative; }
+    canvas { border-radius: 8px; }
+
+    /* Bottom row */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+    @media (max-width: 640px) { .bottom-row { grid-template-columns: 1fr; } }
+
+    .mini-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      box-shadow: var(--card-shadow);
+    }
+    .mini-title {
+      font-family: var(--mono); font-size: 0.65rem; color: var(--muted);
+      letter-spacing: 1.8px; text-transform: uppercase; margin-bottom: 14px;
+    }
+
+    /* History list */
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .history-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 12px; border-radius: 10px;
+      background: var(--surface2);
+      font-family: var(--mono); font-size: 0.75rem;
+      transition: background 0.2s;
+    }
+    .history-item:hover { background: var(--border); }
+    .h-time { color: var(--muted); }
+    .h-val { font-weight: 700; }
+    .h-bar {
+      height: 4px; border-radius: 2px; flex: 1; margin: 0 12px;
+      background: var(--surface); overflow: hidden;
+    }
+    .h-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+
+    /* Gauge */
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .gauge-svg-wrap { position: relative; width: 160px; height: 100px; }
+    .gauge-center {
+      position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+      text-align: center;
+    }
+    .gauge-num { font-size: 1.8rem; font-weight: 800; font-family: var(--mono); line-height: 1; }
+    .gauge-unit { font-size: 0.7rem; color: var(--muted); font-family: var(--mono); }
+    .gauge-labels {
+      display: flex; justify-content: space-between; width: 160px;
+      font-family: var(--mono); font-size: 0.6rem; color: var(--muted);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: 48px;
+      text-align: center;
+      font-family: var(--mono); font-size: 0.65rem; color: var(--muted);
+      letter-spacing: 1px;
+      animation: fadeUp 0.7s 0.4s ease both;
+    }
+
+    /* Skeleton shimmer */
+    @keyframes shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    .shimmer {
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 800px 100%;
+      animation: shimmer 1.5s infinite;
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-blobs">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-wrap">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="logo-text">Pico W Dashboard</div>
+        <div class="logo-sub">Live Sensor Stream</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">CONNECTING</span>
+      </div>
+      <button class="theme-btn" id="themeBtn" title="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <!-- Stat Cards -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Current Value</div>
+      <div class="stat-value" id="curVal">—<span>unit</span></div>
+      <div class="stat-sub">Updated <span id="lastUpdate" style="color:var(--accent)">—</span></div>
+    </div>
+    <div class="stat-card green-top">
+      <div class="stat-label">Session Min</div>
+      <div class="stat-value" id="minVal" style="color:var(--green)">—<span>unit</span></div>
+      <div class="stat-sub"><span class="badge">↓ Low</span></div>
+    </div>
+    <div class="stat-card pink-top">
+      <div class="stat-label">Session Max</div>
+      <div class="stat-value" id="maxVal" style="color:var(--accent3)">—<span>unit</span></div>
+      <div class="stat-sub"><span class="badge warn">↑ High</span></div>
+    </div>
+    <div class="stat-card yellow-top">
+      <div class="stat-label">Session Avg</div>
+      <div class="stat-value" id="avgVal" style="color:var(--yellow)">—<span>unit</span></div>
+      <div class="stat-sub" id="sampleCount" style="color:var(--muted)">— samples</div>
+    </div>
+  </div>
+
+  <!-- Main Chart -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Sensor Feed</div>
+        <div class="chart-subtitle">Refreshing every 2 seconds · <span id="pointCount">0</span> data points</div>
+      </div>
+      <div class="chart-actions">
+        <button class="range-btn active" onclick="setRange(30, this)">30s</button>
+        <button class="range-btn" onclick="setRange(60, this)">1m</button>
+        <button class="range-btn" onclick="setRange(300, this)">5m</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="sensorChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- Bottom Row -->
+  <div class="bottom-row">
+
+    <!-- Gauge -->
+    <div class="mini-card">
+      <div class="mini-title">Live Gauge</div>
+      <div class="gauge-wrap">
+        <div class="gauge-svg-wrap">
+          <svg viewBox="0 0 160 90" width="160" height="90">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="var(--accent2)"/>
+                <stop offset="50%"  stop-color="var(--accent)"/>
+                <stop offset="100%" stop-color="var(--accent3)"/>
+              </linearGradient>
+            </defs>
+            <!-- Track -->
+            <path d="M14,84 A66,66 0 0,1 146,84" fill="none" stroke="var(--surface2)" stroke-width="12" stroke-linecap="round"/>
+            <!-- Fill -->
+            <path id="gaugeFill" d="M14,84 A66,66 0 0,1 146,84" fill="none" stroke="url(#gaugeGrad)" stroke-width="12" stroke-linecap="round"
+              stroke-dasharray="208" stroke-dashoffset="208" style="transition: stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+            <!-- Needle base -->
+            <circle cx="80" cy="84" r="5" fill="var(--accent)"/>
+            <line id="needle" x1="80" y1="84" x2="80" y2="28" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"
+              style="transform-origin:80px 84px; transform:rotate(-90deg); transition: transform 0.8s cubic-bezier(0.4,0,0.2,1)"/>
+          </svg>
+          <div class="gauge-center">
+            <div class="gauge-num" id="gaugeNum">—</div>
+            <div class="gauge-unit">/ 100</div>
+          </div>
+        </div>
+        <div class="gauge-labels"><span>0</span><span>50</span><span>100</span></div>
+      </div>
+    </div>
+
+    <!-- Recent readings -->
+    <div class="mini-card">
+      <div class="mini-title">Recent Readings</div>
+      <div class="history-list" id="historyList">
+        <div class="history-item shimmer" style="height:36px;border-radius:10px;"></div>
+        <div class="history-item shimmer" style="height:36px;border-radius:10px;margin-top:2px;"></div>
+        <div class="history-item shimmer" style="height:36px;border-radius:10px;margin-top:2px;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>PICO W · RP2040 · MicroPython · &copy; 2025</footer>
+</div>
+
+<script>
+  /* ── Theme toggle ── */
+  const html = document.documentElement;
+  const themeBtn = document.getElementById('themeBtn');
+  themeBtn.addEventListener('click', () => {
+    const isDark = html.dataset.theme === 'dark';
+    html.dataset.theme = isDark ? 'light' : 'dark';
+    themeBtn.textContent = isDark ? '☀️' : '🌙';
+    updateChartTheme();
+  });
+
+  /* ── Range ── */
+  let visiblePoints = 30;
+  function setRange(n, btn) {
+    visiblePoints = n;
+    document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateChartView();
+  }
+
+  /* ── Chart.js setup ── */
+  const getCSS = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+  const ctx = document.getElementById('sensorChart').getContext('2d');
+
+  function makeGradient() {
+    const grad = ctx.createLinearGradient(0, 0, 0, 220);
+    grad.addColorStop(0, html.dataset.theme === 'dark' ? 'rgba(0,229,255,0.25)' : 'rgba(0,119,204,0.18)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    return grad;
+  }
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Sensor Value',
+        data: [],
+        borderColor: getCSS('--accent'),
+        backgroundColor: makeGradient(),
+        fill: true,
+        tension: 0.45,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        pointBackgroundColor: getCSS('--accent'),
+        borderWidth: 2.5,
+      }]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: getCSS('--surface'),
+          borderColor: getCSS('--border'),
+          borderWidth: 1,
+          titleColor: getCSS('--muted'),
+          bodyColor: getCSS('--text'),
+          titleFont: { family: 'Space Mono', size: 10 },
+          bodyFont: { family: 'Space Mono', size: 13, weight: '700' },
+          padding: 12,
+          cornerRadius: 10,
+          callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)} unit` }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: getCSS('--border'), drawBorder: false },
+          ticks: {
+            color: getCSS('--muted'), font: { family: 'Space Mono', size: 9 },
+            maxTicksLimit: 8, maxRotation: 0
+          }
+        },
+        y: {
+          min: 0, max: 100,
+          grid: { color: getCSS('--border'), drawBorder: false },
+          ticks: {
+            color: getCSS('--muted'), font: { family: 'Space Mono', size: 9 },
+            callback: v => v
+          }
+        }
+      }
+    }
+  });
+
+  function updateChartTheme() {
+    chart.data.datasets[0].borderColor = getCSS('--accent');
+    chart.data.datasets[0].backgroundColor = makeGradient();
+    chart.data.datasets[0].pointBackgroundColor = getCSS('--accent');
+    chart.options.plugins.tooltip.backgroundColor = getCSS('--surface');
+    chart.options.plugins.tooltip.borderColor = getCSS('--border');
+    chart.options.plugins.tooltip.titleColor = getCSS('--muted');
+    chart.options.plugins.tooltip.bodyColor = getCSS('--text');
+    chart.options.scales.x.grid.color = getCSS('--border');
+    chart.options.scales.x.ticks.color = getCSS('--muted');
+    chart.options.scales.y.grid.color = getCSS('--border');
+    chart.options.scales.y.ticks.color = getCSS('--muted');
+    chart.update();
+  }
+
+  /* ── All data buffer ── */
+  const allLabels = [];
+  const allData   = [];
+
+  function updateChartView() {
+    const slice = Math.min(visiblePoints, allData.length);
+    chart.data.labels   = allLabels.slice(-slice);
+    chart.data.datasets[0].data = allData.slice(-slice);
+    chart.update('none');
+  }
+
+  /* ── Stats ── */
+  let sessionMin = Infinity, sessionMax = -Infinity, sessionSum = 0, sessionCount = 0;
+
+  function updateStats(val) {
+    sessionMin = Math.min(sessionMin, val);
+    sessionMax = Math.max(sessionMax, val);
+    sessionSum += val;
+    sessionCount++;
+    document.getElementById('curVal').innerHTML = `${val.toFixed(1)}<span>unit</span>`;
+    document.getElementById('minVal').innerHTML = `${sessionMin.toFixed(1)}<span>unit</span>`;
+    document.getElementById('maxVal').innerHTML = `${sessionMax.toFixed(1)}<span>unit</span>`;
+    document.getElementById('avgVal').innerHTML = `${(sessionSum/sessionCount).toFixed(1)}<span>unit</span>`;
+    document.getElementById('sampleCount').textContent = `${sessionCount} samples`;
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  }
+
+  /* ── Gauge ── */
+  function updateGauge(val) {
+    const pct = Math.min(Math.max(val, 0), 100) / 100;
+    const trackLen = 208;
+    document.getElementById('gaugeFill').style.strokeDashoffset = trackLen * (1 - pct);
+    const deg = -90 + pct * 180;
+    document.getElementById('needle').style.transform = `rotate(${deg}deg)`;
+    document.getElementById('gaugeNum').textContent = val.toFixed(0);
+  }
+
+  /* ── History list ── */
+  const recentValues = [];
+  function updateHistory(val, time) {
+    recentValues.unshift({ val, time });
+    if (recentValues.length > 5) recentValues.pop();
+    const list = document.getElementById('historyList');
+    list.innerHTML = recentValues.map(r => {
+      const pct = Math.min(Math.max(r.val, 0), 100);
+      return `<div class="history-item">
+        <span class="h-time">${r.time}</span>
+        <div class="h-bar"><div class="h-bar-fill" style="width:${pct}%"></div></div>
+        <span class="h-val">${r.val.toFixed(1)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  /* ── Status ── */
+  function setStatus(online) {
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    dot.className = 'status-dot' + (online ? '' : ' offline');
+    txt.textContent = online ? 'LIVE' : 'OFFLINE';
+  }
+
+  /* ── Demo data generator (replace with real fetch) ── */
+  let lastVal = 50;
+  function generateDemo() {
+    lastVal += (Math.random() - 0.5) * 12;
+    lastVal = Math.min(Math.max(lastVal, 2), 98);
+    return [{ time: Date.now(), value: lastVal }];
+  }
+
+  /* ── Main fetch ── */
+  async function fetchData() {
+    try {
+      // ─── REAL endpoint ───────────────────────────────────────
+      // const res  = await fetch('http://localhost:3000/data');
+      // const data = await res.json();
+      // ─── Demo fallback ───────────────────────────────────────
+      const data = generateDemo();
+      // ─────────────────────────────────────────────────────────
+
+      setStatus(true);
+      data.forEach(d => {
+        const t = new Date(d.time).toLocaleTimeString();
+        allLabels.push(t);
+        allData.push(d.value);
+        updateStats(d.value);
+        updateGauge(d.value);
+        updateHistory(d.value, t);
+      });
+
+      // Cap buffer at 500 points
+      if (allLabels.length > 500) { allLabels.shift(); allData.shift(); }
+
+      document.getElementById('pointCount').textContent = allData.length;
+      updateChartView();
+
+    } catch (e) {
+      setStatus(false);
+      console.error('Fetch error:', e);
+    }
+  }
+
+  fetchData();
+  setInterval(fetchData, 2000);
+</script>
+</body>
+</html>
