@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, Suspense, useCallback } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, Suspense, useCallback } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import { useScroll, Environment, OrbitControls, ScrollControls } from '@react-three/drei'
@@ -16,9 +16,12 @@ const CONFIG = {
   defaultLookAt: null,
   cameraSpeed: 1.0,
   cameraOffset: 0.0,
+  
+  // SIMPLE TOGGLE - Just set this to false to hide the pathway!
+  showCameraPath: false,  // ← THIS IS ALL YOU NEED! Set to false to hide the white pathway
 
   // Direction
-  reverseDirection: true, // set to true to reverse travel (end → start)
+  reverseDirection: true, // set to true to reverse travel (end -> start)
 
   // Controls
   enableOrbitControls: false,
@@ -41,6 +44,13 @@ const CONFIG = {
   curveTension: 0.5,
   curveSampleMultiplier: 5,
   markerSearchSamples: 1500,
+  pathInnerMarginStartPercent: 1,
+  pathInnerMarginEndPercent: 0,
+  enableCameraSmoothing: true,
+  cameraLerpSharpness: 10,
+  cameraInertiaEnabled: true,
+  cameraInertiaStrength: 60,
+  cameraInertiaDamping: 14,
 
   // UI
   showScrollIndicator: true,
@@ -52,53 +62,180 @@ const CONFIG = {
 }
 
 // ============= MARKER-BASED PATH CAMERA =============
-function MarkerPathCamera({ curve }) {
+function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
   const scroll = useScroll()
   const { camera } = useThree()
   const lookAheadRef = useRef(new THREE.Vector3())
   const tempRef = useRef(new THREE.Vector3())
-  const lastTRef = useRef(0)
+  const prevRef = useRef(new THREE.Vector3())
+  const dirRef = useRef(new THREE.Vector3())
+  const fallbackTargetRef = useRef(new THREE.Vector3())
+  const lastTRef = useRef(null)
+  const currentTRef = useRef(null)
+  const velocityTRef = useRef(0)
+  const initializedRef = useRef(false)
+  const notifiedReadyRef = useRef(false)
+  const scrollPrimedRef = useRef(false)
 
-  // Initialize camera at the appropriate start (0 for normal, 1 for reversed)
-  useEffect(() => {
+  const mapScrollToCurveT = useCallback((rawT) => {
+    const normalized = THREE.MathUtils.clamp(
+      CONFIG.reverseDirection ? 1 - rawT : rawT,
+      0,
+      1
+    )
+
+    const startMargin = THREE.MathUtils.clamp(
+      CONFIG.pathInnerMarginStartPercent ?? 0,
+      0,
+      99.9
+    ) / 100
+    const endMargin = THREE.MathUtils.clamp(
+      CONFIG.pathInnerMarginEndPercent ?? 0,
+      0,
+      99.9
+    ) / 100
+
+    const effectiveStartMargin = CONFIG.reverseDirection ? endMargin : startMargin
+    const effectiveEndMargin = CONFIG.reverseDirection ? startMargin : endMargin
+
+    const innerStart = effectiveStartMargin
+    const innerEnd = 1 - effectiveEndMargin
+    if (innerStart >= innerEnd) return 0.5
+
+    return innerStart + (innerEnd - innerStart) * normalized
+  }, [])
+
+  const getRawScrollOffset = useCallback(() => {
+    if (scroll?.el) {
+      if (scroll.horizontal) {
+        const maxX = Math.max(1, scroll.el.scrollWidth - scroll.el.clientWidth)
+        return scroll.el.scrollLeft / maxX
+      }
+      const maxY = Math.max(1, scroll.el.scrollHeight - scroll.el.clientHeight)
+      return scroll.el.scrollTop / maxY
+    }
+    return typeof scroll?.offset === 'number' ? scroll.offset : 0
+  }, [scroll])
+
+  const primeInitialScroll = useCallback(() => {
+    if (!scroll?.el || scrollPrimedRef.current) return
+
+    const ratio = 0.01
+    if (scroll.horizontal) {
+      const maxX = Math.max(0, scroll.el.scrollWidth - scroll.el.clientWidth)
+      scroll.el.scrollLeft = maxX * ratio
+    } else {
+      const maxY = Math.max(0, scroll.el.scrollHeight - scroll.el.clientHeight)
+      scroll.el.scrollTop = maxY * ratio
+    }
+    scrollPrimedRef.current = true
+  }, [scroll])
+
+  const getTargetFromScroll = useCallback(() => {
+    if (!scroll) return null
+    const rawT = getRawScrollOffset()
+    const targetT = mapScrollToCurveT(rawT)
+    return { rawT, targetT }
+  }, [scroll, getRawScrollOffset, mapScrollToCurveT])
+
+  const applyPoseAtT = useCallback((t) => {
     if (!curve) return
 
-    const startT = CONFIG.reverseDirection ? 1 : 0
-    const startPos = curve.getPointAt(startT, tempRef.current)
-    camera.position.copy(startPos)
+    const position = curve.getPointAt(t, tempRef.current)
+    camera.position.copy(position)
 
     const len = Math.max(0.0001, curve.getLength())
     const delta = CONFIG.pathLookAheadDistance / len
-    // Always look ahead in the positive t direction (original forward)
-    const lookT = Math.min(1, startT + delta)
-    const lookPos = curve.getPointAt(lookT, lookAheadRef.current)
-    camera.lookAt(lookPos)
-  }, [curve, camera])
+    const lookT = Math.min(1, t + delta)
 
-  useFrame(() => {
-    if (!scroll || !curve) return
-
-    // Map scroll offset to effective t according to direction
-    const rawT = scroll.offset
-    const t = CONFIG.reverseDirection ? 1 - rawT : rawT
-    const clampedT = Math.min(1, Math.max(0, t))
-
-    // Only update if t changed significantly
-    if (Math.abs(clampedT - lastTRef.current) > 0.001) {
-      const position = curve.getPointAt(clampedT, tempRef.current)
-      camera.position.copy(position)
-
-      const len = Math.max(0.0001, curve.getLength())
-      const delta = CONFIG.pathLookAheadDistance / len
-      // Always look ahead in the positive t direction (original forward)
-      const lookT = Math.min(1, clampedT + delta)
+    if (lookT !== t) {
       const lookTarget = curve.getPointAt(lookT, lookAheadRef.current)
       camera.lookAt(lookTarget)
+      return
+    }
 
-      lastTRef.current = clampedT
+    const prevT = Math.max(0, t - delta)
+    const prevPoint = curve.getPointAt(prevT, prevRef.current)
+    dirRef.current.copy(position).sub(prevPoint)
 
-      if (CONFIG.debugMode && Math.abs(clampedT - 0.5) < 0.01) {
-        console.log(`📍 Scroll: ${(rawT * 100).toFixed(1)}% → t: ${(clampedT * 100).toFixed(1)}%`)
+    if (dirRef.current.lengthSq() > 1e-12) {
+      dirRef.current.normalize()
+      fallbackTargetRef.current.copy(position).add(dirRef.current)
+      camera.lookAt(fallbackTargetRef.current)
+    }
+  }, [curve, camera])
+
+  useLayoutEffect(() => {
+    if (!curve || !ready || !scroll) return
+
+    primeInitialScroll()
+
+    const values = getTargetFromScroll()
+    if (!values) return
+    currentTRef.current = values.targetT
+    velocityTRef.current = 0
+    applyPoseAtT(values.targetT)
+    lastTRef.current = values.targetT
+    initializedRef.current = true
+
+    if (!notifiedReadyRef.current) {
+      notifiedReadyRef.current = true
+      onInitialPoseApplied?.()
+    }
+  }, [curve, ready, scroll, primeInitialScroll, getTargetFromScroll, applyPoseAtT, onInitialPoseApplied])
+
+  useEffect(() => {
+    if (!ready) {
+      initializedRef.current = false
+      notifiedReadyRef.current = false
+      scrollPrimedRef.current = false
+      lastTRef.current = null
+      currentTRef.current = null
+      velocityTRef.current = 0
+    }
+  }, [ready, curve])
+
+  useFrame((_, delta) => {
+    if (!scroll || !curve || !ready || !initializedRef.current) return
+
+    const values = getTargetFromScroll()
+    if (!values) return
+    const { rawT, targetT } = values
+
+    if (currentTRef.current === null) {
+      currentTRef.current = targetT
+    }
+    let nextT = targetT
+    if (CONFIG.enableCameraSmoothing) {
+      if (CONFIG.cameraInertiaEnabled) {
+        const stiffness = Math.max(0, CONFIG.cameraInertiaStrength)
+        const damping = Math.max(0, CONFIG.cameraInertiaDamping)
+        let velocity = velocityTRef.current
+        const currentT = currentTRef.current
+
+        velocity += (targetT - currentT) * stiffness * delta
+        velocity *= Math.exp(-damping * delta)
+        nextT = THREE.MathUtils.clamp(currentT + velocity * delta, 0, 1)
+
+        velocityTRef.current = velocity
+      } else {
+        const sharpness = Math.max(0.001, CONFIG.cameraLerpSharpness)
+        const alpha = 1 - Math.exp(-sharpness * delta)
+        nextT = THREE.MathUtils.lerp(currentTRef.current, targetT, alpha)
+        velocityTRef.current = 0
+      }
+    } else {
+      velocityTRef.current = 0
+    }
+
+    currentTRef.current = nextT
+
+    if (lastTRef.current === null || Math.abs(nextT - lastTRef.current) > 0.00005) {
+      applyPoseAtT(nextT)
+      lastTRef.current = nextT
+
+      if (CONFIG.debugMode && Math.abs(nextT - 0.5) < 0.01) {
+        console.log(`📍 Scroll: ${(rawT * 100).toFixed(1)}% -> t: ${(nextT * 100).toFixed(1)}%`)
       }
     }
   })
@@ -108,9 +245,7 @@ function MarkerPathCamera({ curve }) {
 
 // ============= SCENE LOADER =============
 function SceneLoader({ onLoad, onError }) {
-  // Fix: Properly handle progress events vs actual errors
   const gltf = useLoader(GLTFLoader, CONFIG.modelPath, undefined, (error) => {
-    // Only treat it as an error if it's not a progress event
     if (error && !error.type?.includes('progress')) {
       console.error('❌ Failed to load scene:', error)
       onError?.(error)
@@ -139,10 +274,12 @@ function extractPathWithMarkers(scene) {
 
   scene.traverse((child) => {
     foundObjects.push(child.name)
-    
+
     if (!pathObject && child.name === CONFIG.cameraPathObjectName) {
       pathObject = child
-      console.log('📍 Found path object:', child.name, child.type)
+      // Apply visibility setting directly when found!
+      pathObject.visible = CONFIG.showCameraPath
+      console.log('📍 Found path object:', child.name, child.type, `(visible: ${CONFIG.showCameraPath})`)
     }
 
     if (!markers.start && child.name === CONFIG.startMarkerName) {
@@ -160,7 +297,6 @@ function extractPathWithMarkers(scene) {
     }
   })
 
-  // Debug: log all objects if markers not found
   if (!markers.start || !markers.end) {
     console.log('Available objects in scene:', foundObjects)
   }
@@ -204,15 +340,14 @@ function extractPathWithMarkers(scene) {
 // ============= CURVE UTILITIES =============
 function buildCurveFromPoints(points) {
   if (!points || points.length < 2) return null
-  
-  // Remove duplicate points that are too close
+
   const uniquePoints = [points[0]]
   for (let i = 1; i < points.length; i++) {
-    if (points[i].distanceTo(points[i-1]) > 0.01) {
+    if (points[i].distanceTo(points[i - 1]) > 0.01) {
       uniquePoints.push(points[i])
     }
   }
-  
+
   const base = new THREE.CatmullRomCurve3(uniquePoints, false, 'catmullrom', CONFIG.curveTension)
   const spaced = base.getSpacedPoints(Math.max(200, uniquePoints.length * CONFIG.curveSampleMultiplier))
   return new THREE.CatmullRomCurve3(spaced, false, 'catmullrom', CONFIG.curveTension)
@@ -241,11 +376,10 @@ function findClosestTOnCurve(curve, targetPosition) {
 function buildTrimmedCurve(curve, rawStartT, rawEndT) {
   if (!curve) return null
 
-  // CRITICAL FIX: Ensure we use the smaller value as start, larger as end
   const startT = Math.min(rawStartT, rawEndT)
   const endT = Math.max(rawStartT, rawEndT)
 
-  console.log(`🔄 Normalized range: ${(startT * 100).toFixed(1)}% → ${(endT * 100).toFixed(1)}%`)
+  console.log(`🔄 Normalized range: ${(startT * 100).toFixed(1)}% -> ${(endT * 100).toFixed(1)}%`)
 
   const length = Math.max(200, Math.round(curve.getLength() * 5))
   const points = []
@@ -267,6 +401,52 @@ function ProgressTracker({ onProgress }) {
       onProgress(scroll.offset)
     }
   })
+
+  return null
+}
+
+// ============= INITIAL SCROLL PRIMER =============
+function InitialScrollPrimer({ enabled, percent = 0.01, onDone }) {
+  const scroll = useScroll()
+  const doneRef = useRef(false)
+
+  useEffect(() => {
+    if (!enabled || doneRef.current || !scroll?.el) return
+
+    let raf1 = 0
+    let raf2 = 0
+
+    const apply = () => {
+      const el = scroll.el
+      const ratio = THREE.MathUtils.clamp(percent, 0, 1)
+
+      if (scroll.horizontal) {
+        const maxX = Math.max(0, el.scrollWidth - el.clientWidth)
+        el.scrollLeft = maxX * ratio
+      } else {
+        const maxY = Math.max(0, el.scrollHeight - el.clientHeight)
+        el.scrollTop = maxY * ratio
+      }
+
+      doneRef.current = true
+      onDone?.()
+    }
+
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(apply)
+    })
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+    }
+  }, [enabled, scroll, percent, onDone])
+
+  useEffect(() => {
+    if (!enabled) {
+      doneRef.current = false
+    }
+  }, [enabled])
 
   return null
 }
@@ -297,9 +477,18 @@ export default function Portfolio() {
   const [markers, setMarkers] = useState({ start: null, end: null })
   const [trimInfo, setTrimInfo] = useState({ startT: 0, endT: 1 })
   const [trimmedCurve, setTrimmedCurve] = useState(null)
+  const [initialScrollPrimed, setInitialScrollPrimed] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [cameraReady, setCameraReady] = useState(false)
+
+  useEffect(() => {
+    if (!trimmedCurve || isLoading) {
+      setInitialScrollPrimed(false)
+      setCameraReady(false)
+    }
+  }, [trimmedCurve, isLoading])
 
   const fullCurve = useMemo(() => {
     return buildCurveFromPoints(pathPoints)
@@ -311,7 +500,6 @@ export default function Portfolio() {
     const rawStartT = findClosestTOnCurve(fullCurve, markers.start)
     const rawEndT = findClosestTOnCurve(fullCurve, markers.end)
 
-    // CRITICAL FIX: Store the normalized values (start < end)
     const normalizedStartT = Math.min(rawStartT, rawEndT)
     const normalizedEndT = Math.max(rawStartT, rawEndT)
 
@@ -325,7 +513,7 @@ export default function Portfolio() {
     const trimmed = buildTrimmedCurve(fullCurve, rawStartT, rawEndT)
     setTrimmedCurve(trimmed)
 
-    console.log(`📐 Path trimmed: ${(normalizedStartT * 100).toFixed(1)}% → ${(normalizedEndT * 100).toFixed(1)}%`)
+    console.log(`📐 Path trimmed: ${(normalizedStartT * 100).toFixed(1)}% -> ${(normalizedEndT * 100).toFixed(1)}%`)
     if (rawStartT > rawEndT) {
       console.log('🔄 Note: Start and End markers were automatically swapped to ensure correct path direction')
     }
@@ -339,14 +527,12 @@ export default function Portfolio() {
   }, [])
 
   const handleError = useCallback((err) => {
-    // Only set error state for actual errors, not progress events
     if (err && !err.type?.includes('progress')) {
       console.error('❌ Failed to load scene:', err)
       setError(err.message)
     }
     setIsLoading(false)
 
-    // Create fallback path for development
     const points = []
     for (let i = 0; i <= 100; i++) {
       const t = i / 100
@@ -358,14 +544,20 @@ export default function Portfolio() {
       ))
     }
     setPathPoints(points)
-    // Use first and last points as markers (safe)
     setMarkers({
       start: points[0],
       end: points[points.length - 1]
     })
   }, [])
 
-  // For debug: compute effective progress if reversed (for display only)
+  const handleInitialPoseApplied = useCallback(() => {
+    setCameraReady(true)
+  }, [])
+
+  const handleInitialScrollPrimed = useCallback(() => {
+    setInitialScrollPrimed(true)
+  }, [])
+
   const effectiveProgress = CONFIG.reverseDirection ? 1 - progress : progress
 
   return (
@@ -375,7 +567,6 @@ export default function Portfolio() {
       position: 'relative',
       overflow: 'auto'
     }}>
-      {/* Debug overlay */}
       {CONFIG.debugMode && (
         <div style={{
           position: 'fixed',
@@ -395,12 +586,13 @@ export default function Portfolio() {
           <div>Path points: {pathPoints.length}</div>
           <div>Start marker: {markers.start ? '✅' : '❌'}</div>
           <div>End marker: {markers.end ? '✅' : '❌'}</div>
+          <div>Pathway visible: {CONFIG.showCameraPath ? '✅' : '❌'}</div>
           {CONFIG.reverseDirection && (
-            <div style={{ color: '#ffaa00' }}>🔁 Direction: REVERSED (end → start)</div>
+            <div style={{ color: '#ffaa00' }}>🔁 Direction: REVERSED (end {'->'} start)</div>
           )}
           {trimInfo.startT !== undefined && (
             <>
-              <div>Active range: {(trimInfo.startT * 100).toFixed(1)}% → {(trimInfo.endT * 100).toFixed(1)}%</div>
+              <div>Active range: {(trimInfo.startT * 100).toFixed(1)}% {'->'} {(trimInfo.endT * 100).toFixed(1)}%</div>
               {trimInfo.rawStartT > trimInfo.rawEndT && (
                 <div style={{ color: '#ffaa00' }}>🔄 Markers auto-swapped</div>
               )}
@@ -449,7 +641,6 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Error display - only show for actual errors */}
       {error && (
         <div style={{
           position: 'fixed',
@@ -466,10 +657,8 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Loading indicator */}
-      {isLoading && <LoadingIndicator />}
+      {(isLoading || !cameraReady) && <LoadingIndicator />}
 
-      {/* Progress HUD */}
       {CONFIG.showProgressHUD && (
         <div style={{
           position: 'fixed',
@@ -505,7 +694,6 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* Scroll indicator */}
       {CONFIG.showScrollIndicator && (
         <div style={{
           position: 'fixed',
@@ -534,11 +722,19 @@ export default function Portfolio() {
         style={{
           background: CONFIG.backgroundColor,
           width: '100%',
-          height: '100%'
+          height: '100%',
+          opacity: cameraReady ? 1 : 0,
+          transition: 'opacity 500ms ease'
         }}
         shadows
       >
         <ScrollControls pages={5} damping={0.1}>
+          <InitialScrollPrimer
+            enabled={!isLoading && !initialScrollPrimed}
+            percent={0.01}
+            onDone={handleInitialScrollPrimed}
+          />
+
           <ambientLight intensity={CONFIG.ambientIntensity} />
           <Environment preset={CONFIG.environmentPreset} background={false} />
 
@@ -554,7 +750,11 @@ export default function Portfolio() {
           </Suspense>
 
           {trimmedCurve && (
-            <MarkerPathCamera curve={trimmedCurve} />
+            <MarkerPathCamera
+              curve={trimmedCurve}
+              ready={!isLoading && initialScrollPrimed}
+              onInitialPoseApplied={handleInitialPoseApplied}
+            />
           )}
 
           <ProgressTracker onProgress={setProgress} />
