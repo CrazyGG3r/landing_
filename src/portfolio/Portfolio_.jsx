@@ -1,7 +1,15 @@
-import React, { useRef, useState, useMemo, Suspense, useEffect } from 'react';
-import { Canvas, useLoader, useFrame } from '@react-three/fiber';
-import { OrbitControls, MeshTransmissionMaterial, Environment, Text } from '@react-three/drei';
+import React, { useEffect, useMemo, useRef, useState, Suspense } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import {
+  OrbitControls,
+  MeshTransmissionMaterial,
+  Environment,
+  Text,
+  Clone,
+} from '@react-three/drei';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import * as THREE from 'three';
 
 // ---------- Error Boundary ----------
@@ -34,23 +42,16 @@ class ErrorBoundary extends React.Component {
 // ---------- Environment ----------
 const SafeEnvironment = () => <Environment preset="city" background={false} />;
 
-// ---------- Screen-Locked Background Text (inside WebGL, so glass can refract it) ----------
+// ---------- Text Behind Object ----------
 const ScreenLockedBackgroundText = () => {
   const textRef = useRef(null);
-  const target = useMemo(() => new THREE.Vector3(0, 0, 0), []);
   const camDir = useMemo(() => new THREE.Vector3(), []);
+  const target = useMemo(() => new THREE.Vector3(0, 0, 0), []);
 
   useFrame(({ camera }) => {
     if (!textRef.current) return;
-
-    // Camera forward direction (toward orbit target)
     camera.getWorldDirection(camDir);
-
-    // Put text BEHIND the glass object relative to camera
-    const behindDistance = 3.2;
-    textRef.current.position.copy(target).addScaledVector(camDir, behindDistance);
-
-    // Keep text facing the camera
+    textRef.current.position.copy(target).addScaledVector(camDir, 3.2);
     textRef.current.quaternion.copy(camera.quaternion);
   });
 
@@ -63,8 +64,8 @@ const ScreenLockedBackgroundText = () => {
       color="#ffffff"
       lineHeight={0.8}
       letterSpacing={0.02}
-      fontSize={2.0}      // world-space size (now responds to zoom)
-      maxWidth={7.5}      // shorter text block, still fills frame nicely
+      fontSize={2.0}
+      maxWidth={7.5}
       depthWrite={false}
       renderOrder={-10}
     >
@@ -73,76 +74,101 @@ const ScreenLockedBackgroundText = () => {
   );
 };
 
-// ---------- Uploaded Model (glass material) ----------
-const UploadedModel = ({ file, params }) => {
-  const groupRef = useRef(null);
-  const [scale, setScale] = useState(1.2);
-
-  const url = useMemo(() => URL.createObjectURL(file), [file]);
-  const gltf = useLoader(GLTFLoader, url);
+// ---------- Uploaded Model (non-destructive + same shader as fallback) ----------
+const UploadedModel = ({ file, params, onError }) => {
+  const { camera, size } = useThree();
+  const [scene, setScene] = useState(null);
+  const [fit, setFit] = useState({ scale: 1, position: [0, 0, 0] });
 
   useEffect(() => {
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [url]);
+    if (!file) return undefined;
 
-  useEffect(() => {
-    if (!gltf?.scene) return;
+    let cancelled = false;
+    const url = URL.createObjectURL(file);
 
-    const scene = gltf.scene;
+    const loader = new GLTFLoader();
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+    loader.setDRACOLoader(draco);
+    loader.setMeshoptDecoder(MeshoptDecoder);
 
-    // Auto center + scale
-    const box = new THREE.Box3().setFromObject(scene);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-    const targetSize = 2.4;
-    setScale(maxDim > 0 ? targetSize / maxDim : 1.2);
-
-    const center = box.getCenter(new THREE.Vector3());
-    scene.position.sub(center);
-
-    // Apply transmissive glass material to meshes
-    scene.traverse((child) => {
-      if (!child.isMesh) return;
-
-      const glassMaterial = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(params.color),
-        roughness: params.roughness,
-        metalness: params.metalness,
-        clearcoat: params.clearcoat,
-        clearcoatRoughness: params.clearcoatRoughness,
-        transmission: params.transmission,
-        ior: params.ior,
-        thickness: params.thickness,
-        iridescence: params.iridescence,
-        iridescenceIOR: params.iridescenceIOR,
-        iridescenceThicknessRange: params.iridescenceThicknessRange,
-        attenuationDistance: 1.0,
-        attenuationColor: new THREE.Color(params.color),
-        side: params.backside ? THREE.DoubleSide : THREE.FrontSide,
-      });
-
-      if (child.userData.glassMaterial) {
-        child.userData.glassMaterial.dispose();
+    loader.load(
+      url,
+      (gltf) => {
+        if (cancelled) return;
+        setScene(gltf.scene);
+        onError('');
+      },
+      undefined,
+      (err) => {
+        if (cancelled) return;
+        console.error('GLB load failed:', err);
+        setScene(null);
+        onError('Import failed. Use a valid .glb file.');
       }
-
-      child.material = glassMaterial;
-      child.userData.glassMaterial = glassMaterial;
-    });
+    );
 
     return () => {
-      scene.traverse((child) => {
-        if (child.isMesh && child.userData.glassMaterial) {
-          child.userData.glassMaterial.dispose();
-          child.userData.glassMaterial = null;
-        }
-      });
+      cancelled = true;
+      URL.revokeObjectURL(url);
+      draco.dispose();
     };
-  }, [gltf, params]);
+  }, [file, onError]);
 
-  if (!gltf?.scene) return null;
-  return <primitive ref={groupRef} object={gltf.scene} scale={scale} />;
+  useEffect(() => {
+    if (!scene) return;
+
+    const box = new THREE.Box3().setFromObject(scene);
+    const center = box.getCenter(new THREE.Vector3());
+    const dims = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(dims.x, dims.y, dims.z) || 1;
+
+    const distance = camera.position.distanceTo(new THREE.Vector3(0, 0, 0));
+    const vFov = THREE.MathUtils.degToRad(camera.fov);
+    const viewHeight = 2 * Math.tan(vFov / 2) * distance;
+    const viewWidth = viewHeight * (size.width / size.height);
+    const targetSize = Math.min(viewWidth, viewHeight) * 0.62;
+
+    const scale = THREE.MathUtils.clamp(targetSize / maxDim, 0.01, 100);
+
+    setFit({
+      scale,
+      position: [-center.x * scale, -center.y * scale, -center.z * scale],
+    });
+  }, [scene, camera, size.width, size.height]);
+
+  if (!scene) return null;
+
+  return (
+    <group scale={fit.scale} position={fit.position}>
+      <Clone
+        object={scene}
+        inject={
+          <MeshTransmissionMaterial
+            backside={params.backside}
+            backsideThickness={params.backsideThickness}
+            samples={params.samples}
+            thickness={params.thickness}
+            chromaticAberration={params.chromaticAberration}
+            anisotropy={params.anisotropy}
+            distortion={params.distortion}
+            distortionScale={params.distortionScale}
+            temporalDistortion={params.temporalDistortion}
+            iridescence={params.iridescence}
+            iridescenceIOR={params.iridescenceIOR}
+            iridescenceThicknessRange={params.iridescenceThicknessRange}
+            color={params.color}
+            roughness={params.roughness}
+            metalness={params.metalness}
+            clearcoat={params.clearcoat}
+            clearcoatRoughness={params.clearcoatRoughness}
+            transmission={params.transmission}
+            ior={params.ior}
+          />
+        }
+      />
+    </group>
+  );
 };
 
 // ---------- Fallback Glass Mesh ----------
@@ -176,7 +202,7 @@ const GlassMesh = ({ params }) => {
 };
 
 // ---------- Control Panel ----------
-const ControlPanel = ({ params, setParams, uploadedFile, setUploadedFile }) => {
+const ControlPanel = ({ params, setParams, uploadedFile, setUploadedFile, uploadError }) => {
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -193,11 +219,19 @@ const ControlPanel = ({ params, setParams, uploadedFile, setUploadedFile }) => {
   };
 
   const handleFileUpload = (file) => {
-    if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf'))) {
+    const name = (file?.name || '').toLowerCase();
+
+    if (file && name.endsWith('.glb')) {
       setUploadedFile(file);
-    } else {
-      alert('Please upload a .glb or .gltf file');
+      return;
     }
+
+    if (file && name.endsWith('.gltf')) {
+      alert('Use .glb for reliable import. .gltf often needs external .bin/textures.');
+      return;
+    }
+
+    alert('Please upload a .glb file');
   };
 
   const handleDrag = (e) => {
@@ -308,7 +342,7 @@ const ControlPanel = ({ params, setParams, uploadedFile, setUploadedFile }) => {
             </div>
           ) : (
             <>
-              <div>Drop .glb/.gltf here</div>
+              <div>Drop .glb here</div>
               <div style={{ fontSize: 10, color: '#888', marginTop: 5 }}>or click to browse</div>
             </>
           )}
@@ -316,7 +350,13 @@ const ControlPanel = ({ params, setParams, uploadedFile, setUploadedFile }) => {
 
         {uploadedFile && (
           <div style={{ marginTop: 8, fontSize: 11, color: '#aaa' }}>
-            ✓ Loaded. Using your model.
+            ✓ Loaded file selected.
+          </div>
+        )}
+
+        {uploadError && (
+          <div style={{ marginTop: 8, fontSize: 11, color: '#ff8f8f' }}>
+            {uploadError}
           </div>
         )}
       </div>
@@ -429,6 +469,11 @@ export default function GlassScene() {
   });
 
   const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadError, setUploadError] = useState('');
+
+  useEffect(() => {
+    if (!uploadedFile) setUploadError('');
+  }, [uploadedFile]);
 
   return (
     <div style={{ position: 'relative', width: '100vw', height: '100vh', background: '#000' }}>
@@ -443,11 +488,18 @@ export default function GlassScene() {
             <SafeEnvironment />
             <ambientLight intensity={0.25} />
 
-            {/* This text is in-scene and screen-locked, so glass can refract it */}
-            <ScreenLockedBackgroundText />
-
             <Suspense fallback={null}>
-              {uploadedFile ? <UploadedModel file={uploadedFile} params={params} /> : <GlassMesh params={params} />}
+              <ScreenLockedBackgroundText />
+              {uploadedFile ? (
+                <UploadedModel
+                  key={`${uploadedFile.name}-${uploadedFile.size}-${uploadedFile.lastModified}`}
+                  file={uploadedFile}
+                  params={params}
+                  onError={setUploadError}
+                />
+              ) : (
+                <GlassMesh params={params} />
+              )}
             </Suspense>
 
             <OrbitControls
@@ -470,6 +522,7 @@ export default function GlassScene() {
         setParams={setParams}
         uploadedFile={uploadedFile}
         setUploadedFile={setUploadedFile}
+        uploadError={uploadError}
       />
     </div>
   );
