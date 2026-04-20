@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, Suspense, useCallback } from 'react'
-import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useScroll, Environment, OrbitControls, ScrollControls } from '@react-three/drei'
 import * as THREE from 'three'
+import SceneLoader from './SceneLoader'
+import { extractSceneObjects, R3FMetaballCursor } from './MetaCursor'
 
 // ============= CONFIGURATION =============
 const CONFIG = {
@@ -13,6 +14,10 @@ const CONFIG = {
   cameraPathObjectName: "CameraPath",
   startMarkerName: "Path_Start",
   endMarkerName: "Path_End",
+  interactiveObjectNames: [],
+  maxInteractiveObjects: 4,
+  maxInteractiveVertexCount: 12000,
+  maxProjectionSamplesPerObject: 180,
   defaultLookAt: null,
   cameraSpeed: 1.0,
   cameraOffset: 0.0,
@@ -243,25 +248,6 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
   return null
 }
 
-// ============= SCENE LOADER =============
-function SceneLoader({ onLoad, onError }) {
-  const gltf = useLoader(GLTFLoader, CONFIG.modelPath, undefined, (error) => {
-    if (error && !error.type?.includes('progress')) {
-      console.error('❌ Failed to load scene:', error)
-      onError?.(error)
-    }
-  })
-
-  useEffect(() => {
-    if (gltf) {
-      console.log('✅ Scene loaded successfully')
-      onLoad(gltf.scene)
-    }
-  }, [gltf, onLoad])
-
-  return <primitive object={gltf.scene} />
-}
-
 // ============= PATH EXTRACTOR WITH MARKERS =============
 function extractPathWithMarkers(scene) {
   const markers = {
@@ -473,7 +459,9 @@ function LoadingIndicator() {
 
 // ============= MAIN COMPONENT =============
 export default function Portfolio() {
+  const containerRef = useRef(null)
   const [pathPoints, setPathPoints] = useState([])
+  const [interactiveObjects, setInteractiveObjects] = useState([])
   const [markers, setMarkers] = useState({ start: null, end: null })
   const [trimInfo, setTrimInfo] = useState({ startT: 0, endT: 1 })
   const [trimmedCurve, setTrimmedCurve] = useState(null)
@@ -522,8 +510,28 @@ export default function Portfolio() {
 
   const handleSceneLoad = useCallback((loadedScene) => {
     const { pathPoints: points, markers: markerPositions } = extractPathWithMarkers(loadedScene)
+    const includeNames = Array.isArray(CONFIG.interactiveObjectNames) && CONFIG.interactiveObjectNames.length > 0
+      ? new Set(CONFIG.interactiveObjectNames)
+      : null
+    const objects = extractSceneObjects(loadedScene, {
+      ignoredNames: new Set([
+        CONFIG.cameraPathObjectName,
+        CONFIG.startMarkerName,
+        CONFIG.endMarkerName
+      ]),
+      includeNames,
+      maxObjects: CONFIG.maxInteractiveObjects,
+      maxVertexCount: CONFIG.maxInteractiveVertexCount,
+      maxProjectionSamples: CONFIG.maxProjectionSamplesPerObject,
+      addWireframes: false,
+      description: 'Interactive mesh in the portfolio scene.'
+    })
+    if (CONFIG.debugMode) {
+      console.log('🫧 MetaCursor interactive objects:', objects.map((obj) => obj.mesh?.name || obj.label))
+    }
     setPathPoints(points)
     setMarkers(markerPositions)
+    setInteractiveObjects(objects)
   }, [])
 
   const handleError = useCallback((err) => {
@@ -548,6 +556,7 @@ export default function Portfolio() {
       start: points[0],
       end: points[points.length - 1]
     })
+    setInteractiveObjects([])
   }, [])
 
   const handleInitialPoseApplied = useCallback(() => {
@@ -561,7 +570,7 @@ export default function Portfolio() {
   const effectiveProgress = CONFIG.reverseDirection ? 1 - progress : progress
 
   return (
-    <div style={{
+    <div ref={containerRef} style={{
       width: '100vw',
       height: '100vh',
       position: 'relative',
@@ -746,7 +755,11 @@ export default function Portfolio() {
           />
 
           <Suspense fallback={null}>
-            <SceneLoader onLoad={handleSceneLoad} onError={handleError} />
+            <SceneLoader
+              modelPath={CONFIG.modelPath}
+              onLoad={handleSceneLoad}
+              onError={handleError}
+            />
           </Suspense>
 
           {trimmedCurve && (
@@ -754,6 +767,15 @@ export default function Portfolio() {
               curve={trimmedCurve}
               ready={!isLoading && initialScrollPrimed}
               onInitialPoseApplied={handleInitialPoseApplied}
+            />
+          )}
+
+          {interactiveObjects.length > 0 && (
+            <R3FMetaballCursor
+              objects={interactiveObjects}
+              enabled={!isLoading}
+              showHint={false}
+              overlayRoot={containerRef.current}
             />
           )}
 

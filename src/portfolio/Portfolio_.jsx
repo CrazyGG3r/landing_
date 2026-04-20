@@ -448,13 +448,13 @@ const ControlPanel = ({ params, setParams, uploadedFile, setUploadedFile, upload
 export default function GlassScene() {
   const [params, setParams] = useState({
     backside: true,
-    backsideThickness: 0.12,
+    backsideThickness: 0.06 ,
     samples: 32.0,
-    thickness: 0.07,
-    chromaticAberration: 0.21,
+    thickness: 0.38,
+    chromaticAberration: 0.1,
     anisotropy: 0.1,
     distortion: 4.0,
-    distortionScale: 0.22,
+    distortionScale: 0.08,
     temporalDistortion: 0.01,
     iridescence: 1,
     iridescenceIOR: 1,
