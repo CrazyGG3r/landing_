@@ -1,3 +1,4 @@
+// Portfolio.jsx (full corrected file)
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, Suspense, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useScroll, Environment, OrbitControls, ScrollControls } from '@react-three/drei'
@@ -7,10 +8,7 @@ import { extractSceneObjects, R3FMetaballCursor } from './MetaCursor'
 
 // ============= CONFIGURATION =============
 const CONFIG = {
-  // Model path (relative to public folder)
   modelPath: "assets/scenes/Scene1.glb",
-
-  // Camera Path
   cameraPathObjectName: "CameraPath",
   startMarkerName: "Path_Start",
   endMarkerName: "Path_End",
@@ -21,30 +19,16 @@ const CONFIG = {
   defaultLookAt: null,
   cameraSpeed: 1.0,
   cameraOffset: 0.0,
-  
-  // SIMPLE TOGGLE - Just set this to false to hide the pathway!
-  showCameraPath: false,  // ← THIS IS ALL YOU NEED! Set to false to hide the white pathway
-
-  // Direction
-  reverseDirection: true, // set to true to reverse travel (end -> start)
-
-  // Controls
+  showCameraPath: false,
+  reverseDirection: true,
   enableOrbitControls: false,
-
-  // Visual
   backgroundColor: "#111122",
   environmentPreset: "city",
-
-  // Lighting
   ambientIntensity: 0.5,
   directionalLightIntensity: 1.0,
   directionalLightPosition: [10, 20, 5],
-
-  // Camera
   cameraFOV: 60,
   cameraDefaultPosition: [0, 2, 5],
-
-  // Path
   pathLookAheadDistance: 2.5,
   curveTension: 0.5,
   curveSampleMultiplier: 5,
@@ -56,13 +40,9 @@ const CONFIG = {
   cameraInertiaEnabled: true,
   cameraInertiaStrength: 60,
   cameraInertiaDamping: 14,
-
-  // UI
   showScrollIndicator: true,
   scrollIndicatorText: "SCROLL TO MOVE CAMERA",
   showProgressHUD: true,
-
-  // Debug
   debugMode: true
 }
 
@@ -263,7 +243,6 @@ function extractPathWithMarkers(scene) {
 
     if (!pathObject && child.name === CONFIG.cameraPathObjectName) {
       pathObject = child
-      // Apply visibility setting directly when found!
       pathObject.visible = CONFIG.showCameraPath
       console.log('📍 Found path object:', child.name, child.type, `(visible: ${CONFIG.showCameraPath})`)
     }
@@ -460,6 +439,8 @@ function LoadingIndicator() {
 // ============= MAIN COMPONENT =============
 export default function Portfolio() {
   const containerRef = useRef(null)
+  const [overlayNode, setOverlayNode] = useState(null)  // ✅ NEW: state for portal root
+
   const [pathPoints, setPathPoints] = useState([])
   const [interactiveObjects, setInteractiveObjects] = useState([])
   const [markers, setMarkers] = useState({ start: null, end: null })
@@ -470,6 +451,13 @@ export default function Portfolio() {
   const [error, setError] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [cameraReady, setCameraReady] = useState(false)
+
+  // ✅ Capture overlay root after ref is set
+  useEffect(() => {
+    if (containerRef.current) {
+      setOverlayNode(containerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (!trimmedCurve || isLoading) {
@@ -775,7 +763,7 @@ export default function Portfolio() {
               objects={interactiveObjects}
               enabled={!isLoading}
               showHint={false}
-              overlayRoot={containerRef.current}
+              overlayRoot={overlayNode}  // ✅ Pass the state value
             />
           )}
 

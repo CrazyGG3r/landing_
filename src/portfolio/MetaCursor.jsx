@@ -1,8 +1,10 @@
+// MetaCursor.jsx (corrected)
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
+// --- Shaders (unchanged) ---
 const ID_VERTEX_SHADER = `uniform mat4 modelViewMatrix;uniform mat4 projectionMatrix;attribute vec3 position;void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`
 const ID_FRAGMENT_SHADER = `precision mediump float;uniform float u_id;void main(){gl_FragColor=vec4(u_id,0.,0.,1.);}`
 const BLOB_VERTEX_SHADER = `void main(){gl_Position=vec4(position.xy,0.,1.);}`
@@ -44,6 +46,7 @@ void main(){
   gl_FragColor=vec4(res,1.);
 }`
 
+// --- Default configuration ---
 export const DEFAULT_CFG = {
   trailCount: 3,
   sizes: [18, 38, 22],
@@ -80,6 +83,7 @@ export const DEFAULT_CFG = {
   preWrapEasePower: 3,
 }
 
+// --- Helper functions (unchanged) ---
 function normalizeNameCollection(values) {
   if (!values) return null
   return values instanceof Set ? values : new Set(values)
@@ -137,6 +141,7 @@ export function extractSceneObjects(scene, options = {}) {
   return objects
 }
 
+// --- Cursor state machine (unchanged) ---
 function createCursorState(cfg) {
   const { trailCount, fastDur, slowDur, fadeInMs, fadeOutMs, reanchorMs, dwellMs, baseAlpha } = cfg
   const trail = Array.from({ length: trailCount }, () => ({ x: -999, y: -999 }))
@@ -310,6 +315,7 @@ function createCursorState(cfg) {
   }
 }
 
+// --- Projector (unchanged) ---
 const TMP_WORLD = new THREE.Vector3()
 const TMP_NDC = new THREE.Vector3()
 
@@ -358,6 +364,7 @@ function createProjector(stride = 3) {
   }
 }
 
+// --- Blob pipeline (unchanged) ---
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   const initialWidth = el.width
@@ -562,6 +569,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   }
 }
 
+// --- Tooltip components (unchanged) ---
 function ObjectTooltip({ title, desc, x, y, color, visible, alpha }) {
   const r = Math.round(color.r * 255)
   const g = Math.round(color.g * 255)
@@ -612,6 +620,7 @@ function MetaballCursorOverlay({ objects, labelState, showHint }) {
   )
 }
 
+// --- Main component (fixed useFrame dependencies) ---
 export function R3FMetaballCursor({ objects, config = {}, showHint = true, enabled = true, overlayRoot = null }) {
   const cfg = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [config])
   const { gl: renderer, scene, camera } = useThree()
@@ -700,7 +709,7 @@ export function R3FMetaballCursor({ objects, config = {}, showHint = true, enabl
       labelAlphaRef.current.last = currentAlpha
       setLabelState((prev) => (prev.visible ? { ...prev, alpha: currentAlpha } : prev))
     }
-  }, 1)
+  }, [enabled, cfg])  // ✅ FIXED: proper dependency array
 
   if (!overlayRoot) return null
 
