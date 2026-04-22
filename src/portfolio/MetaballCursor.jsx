@@ -3,29 +3,82 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// METABALL CURSOR
+// METABALL CURSOR – CENTRAL CONFIGURATION
 //
-// Architecture (R3F-integrated):
-//   - Runs entirely INSIDE the R3F Canvas via useFrame — no separate RAF loop,
-//     no render-loop conflict, no fighting with ScrollControls.
-//   - Mouse events are attached to the SCROLL CONTAINER (passed as `eventTarget`)
-//     not the raw canvas, so ScrollControls doesn't swallow them.
-//   - ID pass uses the R3F camera at correct resolution so each mesh is
-//     individually detectable.
-//   - <MetaballCursorOverlay> is the React part (tooltip, hint) that sits
-//     as a DOM sibling above the canvas.
-//
-// Usage in Portfolio:
-//   // Inside <Canvas> (child of ScrollControls or direct):
-//   <MetaballCursorR3F objects={metaballObjects} eventTarget={scrollContainerRef} />
-//
-//   // In the DOM, sibling of <Canvas>:
-//   <MetaballCursorOverlay objects={metaballObjects} stateRef={metaballStateRef} />
-//
-// Or use the convenience wrapper <MetaballCursor> which wires both together.
+// All tunable parameters are defined below. Modify them here and the entire
+// system will adjust accordingly. No hidden magic numbers elsewhere.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── COLOR PALETTE ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────────
+// 🔧 BEHAVIOR & ANIMATION
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_TRAIL_COUNT          = 3                 // number of trailing metaballs (max 8)
+const CFG_TRAIL_SIZES          = [18, 38, 22]      // base radii (px) for each trail blob
+const CFG_FAST_DURATION_MS     = 110               // lerp speed for last (fastest) blob
+const CFG_SLOW_DURATION_MS     = 750               // lerp speed for earlier (slower) blobs
+const CFG_DWELL_MS             = 900               // hover duration before full activation
+const CFG_FADE_IN_MS           = 500               // fade‑in animation duration
+const CFG_FADE_OUT_MS          = 140               // fade‑out animation duration
+const CFG_REANCHOR_MS          = 110               // anchor lerp duration
+const CFG_PRE_WRAP_MS          = 260               // pre‑wrap scaling animation duration
+const CFG_PRE_WRAP_SCALE       = 1.58              // extra scale factor during pre‑wrap
+const CFG_PRE_WRAP_EASE_POWER  = 3                 // easing exponent for pre‑wrap
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 🎨 VISUAL STYLE – TRAIL & METABALLS
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_SMIN_K               = 0.22              // smooth min factor for blob fusion
+const CFG_EDGE_SOFTNESS        = 0.0006            // edge softness (relative to resolution)
+const CFG_PULSE_SCALE          = 1.28              // max scale during pulse
+const CFG_PULSE_DURATION_MS    = 380               // pulse duration (ms)
+const CFG_BASE_ALPHA           = 0.28              // base alpha when idle
+const CFG_LIGHTNESS            = 0.65              // lightness boost for trail/ghost colors
+const CFG_UNTRIGGERED_SIZE_SCALE = 0.72            // size multiplier when not fully active
+const CFG_BREATHE_AMP          = 0.06              // breathing amplitude
+const CFG_BREATHE_FREQ         = 0.9               // breathing frequency (Hz)
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 🌊 NOISE & DISTORTION
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_TRIGGERED_NOISE_STR  = 300                // noise strength when active
+const CFG_BLOB_NOISE_SCALE     = 0.008             // base noise scale
+const CFG_CHROMATIC_STRENGTH   = 3.2               // chromatic aberration intensity
+const CFG_CURL_STRENGTH        = 18                // curl displacement amount
+const CFG_PRISM_STRENGTH       = 0.7               // prismatic color shift intensity
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 👻 GHOST BLOBS
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_GHOST_COUNT          = 4                 // number of orbiting ghost blobs
+const CFG_GHOST_RADIUS         = 14                // orbit radius (px)
+const CFG_GHOST_ALPHA_FACTOR   = 0.55              // ghost opacity multiplier
+const CFG_GHOST_SIZE_SCALE     = [0.7, 0.8, 0.9, 1.0] // per‑ghost size multiplier
+const CFG_GHOST_SEEDS          = [0.0, 1.5, 3.0, 4.5]  // per‑ghost noise seed offsets
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 🌈 COLORS
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_HOVER_TINT_COLOR     = 0x9fe8ff          // hover tint (hex)
+const CFG_HOVER_TINT_MIX       = 0.78              // how much hover color blends in
+const CFG_TRAIL_COLOR          = '#ffffff'         // primary trail color (forced white)
+const CFG_CURSOR_COLOR         = 0xffffff          // fallback cursor color
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 🖼️ MASKING & ID RESOLUTION
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_ID_RESOLUTION        = 1024              // ID texture size (higher = sharper mask)
+const CFG_PROJECTION_MARGIN    = 1.1               // extra margin around projected bounds
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 💧 RIPPLES
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_RIPPLE_COUNT         = 3                 // number of ripples per pulse
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END OF CENTRAL CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── COLOR PALETTE (used for object highlight gradients) ──────────────────────
 export const METABALL_PALETTE = [
   { blob: new THREE.Color(0.25, 0.50, 0.95), a: new THREE.Color(0.35, 0.60, 1.00), b: new THREE.Color(0.60, 0.85, 1.00) },
   { blob: new THREE.Color(0.75, 0.20, 0.85), a: new THREE.Color(0.85, 0.35, 0.90), b: new THREE.Color(1.00, 0.60, 1.00) },
@@ -109,6 +162,7 @@ uniform vec3  u_hoverColor;
 uniform float u_hoverMix;
 uniform int   u_activeIdx;
 uniform sampler2D tScene;
+uniform sampler2D tID;          // ID texture for masking
 uniform float u_trigNoise;
 uniform float u_noiseScale;
 uniform float u_chromStr;
@@ -167,6 +221,17 @@ void main() {
   vec2 uv    = gl_FragCoord.xy;
   vec3 scene = texture2D(tScene, uv / u_res).rgb;
 
+  // ─── MASK from ID texture ──────────────────────────────────────────────────
+  float mask = 1.0;
+  if (u_activeIdx >= 0) {
+    vec2 idUV = uv / u_res;
+    float idVal = texture2D(tID, idUV).r * 255.0;
+    float activeIdFloat = float(u_activeIdx + 1);
+    float isActive = step(abs(idVal - activeIdFloat), 0.5);
+    float isBackground = step(idVal, 0.5);
+    mask = max(isActive, isBackground);
+  }
+
   // Base trail SDF
   float baseF   = sdf(uv, 0.0);
   float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
@@ -176,7 +241,7 @@ void main() {
   float nAmt    = fbm((uv + co) * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
   float trigIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, sdf(uv + co, nAmt));
 
-  // Ghost blobs with individual size scales and noise seeds
+  // Ghost blobs
   float ghostIns = 0.0;
   if (u_alpha > 0.0) {
     for (int g = 0; g < 4; g++) {
@@ -184,40 +249,37 @@ void main() {
       float ang = float(g) * 6.28318 / float(u_ghostCount) + u_time * 1.8;
       float gr  = u_ghostRadius * u_ghostSizeScale[g] * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
       vec2  off = vec2(cos(ang), sin(ang)) * gr;
-
-      // Apply seed offset to noise coordinates
       vec2 noiseCoord = (uv - off) + u_ghostSeed[g];
       float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
       ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
     }
   }
 
-  // Combine trail contributions (without ghosts)
   float mainIns = min(1.0, baseIns + (trigIns - baseIns) * u_alpha);
   float totalIns = min(1.0, mainIns + ghostIns);
 
-  // Ripple glow
   float ripGlow = 0.0;
   for (int r = 0; r < 6; r++) {
     if (u_ripples[r].x < 0.0) continue;
     ripGlow += smoothstep(3.0, 0.0, abs(baseF - u_ripples[r].x)) * u_ripples[r].y;
   }
 
-  // --- Color calculation ---
-  // Trail color (forced white, can be overridden via uniform)
-  vec3 trailBase = mix(mix(u_trailColor, vec3(1.0), u_lightness), u_trailColor, u_alpha) * u_pulseScale;
+  // Apply mask
+  mainIns  *= mask;
+  ghostIns *= mask;
+  totalIns *= mask;
+  ripGlow  *= mask;
 
-  // Ghost color: uses object/hover color
+  // Colors
+  vec3 trailBase = mix(mix(u_trailColor, vec3(1.0), u_lightness), u_trailColor, u_alpha) * u_pulseScale;
   vec3 tgt = u_activeIdx >= 0 ? u_blobColors[u_activeIdx] : u_cursorColor;
   tgt = mix(tgt, u_hoverColor, clamp(u_hoverMix, 0.0, 1.0));
   vec3 ghostCol = mix(mix(tgt, vec3(1.0), u_lightness), tgt, u_alpha) * u_pulseScale;
 
-  // Prism effect
   float et   = smoothstep(0.0, 0.3, totalIns) * (1.0 - smoothstep(0.7, 1.0, totalIns));
   vec3  prism = (vec3(0.9, 0.2, 0.1) + vec3(0.1, 0.9, 0.2) * 0.8 + vec3(0.1, 0.2, 0.9) * 0.6)
-                * et * u_prism * u_alpha;
+                * et * u_prism * u_alpha * mask;
 
-  // Chromatic aberration
   vec3 fs = scene;
   if (u_alpha > 0.0 && u_chromStr > 0.0) {
     vec2 rd  = length(uv - u_blobs[0].xy) > 0.001 ? normalize(uv - u_blobs[0].xy) : vec2(1.0, 0.0);
@@ -229,7 +291,6 @@ void main() {
     );
   }
 
-  // Composite: trail first, then ghost on top
   vec3 res = mix(fs, mix(fs, trailBase, mainIns), 1.0 - u_alpha);
   res = mix(res, ghostCol, ghostIns * (1.0 - u_alpha));
   res = mix(res, 1.0 - fs, totalIns * u_alpha);
@@ -240,49 +301,47 @@ void main() {
 }
 `
 
-// ─── DEFAULT CONFIG ───────────────────────────────────────────────────────────
+// ─── DEFAULT CONFIG (derived from central constants) ──────────────────────────
 export const DEFAULT_CFG = {
-  trailCount:              3,
-  sizes:                   [18, 38, 22],
-  fastDur:                 110,
-  slowDur:                 750,
-  smin_k:                  0.22,
-  edgeSoftness:            0.0006,
-  dwellMs:                 900,
-  fadeInMs:                500,
-  fadeOutMs:               140,
-  reanchorMs:              110,
-  idRes:                   512,
-  margin:                  1.2,
-  pulseScale:              1.28,
-  pulseDuration:           380,
-  baseAlpha:               0.28,
-  triggeredNoiseStrength:  90,
-  lightness:               0.65,
-  untriggeredSizeScale:    0.72,
-  blobNoiseScale:          0.028,
-  chromaticStrength:       2.2,
-  ghostCount:              4,
-  ghostRadius:             14,
-  ghostAlphaFactor:        0.55,
-  rippleCount:             3,
-  breatheAmp:              0.06,
-  breatheFreq:             0.9,
-  curlStrength:            18,
-  prismStrength:           0.7,
-  hoverTintColor:          0x9fe8ff,
-  hoverTintMix:            0.78,
-  preWrapMs:               260,
-  preWrapScale:            1.58,
-  preWrapEasePower:        3,
-
-  // New configurable options
-  trailColor:              '#ffffff',                // forced white for primary blobs
-  ghostSizeScale:          [0.7, 0.8, 0.9, 1.0],     // frontmost ghost slightly smaller
-  ghostSeeds:              [0.0, 1.5, 3.0, 4.5],     // different noise seeds per ghost
+  trailCount:              CFG_TRAIL_COUNT,
+  sizes:                   CFG_TRAIL_SIZES,
+  fastDur:                 CFG_FAST_DURATION_MS,
+  slowDur:                 CFG_SLOW_DURATION_MS,
+  smin_k:                  CFG_SMIN_K,
+  edgeSoftness:            CFG_EDGE_SOFTNESS,
+  dwellMs:                 CFG_DWELL_MS,
+  fadeInMs:                CFG_FADE_IN_MS,
+  fadeOutMs:               CFG_FADE_OUT_MS,
+  reanchorMs:              CFG_REANCHOR_MS,
+  idRes:                   CFG_ID_RESOLUTION,
+  margin:                  CFG_PROJECTION_MARGIN,
+  pulseScale:              CFG_PULSE_SCALE,
+  pulseDuration:           CFG_PULSE_DURATION_MS,
+  baseAlpha:               CFG_BASE_ALPHA,
+  triggeredNoiseStrength:  CFG_TRIGGERED_NOISE_STR,
+  lightness:               CFG_LIGHTNESS,
+  untriggeredSizeScale:    CFG_UNTRIGGERED_SIZE_SCALE,
+  blobNoiseScale:          CFG_BLOB_NOISE_SCALE,
+  chromaticStrength:       CFG_CHROMATIC_STRENGTH,
+  ghostCount:              CFG_GHOST_COUNT,
+  ghostRadius:             CFG_GHOST_RADIUS,
+  ghostAlphaFactor:        CFG_GHOST_ALPHA_FACTOR,
+  rippleCount:             CFG_RIPPLE_COUNT,
+  breatheAmp:              CFG_BREATHE_AMP,
+  breatheFreq:             CFG_BREATHE_FREQ,
+  curlStrength:            CFG_CURL_STRENGTH,
+  prismStrength:           CFG_PRISM_STRENGTH,
+  hoverTintColor:          CFG_HOVER_TINT_COLOR,
+  hoverTintMix:            CFG_HOVER_TINT_MIX,
+  preWrapMs:               CFG_PRE_WRAP_MS,
+  preWrapScale:            CFG_PRE_WRAP_SCALE,
+  preWrapEasePower:        CFG_PRE_WRAP_EASE_POWER,
+  trailColor:              CFG_TRAIL_COLOR,
+  ghostSizeScale:          CFG_GHOST_SIZE_SCALE,
+  ghostSeeds:              CFG_GHOST_SEEDS,
 }
 
-// ─── CURSOR STATE (unchanged, but uses cfg from closure) ────────────────────
+// ─── CURSOR STATE (unchanged) ─────────────────────────────────────────────────
 function createCursorState(cfg) {
   const { trailCount, fastDur, slowDur, fadeInMs, fadeOutMs,
           reanchorMs, dwellMs, baseAlpha } = cfg
@@ -480,7 +539,7 @@ function createProjector(stride = 3) {
   }
 }
 
-// ─── BLOB PIPELINE (updated to include new uniforms) ─────────────────────────
+// ─── BLOB PIPELINE (unchanged, uses cfg) ─────────────────────────────────────
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
@@ -538,7 +597,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       u_time:       { value: 0 },
       u_pulseScale: { value: 1 },
       u_blobColors: { value: blobColorArr },
-      u_cursorColor:{ value: new THREE.Color(0xffffff) },
+      u_cursorColor:{ value: new THREE.Color(CFG_CURSOR_COLOR) },
       u_hoverColor: { value: new THREE.Color(cfg.hoverTintColor) },
       u_hoverMix:   { value: 0 },
       u_activeIdx:  { value: -1 },
@@ -554,11 +613,10 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       u_prism:      { value: cfg.prismStrength },
       u_ripples:    { value: ripUnis },
       tScene:       { value: rtScene.texture },
-
-      // New uniforms
+      tID:          { value: rtID.texture },
       u_trailColor:      { value: new THREE.Color(cfg.trailColor) },
-      u_ghostSizeScale:  { value: cfg.ghostSizeScale || [1.0, 1.0, 1.0, 1.0] },
-      u_ghostSeed:       { value: cfg.ghostSeeds   || [0.0, 1.0, 2.0, 3.0] },
+      u_ghostSizeScale:  { value: cfg.ghostSizeScale || [1,1,1,1] },
+      u_ghostSeed:       { value: cfg.ghostSeeds || [0,1,2,3] },
     },
     depthTest: false,
     depthWrite: false,
@@ -652,7 +710,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         rp && rp.r >= 0 ? ru[i].set(rp.r, rp.str, 0) : ru[i].set(-1, 0, 0)
       }
 
-      // Update new uniforms from config (in case config changes)
       mat.uniforms.u_trailColor.value.set(cfg.trailColor)
       mat.uniforms.u_ghostSizeScale.value = cfg.ghostSizeScale
       mat.uniforms.u_ghostSeed.value      = cfg.ghostSeeds
