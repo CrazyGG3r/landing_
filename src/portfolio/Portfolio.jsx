@@ -62,6 +62,21 @@ const CONFIG = {
 
   // Debug
   debugMode: true,
+
+  // 🆕 Skybox — dynamic linear gradient
+  useGradientSkybox:    true,
+  skyboxRadius:         500,
+  // Gradient start (scroll = 0)
+startCenterColor: '#ccfff0',
+startEdgeColor:   '#006b4f',   // deep aqua-green
+
+endCenterColor:   '#cfff99',
+endEdgeColor:     '#2a9e00',   // dark, saturated lime
+  skyboxIntensity:      1,
+
+  // 🆕 Additional ambient light to complement gradient feel
+  extraAmbientColor:    '#c0c0d0',
+  extraAmbientIntensity: 2.0,
 }
 
 // ============= CURVE UTILITIES =============
@@ -363,6 +378,83 @@ function LoadingIndicator() {
   )
 }
 
+// ============= DYNAMIC LINEAR GRADIENT SKYBOX =============
+function GradientSkybox({
+  radius = 500,
+  startCenterColor = '#ffffff',
+  startEdgeColor = '#d0d0d0',
+  endCenterColor = '#2a2a2a',
+  endEdgeColor = '#0a0a0a',
+  intensity = 1.0,
+  progress = 0.0,           // 0 → start colors, 1 → end colors
+  direction = 'vertical',    // 'vertical' or 'horizontal'
+}) {
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        startCenter: { value: new THREE.Color(startCenterColor) },
+        startEdge:   { value: new THREE.Color(startEdgeColor) },
+        endCenter:   { value: new THREE.Color(endCenterColor) },
+        endEdge:     { value: new THREE.Color(endEdgeColor) },
+        intensity:   { value: intensity },
+        progress:    { value: progress },
+      },
+      vertexShader: `
+        varying vec3 vWorldPosition;
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = normalize(worldPosition.xyz);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 startCenter;
+        uniform vec3 startEdge;
+        uniform vec3 endCenter;
+        uniform vec3 endEdge;
+        uniform float intensity;
+        uniform float progress;
+        varying vec3 vWorldPosition;
+        
+        void main() {
+          // Linear blend factor based on Y coordinate (vertical gradient)
+          // Map from -1..1 to 0..1
+          float t = (vWorldPosition.y + 1.0) * 0.5;
+          
+          // Interpolate between start and end colors based on progress
+          vec3 centerColor = mix(startCenter, endCenter, progress);
+          vec3 edgeColor   = mix(startEdge,   endEdge,   progress);
+          
+          // Final color: mix center and edge based on vertical position
+          vec3 color = mix(centerColor, edgeColor, t);
+          
+          gl_FragColor = vec4(color * intensity, 1.0);
+        }
+      `,
+      side: THREE.BackSide,
+      depthWrite: false,
+    });
+  }, [startCenterColor, startEdgeColor, endCenterColor, endEdgeColor, intensity, progress]);
+
+  // Update uniforms when props change
+  useEffect(() => {
+    if (material) {
+      material.uniforms.startCenter.value.set(startCenterColor);
+      material.uniforms.startEdge.value.set(startEdgeColor);
+      material.uniforms.endCenter.value.set(endCenterColor);
+      material.uniforms.endEdge.value.set(endEdgeColor);
+      material.uniforms.intensity.value = intensity;
+      material.uniforms.progress.value = progress;
+    }
+  }, [material, startCenterColor, startEdgeColor, endCenterColor, endEdgeColor, intensity, progress]);
+
+  return (
+    <mesh material={material} renderOrder={0}>
+      <sphereGeometry args={[radius, 64, 32]} />
+    </mesh>
+  );
+}
+
 // ============= MAIN COMPONENT =============
 export default function Portfolio() {
   // ── Path state ──────────────────────────────────────────────────────────────
@@ -378,12 +470,9 @@ export default function Portfolio() {
 
   // ── MetaballCursor state ─────────────────────────────────────────────────────
   const [metaballObjects, setMetaballObjects] = useState([])
-  // stateRef is populated by MetaballCursorR3F.onStateReady and read by the overlay RAF
   const metaballStateRef = useRef(null)
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
-  // scrollContainerRef → the div that wraps <Canvas>; mouse events go here
-  // so ScrollControls' overlay div doesn't swallow them
   const scrollContainerRef = useRef(null)
 
   // ── Reset on curve change ────────────────────────────────────────────────────
@@ -413,8 +502,6 @@ export default function Portfolio() {
   const handleSceneLoad = useCallback((loadedScene, gltf, meshInfo) => {
     const { pathObject, interactiveMeshes } = meshInfo
 
-    // If SceneLoader found the path object (any type), use it directly.
-    // If not, do a fallback traversal for non-Mesh path objects (Lines, etc.).
     let resolvedPath = pathObject
     if (!resolvedPath) {
       const needle = CONFIG.cameraPathObjectName.toLowerCase().trim()
@@ -427,7 +514,6 @@ export default function Portfolio() {
       }
     }
 
-    // Extract path points + markers
     const { pathPoints: pts, markers: markerPos } = extractPathFromObject(
       loadedScene,
       resolvedPath,
@@ -437,7 +523,6 @@ export default function Portfolio() {
     setPathPoints(pts)
     setMarkers(markerPos)
 
-    // Build MetaballCursor objects from interactive meshes
     if (interactiveMeshes.length > 0) {
       const objs = buildMetaballObjects(interactiveMeshes)
       setMetaballObjects(objs)
@@ -447,7 +532,6 @@ export default function Portfolio() {
       console.warn('⚠️ No interactive meshes found — MetaballCursor will be inactive.')
     }
 
-    // Unblock loading immediately if path extraction failed
     if (pts.length < 2) {
       console.error(
         `❌ Path extraction failed (${pts.length} points).\n` +
@@ -463,7 +547,6 @@ export default function Portfolio() {
       setError(err.message)
     }
     setIsLoading(false)
-    // Fallback: procedural loop so the app doesn't get stuck
     const pts = []
     for (let i = 0; i <= 100; i++) {
       const t = i / 100, a = t * Math.PI * 2
@@ -585,12 +668,6 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/*
-        ── Canvas container ─────────────────────────────────────────────────
-        IMPORTANT: We attach this ref to the OUTER div, not the canvas itself.
-        MetaballCursorR3F reads this ref and attaches mousemove listeners here.
-        This way the events are not swallowed by ScrollControls' internal div.
-      */}
       <div
         ref={scrollContainerRef}
         style={{
@@ -601,18 +678,18 @@ export default function Portfolio() {
         <Canvas
           camera={{ position: CONFIG.cameraDefaultPosition, fov: CONFIG.cameraFOV }}
           style={{
-            background: CONFIG.backgroundColor,
+            background: CONFIG.useGradientSkybox ? 'transparent' : CONFIG.backgroundColor,
             width: '100%', height: '100%',
             opacity: cameraReady ? 1 : 0,
             transition: 'opacity 500ms ease',
             display: 'block',
           }}
-          // DO NOT set frameloop="never" — that would break useFrame (MarkerPathCamera)
-          // R3F renders normally; MetaballCursorR3F hooks in at priority=1
-          // and takes over the final renderer output each frame.
           frameloop="always"
           shadows
-          gl={{ antialias: true, alpha: false }}
+          gl={{
+            antialias: true,
+            alpha: CONFIG.useGradientSkybox,
+          }}
         >
           <ScrollControls pages={5} damping={0.1}>
             <InitialScrollPrimer
@@ -621,7 +698,24 @@ export default function Portfolio() {
               onDone={handleInitialScrollPrimed}
             />
 
+            {/* 🆕 Dynamic Linear Gradient Skybox */}
+            {CONFIG.useGradientSkybox && (
+              <GradientSkybox
+                radius={CONFIG.skyboxRadius}
+                startCenterColor={CONFIG.startCenterColor}
+                startEdgeColor={CONFIG.startEdgeColor}
+                endCenterColor={CONFIG.endCenterColor}
+                endEdgeColor={CONFIG.endEdgeColor}
+                intensity={CONFIG.skyboxIntensity}
+                progress={effectiveProgress}
+                direction="vertical"
+              />
+            )}
+
             <ambientLight intensity={CONFIG.ambientIntensity} />
+            {CONFIG.useGradientSkybox && (
+              <ambientLight color={CONFIG.extraAmbientColor} intensity={CONFIG.extraAmbientIntensity} />
+            )}
             <Environment preset={CONFIG.environmentPreset} background={false} />
             <directionalLight
               position={CONFIG.directionalLightPosition}
@@ -639,7 +733,6 @@ export default function Portfolio() {
               />
             </Suspense>
 
-            {/* Camera path — priority 0, runs before blob pipeline */}
             {trimmedCurve && (
               <MarkerPathCamera
                 curve={trimmedCurve}
@@ -650,12 +743,6 @@ export default function Portfolio() {
 
             <ProgressTracker onProgress={setProgress} />
 
-            {/*
-              MetaballCursorR3F — priority 1, runs AFTER MarkerPathCamera (priority 0).
-              This guarantees the camera is already in its new position before we
-              render the ID pass and scene capture, so projections are never one frame stale.
-              eventTarget → the outer div (not canvas) so mousemove works through ScrollControls.
-            */}
             {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
               <MetaballCursorR3F
                 objects={metaballObjects}
@@ -669,11 +756,6 @@ export default function Portfolio() {
         </Canvas>
       </div>
 
-      {/*
-        ── MetaballCursor DOM overlay ─────────────────────────────────────
-        Tooltip and hint text. Sits on top of the canvas in the DOM.
-        Reads cursor/hover state from metaballStateRef via its own lightweight RAF.
-      */}
       {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
         <MetaballCursorOverlay
           objects={metaballObjects}

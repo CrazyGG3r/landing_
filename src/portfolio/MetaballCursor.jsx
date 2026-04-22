@@ -121,6 +121,11 @@ uniform float u_curl;
 uniform float u_prism;
 uniform vec3  u_ripples[6];
 
+// NEW UNIFORMS
+uniform vec3  u_trailColor;                 // forced white for primary blobs
+uniform float u_ghostSizeScale[4];           // per‑ghost size multiplier
+uniform float u_ghostSeed[4];                // per‑ghost noise seed offset
+
 float smin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
   return mix(b, a, h) - k * h * (1.0 - h);
@@ -162,45 +167,61 @@ void main() {
   vec2 uv    = gl_FragCoord.xy;
   vec3 scene = texture2D(tScene, uv / u_res).rgb;
 
+  // Base trail SDF
   float baseF   = sdf(uv, 0.0);
   float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
 
+  // Noise & curl displacement for trail
   vec2  co      = curl(uv * u_noiseScale * 0.5 + u_time * 0.1) * u_curl * u_alpha;
   float nAmt    = fbm((uv + co) * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
   float trigIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, sdf(uv + co, nAmt));
 
+  // Ghost blobs with individual size scales and noise seeds
   float ghostIns = 0.0;
   if (u_alpha > 0.0) {
     for (int g = 0; g < 4; g++) {
       if (g >= u_ghostCount) break;
       float ang = float(g) * 6.28318 / float(u_ghostCount) + u_time * 1.8;
-      float gr  = u_ghostRadius * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
+      float gr  = u_ghostRadius * u_ghostSizeScale[g] * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
       vec2  off = vec2(cos(ang), sin(ang)) * gr;
-      float gf  = sdf(uv - off, fbm((uv - off) * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
-      ghostIns  = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
+
+      // Apply seed offset to noise coordinates
+      vec2 noiseCoord = (uv - off) + u_ghostSeed[g];
+      float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
+      ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
     }
   }
 
-  float ins = min(1.0, baseIns + (trigIns - baseIns) * u_alpha + ghostIns);
+  // Combine trail contributions (without ghosts)
+  float mainIns = min(1.0, baseIns + (trigIns - baseIns) * u_alpha);
+  float totalIns = min(1.0, mainIns + ghostIns);
 
+  // Ripple glow
   float ripGlow = 0.0;
   for (int r = 0; r < 6; r++) {
     if (u_ripples[r].x < 0.0) continue;
     ripGlow += smoothstep(3.0, 0.0, abs(baseF - u_ripples[r].x)) * u_ripples[r].y;
   }
 
+  // --- Color calculation ---
+  // Trail color (forced white, can be overridden via uniform)
+  vec3 trailBase = mix(mix(u_trailColor, vec3(1.0), u_lightness), u_trailColor, u_alpha) * u_pulseScale;
+
+  // Ghost color: uses object/hover color
   vec3 tgt = u_activeIdx >= 0 ? u_blobColors[u_activeIdx] : u_cursorColor;
   tgt = mix(tgt, u_hoverColor, clamp(u_hoverMix, 0.0, 1.0));
-  vec3 blobCol = mix(mix(tgt, vec3(1.0), u_lightness), tgt, u_alpha) * u_pulseScale;
+  vec3 ghostCol = mix(mix(tgt, vec3(1.0), u_lightness), tgt, u_alpha) * u_pulseScale;
 
-  float et   = smoothstep(0.0, 0.3, ins) * (1.0 - smoothstep(0.7, 1.0, ins));
+  // Prism effect
+  float et   = smoothstep(0.0, 0.3, totalIns) * (1.0 - smoothstep(0.7, 1.0, totalIns));
   vec3  prism = (vec3(0.9, 0.2, 0.1) + vec3(0.1, 0.9, 0.2) * 0.8 + vec3(0.1, 0.2, 0.9) * 0.6)
                 * et * u_prism * u_alpha;
 
+  // Chromatic aberration
   vec3 fs = scene;
   if (u_alpha > 0.0 && u_chromStr > 0.0) {
     vec2 rd  = length(uv - u_blobs[0].xy) > 0.001 ? normalize(uv - u_blobs[0].xy) : vec2(1.0, 0.0);
-    float cs = u_chromStr * ins * u_alpha;
+    float cs = u_chromStr * totalIns * u_alpha;
     fs = vec3(
       texture2D(tScene, (uv + rd * cs)        / u_res).r,
       scene.g,
@@ -208,8 +229,10 @@ void main() {
     );
   }
 
-  vec3 res = mix(fs, mix(fs, blobCol, ins), 1.0 - u_alpha);
-  res = mix(res, 1.0 - fs, ins * u_alpha);
+  // Composite: trail first, then ghost on top
+  vec3 res = mix(fs, mix(fs, trailBase, mainIns), 1.0 - u_alpha);
+  res = mix(res, ghostCol, ghostIns * (1.0 - u_alpha));
+  res = mix(res, 1.0 - fs, totalIns * u_alpha);
   res += prism * (1.0 - res);
   res = mix(res, vec3(0.95, 0.85, 1.0), ripGlow * 0.4 * u_alpha);
 
@@ -252,9 +275,14 @@ export const DEFAULT_CFG = {
   preWrapMs:               260,
   preWrapScale:            1.58,
   preWrapEasePower:        3,
+
+  // New configurable options
+  trailColor:              '#ffffff',                // forced white for primary blobs
+  ghostSizeScale:          [0.7, 0.8, 0.9, 1.0],     // frontmost ghost slightly smaller
+  ghostSeeds:              [0.0, 1.5, 3.0, 4.5],     // different noise seeds per ghost
 }
 
-// ─── CURSOR STATE ─────────────────────────────────────────────────────────────
+// ─── CURSOR STATE (unchanged, but uses cfg from closure) ────────────────────
 function createCursorState(cfg) {
   const { trailCount, fastDur, slowDur, fadeInMs, fadeOutMs,
           reanchorMs, dwellMs, baseAlpha } = cfg
@@ -402,7 +430,7 @@ function createCursorState(cfg) {
   }
 }
 
-// ─── PROJECTOR ────────────────────────────────────────────────────────────────
+// ─── PROJECTOR (unchanged) ───────────────────────────────────────────────────
 const _v3tmp  = new THREE.Vector3()
 const _ndcTmp = new THREE.Vector3()
 
@@ -417,7 +445,6 @@ function createProjector(stride = 3) {
       const meshWP = mesh.getWorldPosition(new THREE.Vector3())
       const camPos = camera.position
 
-      // Invalidate if mesh moved OR camera moved more than a small threshold
       const meshMoved = meshWP.distanceTo(lastMeshPos) > 0.001
       const camMoved  = camPos.distanceTo(lastCamPos)  > 0.05
 
@@ -435,7 +462,7 @@ function createProjector(stride = 3) {
         for (let i = 0; i < count; i += stride) {
           _v3tmp.fromBufferAttribute(pos, i).applyMatrix4(mw)
           _ndcTmp.copy(_v3tmp).project(camera)
-          if (_ndcTmp.z > 1) continue   // behind camera
+          if (_ndcTmp.z > 1) continue
           const sx = (_ndcTmp.x *  0.5 + 0.5) * rW
           const sy = (_ndcTmp.y * -0.5 + 0.5) * rH
           if (sx < minX) minX = sx;  if (sx > maxX) maxX = sx
@@ -453,21 +480,17 @@ function createProjector(stride = 3) {
   }
 }
 
-// ─── BLOB PIPELINE (created once, lives inside useEffect) ────────────────────
+// ─── BLOB PIPELINE (updated to include new uniforms) ─────────────────────────
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
 
-  // ── ID render target ──────────────────────────────────────────────────────
-  // Use a fixed 512×512 target. We map cursor position proportionally into it.
   const rtID = new THREE.WebGLRenderTarget(cfg.idRes, cfg.idRes, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     type: THREE.UnsignedByteType,
   })
 
-  // Each interactive mesh gets its own clone in the ID scene
-  // with a unique flat color: R = (index+1)/255
   const idScene = new THREE.Scene()
   idScene.background = new THREE.Color(0, 0, 0)
 
@@ -478,29 +501,25 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         vertexShader:   _idVert,
         fragmentShader: _idFrag,
         uniforms: { u_id: { value: (i + 1) / 255 } },
-        // Disable all state that could cause z-fighting or culling issues
         side:           THREE.DoubleSide,
         depthTest:      true,
         depthWrite:     true,
       })
     )
-    m.frustumCulled = false   // always render in ID pass regardless of camera
+    m.frustumCulled = false
     idScene.add(m)
     return m
   })
 
-  // ── Scene capture render target ───────────────────────────────────────────
   const rtScene = new THREE.WebGLRenderTarget(rW, rH, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
   })
 
-  // ── Blob composite quad ───────────────────────────────────────────────────
   const blobScene = new THREE.Scene()
   const blobCam   = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   const ripUnis   = Array.from({ length: 6 }, () => new THREE.Vector3(-1, 0, 0))
 
-  // Pad blob colors to exactly 8 slots
   const colors8 = Array.from({ length: 8 }, (_, i) =>
     i < objects.length ? objects[i].blobColor : new THREE.Color(0, 0, 0)
   )
@@ -535,6 +554,11 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       u_prism:      { value: cfg.prismStrength },
       u_ripples:    { value: ripUnis },
       tScene:       { value: rtScene.texture },
+
+      // New uniforms
+      u_trailColor:      { value: new THREE.Color(cfg.trailColor) },
+      u_ghostSizeScale:  { value: cfg.ghostSizeScale || [1.0, 1.0, 1.0, 1.0] },
+      u_ghostSeed:       { value: cfg.ghostSeeds   || [0.0, 1.0, 2.0, 3.0] },
     },
     depthTest: false,
     depthWrite: false,
@@ -553,12 +577,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     smoothProj,
     get lastProj() { return lastProj },
 
-    /**
-     * render() — called from useFrame every tick.
-     * scene    : the R3F scene (THREE.Scene)
-     * curPx    : { x, y } in CSS pixels relative to the canvas element
-     * camera   : the R3F camera (already updated by MarkerPathCamera)
-     */
     render(cs, scene, curPx, camera) {
       const now  = performance.now()
       const time = now * 0.001
@@ -573,14 +591,12 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       const rW2 = cW * d
       const rH2 = cH * d
 
-      // Resize render targets if canvas size changed
       if (Math.abs(rtScene.width - rW2) > 1 || Math.abs(rtScene.height - rH2) > 1) {
         rtScene.setSize(rW2, rH2)
         mat.uniforms.u_res.value.set(rW2, rH2)
       }
 
-      // ── 1. ID PASS ──────────────────────────────────────────────────────
-      // Sync id-mesh world matrices from live scene
+      // ID pass
       idMeshes.forEach((m, i) => {
         objects[i].mesh.updateWorldMatrix(true, false)
         m.matrixAutoUpdate = false
@@ -592,18 +608,16 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       renderer.clear()
       renderer.render(idScene, camera)
 
-      // Map cursor CSS position → ID target pixel
       const sx = Math.max(0, Math.min(cfg.idRes - 1, Math.round((curPx.x / cW) * cfg.idRes)))
       const sy = Math.max(0, Math.min(cfg.idRes - 1, Math.round((1 - curPx.y / cH) * cfg.idRes)))
       renderer.readRenderTargetPixels(rtID, sx, sy, 1, 1, pixBuf)
 
-      // pixBuf[0] encodes the object id: 0 = nothing, n = object index n-1
       cs.setHoveredId(pixBuf[0])
 
       const alpha  = cs.alpha
       const anchor = cs.anchor
 
-      // ── 2. Mutate mesh colors on hover ──────────────────────────────────
+      // Mesh color mutation
       objects.forEach((obj, i) => {
         const active = i === cs.activeId - 1
         if (obj.colorA && obj.colorB && obj.material?.color) {
@@ -614,12 +628,12 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         if (obj.wireframe) obj.wireframe.material.opacity = active ? 0.15 + alpha * 0.7 : 0.18
       })
 
-      // ── 3. SCENE PASS ───────────────────────────────────────────────────
+      // Scene capture
       renderer.setRenderTarget(rtScene)
       renderer.clear()
       renderer.render(scene, camera)
 
-      // ── 4. BLOB COMPOSITE PASS ──────────────────────────────────────────
+      // Blob composite
       renderer.setRenderTarget(null)
       renderer.clear()
 
@@ -638,7 +652,11 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         rp && rp.r >= 0 ? ru[i].set(rp.r, rp.str, 0) : ru[i].set(-1, 0, 0)
       }
 
-      // Project hovered object to screen space
+      // Update new uniforms from config (in case config changes)
+      mat.uniforms.u_trailColor.value.set(cfg.trailColor)
+      mat.uniforms.u_ghostSizeScale.value = cfg.ghostSizeScale
+      mat.uniforms.u_ghostSeed.value      = cfg.ghostSeeds
+
       const projIdx = cs.activeId > 0
         ? cs.activeId - 1
         : alpha > cfg.baseAlpha + 0.01 ? lastProj.id - 1 : -1
@@ -649,7 +667,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         const tgtR = raw.r * cfg.margin
         const s    = smoothProj[projIdx]
         if (!s.init) { s.cx = raw.cx; s.cy = raw.cy; s.r = tgtR; s.init = true }
-        // Faster lerp when camera is moving so blob tracks the object screen position
         const l = 0.25
         s.cx += (raw.cx - s.cx) * l
         s.cy += (raw.cy - s.cy) * l
@@ -665,7 +682,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         projCx = lastProj.cx; projCy = lastProj.cy; projR = lastProj.r
       }
 
-      // Place trail blobs
       const blobs = mat.uniforms.u_blobs.value
       const hb    = THREE.MathUtils.clamp((alpha - cfg.baseAlpha) / (1 - cfg.baseAlpha), 0, 1)
 
@@ -701,7 +717,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   }
 }
 
-// ─── TOOLTIP ─────────────────────────────────────────────────────────────────
+// ─── TOOLTIP (unchanged) ─────────────────────────────────────────────────────
 function ObjectTooltip({ title, desc, x, y, color, visible, alpha }) {
   const r = Math.round(color.r * 255)
   const g = Math.round(color.g * 255)
@@ -733,30 +749,15 @@ function ObjectTooltip({ title, desc, x, y, color, visible, alpha }) {
   )
 }
 
-// ─── R3F INNER COMPONENT (runs inside <Canvas>) ───────────────────────────────
-/**
- * MetaballCursorR3F
- *
- * Place this INSIDE your <Canvas> tree (e.g. as a sibling of SceneLoader).
- * It wires the pipeline into R3F's useFrame so there is no separate RAF loop.
- *
- * Props:
- *   objects      {MetaballObject[]}   — from buildMetaballObjects()
- *   eventTarget  {React.RefObject}    — ref to the scroll container div
- *                                       (so mouse events aren't eaten by ScrollControls)
- *   config       {object}             — optional DEFAULT_CFG overrides
- *   onStateReady {fn}                 — called with { cs, pipeline } once ready
- *                                       (Portfolio uses this to drive the overlay)
- */
+// ─── R3F INNER COMPONENT (unchanged) ─────────────────────────────────────────
 export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateReady }) {
   const { gl, scene, camera } = useThree()
-  const cfg        = useMemo(() => ({ ...DEFAULT_CFG, ...config }), []) // eslint-disable-line
+  const cfg        = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [])
   const pipelineRef = useRef(null)
   const csRef       = useRef(null)
   const curPxRef    = useRef({ x: -999, y: -999 })
   const readyRef    = useRef(false)
 
-  // Build pipeline + cursor state once objects/renderer are available
   useEffect(() => {
     if (!objects?.length || !gl) return
 
@@ -774,16 +775,14 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
       pipelineRef.current = null
       csRef.current       = null
     }
-  }, [objects, gl]) // eslint-disable-line
+  }, [objects, gl])
 
-  // Attach mouse listeners to the scroll container (not the canvas)
   useEffect(() => {
     const el = eventTarget?.current ?? gl.domElement
     if (!el) return
 
     const onMove = e => {
       const rect = gl.domElement.getBoundingClientRect()
-      // Convert from page coords to canvas-relative coords
       const x = e.clientX - rect.left
       const y = e.clientY - rect.top
       curPxRef.current.x = x
@@ -800,7 +799,6 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
     }
   }, [eventTarget, gl])
 
-  // Handle resize
   useEffect(() => {
     if (!gl) return
     const ro = new ResizeObserver(() => pipelineRef.current?.resize())
@@ -808,23 +806,15 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
     return () => ro.disconnect()
   }, [gl])
 
-  // Hook into R3F's render loop — runs AFTER all useFrame hooks with lower priority
-  // priority=1 means it runs after priority=0 hooks (like MarkerPathCamera)
   useFrame((state) => {
     if (!readyRef.current || !pipelineRef.current || !csRef.current) return
     pipelineRef.current.render(csRef.current, scene, curPxRef.current, camera)
-  }, 1)  // priority 1 = runs after default (0) frame hooks
+  }, 1)
 
   return null
 }
 
-// ─── DOM OVERLAY (tooltip + hint, sits outside Canvas) ───────────────────────
-/**
- * MetaballCursorOverlay
- *
- * Renders the tooltip DOM layer. Place this as a DOM sibling of <Canvas>.
- * Reads hover state via stateRef (populated by MetaballCursorR3F.onStateReady).
- */
+// ─── DOM OVERLAY (unchanged) ─────────────────────────────────────────────────
 export function MetaballCursorOverlay({ objects, stateRef, showHint = true }) {
   const [labelState, setLabelState] = useState({ idx: -1, x: 0, y: 0, visible: false, alpha: 0 })
   const rafRef      = useRef(null)
