@@ -6,7 +6,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useScroll, Environment, OrbitControls, ScrollControls } from '@react-three/drei'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
-import { MetaballCursorR3F, MetaballCursorOverlay, buildMetaballObjects } from './MetaballCursor'
+import { MetaballCursorR3F, buildMetaballObjects } from './MetaballCursor'
+import { MetaballCursorOverlay } from './MetaballCursorOverlay'   // <-- updated import
 
 // ============= CONFIGURATION =============
 const CONFIG = {
@@ -67,11 +68,11 @@ const CONFIG = {
   useGradientSkybox:    true,
   skyboxRadius:         500,
   // Gradient start (scroll = 0)
-startCenterColor: '#ccfff0',
-startEdgeColor:   '#006b4f',   // deep aqua-green
+  startCenterColor: '#ccfff0',
+  startEdgeColor:   '#006b4f',   // deep aqua-green
 
-endCenterColor:   '#cfff99',
-endEdgeColor:     '#2a9e00',   // dark, saturated lime
+  endCenterColor:   '#cfff99',
+  endEdgeColor:     '#2a9e00',   // dark, saturated lime
   skyboxIntensity:      1,
 
   // 🆕 Additional ambient light to complement gradient feel
@@ -386,8 +387,8 @@ function GradientSkybox({
   endCenterColor = '#2a2a2a',
   endEdgeColor = '#0a0a0a',
   intensity = 1.0,
-  progress = 0.0,           // 0 → start colors, 1 → end colors
-  direction = 'vertical',    // 'vertical' or 'horizontal'
+  progress = 0.0,
+  direction = 'vertical',
 }) {
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -417,17 +418,10 @@ function GradientSkybox({
         varying vec3 vWorldPosition;
         
         void main() {
-          // Linear blend factor based on Y coordinate (vertical gradient)
-          // Map from -1..1 to 0..1
           float t = (vWorldPosition.y + 1.0) * 0.5;
-          
-          // Interpolate between start and end colors based on progress
           vec3 centerColor = mix(startCenter, endCenter, progress);
           vec3 edgeColor   = mix(startEdge,   endEdge,   progress);
-          
-          // Final color: mix center and edge based on vertical position
           vec3 color = mix(centerColor, edgeColor, t);
-          
           gl_FragColor = vec4(color * intensity, 1.0);
         }
       `,
@@ -436,7 +430,6 @@ function GradientSkybox({
     });
   }, [startCenterColor, startEdgeColor, endCenterColor, endEdgeColor, intensity, progress]);
 
-  // Update uniforms when props change
   useEffect(() => {
     if (material) {
       material.uniforms.startCenter.value.set(startCenterColor);
@@ -698,7 +691,6 @@ export default function Portfolio() {
               onDone={handleInitialScrollPrimed}
             />
 
-            {/* 🆕 Dynamic Linear Gradient Skybox */}
             {CONFIG.useGradientSkybox && (
               <GradientSkybox
                 radius={CONFIG.skyboxRadius}
