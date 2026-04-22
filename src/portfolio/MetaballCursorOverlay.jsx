@@ -2,7 +2,12 @@
  * MetaballCursorOverlay
  *
  * DOM layer that sits above the R3F canvas and shows a tooltip card
- * next to whichever 3D object the metaball cursor is hovering.
+ * next to whichever 3D object the metaball cursor is hovering —
+ * but ONLY once the metaball's dwell/anchor animation has fully triggered.
+ *
+ * Visibility is tied to cs.anchor (0 → 1), not merely cs.activeId.
+ * The card fades in once anchor crosses ANCHOR_SHOW_THRESHOLD, and
+ * fades out once anchor drops back below ANCHOR_HIDE_THRESHOLD.
  *
  * stateRef.current = { cs, pipeline }
  *   cs.activeId          — 1-indexed object id (0 = none)
@@ -12,7 +17,6 @@
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
-import { DEFAULT_CFG } from './MetaballCursor'
 
 // ─── TUNABLES ────────────────────────────────────────────────────────────────
 
@@ -20,17 +24,24 @@ const CARD_WIDTH      = 260   // fixed width; height is auto
 const H_OFFSET        = 22    // horizontal gap: object edge → card edge  (px)
 const V_CENTER_OFFSET = 0     // vertical nudge from object center          (px)
 const EDGE_MARGIN     = 14    // min distance from any viewport edge        (px)
-const APPEAR_DELAY    = 100   // ms of continuous hover before card shows
-const DISAPPEAR_GRACE = 100   // ms grace after hover ends before hiding
+
+// Anchor thresholds — card appears/disappears based on cs.anchor value
+// anchor rises 0→1 as the dwell timer fires and the blob "locks on"
+const ANCHOR_SHOW_THRESHOLD = 0.55  // anchor must exceed this to show card
+const ANCHOR_HIDE_THRESHOLD = 0.30  // anchor must drop below this to hide card
+
 const SIDE_DEADZONE   = 0.07  // fraction of winW — side won't flip inside this band around center
 const POS_LERP        = 0.14  // exponential lerp factor per rAF frame (0 = frozen, 1 = instant)
+
+// CSS transition durations (ms)
+const FADE_IN_MS      = 200
+const FADE_OUT_MS     = 120
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
 // ─── HOOK: useWindowSize ─────────────────────────────────────────────────────
-// Re-renders only on resize (debounced). Used for positioning math only.
 
 function useWindowSize() {
   const [size, setSize] = useState(() => ({
@@ -51,43 +62,63 @@ function useWindowSize() {
   return size
 }
 
-// ─── HOOK: useTrackedObject ──────────────────────────────────────────────────
-// Reads stateRef every rAF frame.
-// Returns stable React state for: which object is active + whether anchor is strong.
-// Position is kept in a ref and updated imperatively (no React re-render per frame).
+// ─── HOOK: useMetaballTracker ─────────────────────────────────────────────────
+// Polls stateRef every rAF frame.
+//
+// Returns:
+//   activeIdx  — React state, triggers re-render only on object switch
+//   visible    — React state, driven by cs.anchor crossing thresholds
+//   getPos     — stable callback returning current smoothed canvas-px position
+//   canvasToWindow — converts canvas-px coords → window CSS-px coords
 
-function useTrackedObject(objects, stateRef, canvasRef) {
-  // These drive React re-renders (cheap — only change on object switch)
+function useMetaballTracker(objects, stateRef, canvasRef) {
   const [activeIdx, setActiveIdx] = useState(-1)
+  const [visible,   setVisible]   = useState(false)
 
-  // Live position lives in a ref — updated every rAF, read by positioning loop
-  const posRef     = useRef({ x: 0, y: 0 })    // smoothed canvas-pixel position
-  const targetRef  = useRef({ x: 0, y: 0 })    // raw target from smoothProj
-  const rafRef     = useRef(null)
-  const lastIdxRef = useRef(-1)
+  // Live refs — updated every rAF, never trigger React re-renders
+  const posRef      = useRef({ x: 0, y: 0 })
+  const targetRef   = useRef({ x: 0, y: 0 })
+  // Smoothed projected radius in canvas-px, converted to CSS-px for positioning.
+  // Tracks the ID-mask silhouette radius so the card never overlaps the mesh.
+  const projRRef    = useRef(0)
+  const rafRef      = useRef(null)
+  const lastIdxRef  = useRef(-1)
+  const visRef      = useRef(false)   // shadow of `visible` to skip redundant setState
 
   useEffect(() => {
     const tick = () => {
       const { cs, pipeline } = stateRef?.current ?? {}
 
       if (cs && pipeline) {
-        const idx = cs.activeId - 1   // -1 = none
+        const idx = cs.activeId - 1   // -1 means nothing hovered
 
-        // Update target position from smoothProj (canvas pixels)
+        // ── Position + radius tracking ────────────────────────────────────
         if (idx >= 0 && pipeline.smoothProj[idx]) {
           const p = pipeline.smoothProj[idx]
           targetRef.current.x = p.cx
           targetRef.current.y = p.cy
+          // p.r is in canvas device-pixels; convert to CSS pixels for DOM use
+          const dpr = window.devicePixelRatio || 1
+          projRRef.current += (p.r / dpr - projRRef.current) * POS_LERP
         }
-
-        // Always lerp toward target (keeps card glued even mid-transition)
         posRef.current.x += (targetRef.current.x - posRef.current.x) * POS_LERP
         posRef.current.y += (targetRef.current.y - posRef.current.y) * POS_LERP
 
-        // Only trigger React re-render on index switch
+        // ── Active index — only re-render on switch ────────────────────────
         if (idx !== lastIdxRef.current) {
           lastIdxRef.current = idx
           setActiveIdx(idx)
+        }
+
+        // ── Visibility — driven by cs.anchor crossing hysteresis band ──────
+        const anchor = cs.anchor   // 0 (idle) → 1 (fully triggered)
+
+        if (!visRef.current && anchor >= ANCHOR_SHOW_THRESHOLD) {
+          visRef.current = true
+          setVisible(true)
+        } else if (visRef.current && (anchor < ANCHOR_HIDE_THRESHOLD || idx < 0)) {
+          visRef.current = false
+          setVisible(false)
         }
       }
 
@@ -98,107 +129,51 @@ function useTrackedObject(objects, stateRef, canvasRef) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [objects, stateRef])
 
-  // Stable getter consumed by the positioning loop — never stale
-  const getPos = useCallback(() => ({ ...posRef.current }), [])
+  const getPos    = useCallback(() => ({ ...posRef.current }), [])
+  // Returns the live smoothed CSS-px radius of the active object's projected silhouette
+  const getProjR  = useCallback(() => projRRef.current, [])
 
-  // Convert canvas-pixel coords → window coords using canvas bounding rect
   const canvasToWindow = useCallback((cx, cy) => {
     if (!canvasRef?.current) return { x: cx, y: cy }
     const rect = canvasRef.current.getBoundingClientRect()
-    // smoothProj coords are in canvas pixel space (devicePixelRatio-scaled).
-    // We need CSS pixels: divide by dpr then add rect offset.
-    const dpr = window.devicePixelRatio || 1
+    const dpr  = window.devicePixelRatio || 1
     return {
       x: rect.left + cx / dpr,
       y: rect.top  + cy / dpr,
     }
   }, [canvasRef])
 
-  return { activeIdx, getPos, canvasToWindow }
-}
-
-// ─── HOOK: useVisibility ─────────────────────────────────────────────────────
-// State machine:
-//   HIDDEN  → (hover dwell APPEAR_DELAY ms)  → VISIBLE
-//   VISIBLE → (leave + grace DISAPPEAR_GRACE ms) → HIDDEN
-//
-// Both timers cancel each other, no races.
-
-function useVisibility(isActive) {
-  const [visible, setVisible] = useState(false)
-  const showT  = useRef(null)
-  const hideT  = useRef(null)
-  const visRef = useRef(false)   // shadow of `visible` to avoid stale closure in timers
-
-  useEffect(() => {
-    if (isActive) {
-      // Cancel pending hide
-      if (hideT.current) { clearTimeout(hideT.current); hideT.current = null }
-      // Schedule show if not already visible or pending
-      if (!visRef.current && !showT.current) {
-        showT.current = setTimeout(() => {
-          showT.current = null
-          visRef.current = true
-          setVisible(true)
-        }, APPEAR_DELAY)
-      }
-    } else {
-      // Cancel pending show
-      if (showT.current) { clearTimeout(showT.current); showT.current = null }
-      // Schedule hide after grace period
-      if (!hideT.current) {
-        hideT.current = setTimeout(() => {
-          hideT.current = null
-          visRef.current = false
-          setVisible(false)
-        }, DISAPPEAR_GRACE)
-      }
-    }
-  }, [isActive])
-
-  // Cleanup on unmount
-  useEffect(() => () => {
-    clearTimeout(showT.current)
-    clearTimeout(hideT.current)
-  }, [])
-
-  return visible
+  return { activeIdx, visible, getPos, getProjR, canvasToWindow }
 }
 
 // ─── POSITIONING: resolvePosition ────────────────────────────────────────────
-// Pure function. Takes window coords of the object center + card/window dims.
-// Returns { left, top, side } in CSS px.
-//
-// Side selection uses a dead-zone band so card doesn't flutter near center.
-// The chosen side is passed in (managed by hook below with hysteresis).
+// projR — CSS-px radius of the object's projected ID-mask silhouette.
+// The card's nearest edge is placed at  objCenter ± (projR + H_OFFSET),
+// guaranteeing it never overlaps the mesh silhouette regardless of object size.
 
-function resolvePosition({ ox, oy, side, cardW, cardH, winW, winH }) {
-  // Candidate left based on side
+function resolvePosition({ ox, oy, side, projR, cardW, cardH, winW, winH }) {
+  const reach = projR + H_OFFSET   // distance from center to card near-edge
+
   let left = side === 'right'
-    ? ox + H_OFFSET
-    : ox - cardW - H_OFFSET
+    ? ox + reach
+    : ox - reach - cardW
 
-  // Vertical: center card on object, apply nudge
   let top = oy + V_CENTER_OFFSET - cardH / 2
 
-  // Overflow → flip to opposite side
   const spills = (l) => l < EDGE_MARGIN || l + cardW > winW - EDGE_MARGIN
   if (spills(left)) {
-    const alt = side === 'right' ? ox - cardW - H_OFFSET : ox + H_OFFSET
+    const alt = side === 'right' ? ox - reach - cardW : ox + reach
     left = spills(alt)
-      ? clamp(left, EDGE_MARGIN, winW - cardW - EDGE_MARGIN)   // hard clamp
+      ? clamp(left, EDGE_MARGIN, winW - cardW - EDGE_MARGIN)
       : alt
   }
 
-  // Vertical clamp
   top = clamp(top, EDGE_MARGIN, winH - cardH - EDGE_MARGIN)
 
   return { left, top }
 }
 
 // ─── HOOK: useSideMemory ──────────────────────────────────────────────────────
-// Tracks preferred side with hysteresis so it only flips when the object
-// clearly crosses a dead-zone boundary, not on every pixel wobble.
 
 function useSideMemory() {
   const sideRef = useRef('right')
@@ -206,8 +181,8 @@ function useSideMemory() {
   const updateSide = useCallback((ox, winW) => {
     const lo = winW * (0.5 - SIDE_DEADZONE)
     const hi = winW * (0.5 + SIDE_DEADZONE)
-    if (ox < lo) sideRef.current = 'right'   // object left of center → card right
-    if (ox > hi) sideRef.current = 'left'    // object right of center → card left
+    if (ox < lo) sideRef.current = 'right'
+    if (ox > hi) sideRef.current = 'left'
     return sideRef.current
   }, [])
 
@@ -215,7 +190,6 @@ function useSideMemory() {
 }
 
 // ─── HOOK: useMeasuredHeight ──────────────────────────────────────────────────
-// Tracks real rendered card height via ResizeObserver.
 
 function useMeasuredHeight(ref) {
   const [height, setHeight] = useState(72)
@@ -235,12 +209,8 @@ function useMeasuredHeight(ref) {
 }
 
 // ─── CARD ─────────────────────────────────────────────────────────────────────
-// Now completely invisible container, only text + test image.
 
 function Card({ object, side, visible }) {
-  // text-align mirrors the side the card is on:
-  //   card is to the RIGHT of object → left-aligned text
-  //   card is to the LEFT  of object → right-aligned text
   const align = side === 'right' ? 'left' : 'right'
 
   return (
@@ -249,14 +219,13 @@ function Card({ object, side, visible }) {
         width: '100%',
         padding: '8px 12px',
         boxSizing: 'border-box',
-        // No background, no border, no shadow — completely invisible container
         textAlign: align,
         fontFamily: '"DM Mono", "Fira Mono", ui-monospace, monospace',
         opacity: visible ? 1 : 0,
         transform: visible ? 'scale(1) translateY(0)' : 'scale(0.96) translateY(4px)',
         transition: visible
-          ? 'opacity 0.18s ease, transform 0.18s ease'
-          : 'opacity 0.10s ease, transform 0.10s ease',
+          ? `opacity ${FADE_IN_MS}ms ease, transform ${FADE_IN_MS}ms ease`
+          : `opacity ${FADE_OUT_MS}ms ease, transform ${FADE_OUT_MS}ms ease`,
         pointerEvents: 'none',
         userSelect: 'none',
         willChange: 'opacity, transform',
@@ -290,7 +259,6 @@ function Card({ object, side, visible }) {
           {object.desc}
         </div>
       )}
-      {/* Test image */}
       <img
         src="/test/test.png"
         alt="test"
@@ -300,7 +268,6 @@ function Card({ object, side, visible }) {
           maxWidth: '100%',
           height: 'auto',
           borderRadius: 4,
-          // boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
         }}
       />
     </div>
@@ -337,18 +304,16 @@ function Hint({ show }) {
 /**
  * @param {object[]}  objects    — metaball object array (from buildMetaballObjects)
  * @param {React.MutableRefObject} stateRef — ref holding { cs, pipeline }
- * @param {React.MutableRefObject} [canvasRef] — ref to the <canvas> DOM element;
- *   used to convert canvas-pixel coords → window coords. If omitted, the overlay
- *   assumes the canvas fills the entire viewport (safe fallback).
- * @param {boolean}   [showHint=true]  — show "hover any object" hint when idle
- * @param {string}    [className='']   — extra class on the card wrapper
- * @param {Function}  [render]         — custom render prop: ({ object, visible, side }) => ReactNode
- * @param {ReactNode} [children]       — alternative to render prop
+ * @param {React.MutableRefObject} [canvasRef] — ref to the <canvas> DOM element
+ * @param {boolean}   [showHint=true]
+ * @param {string}    [className='']
+ * @param {Function}  [render]   — custom render prop: ({ object, visible, side }) => ReactNode
+ * @param {ReactNode} [children]
  */
 export function MetaballCursorOverlay({
   objects,
   stateRef,
-  canvasRef,       // <-- NEW: pass the canvas DOM ref for accurate coord mapping
+  canvasRef,
   showHint = true,
   className = '',
   render,
@@ -356,28 +321,26 @@ export function MetaballCursorOverlay({
 }) {
   const win          = useWindowSize()
   const getSide      = useSideMemory()
-  const wrapperRef   = useRef(null)        // the absolutely-positioned card wrapper
-  const cardInnerRef = useRef(null)        // the inner card (for ResizeObserver)
+  const wrapperRef   = useRef(null)
+  const cardInnerRef = useRef(null)
   const cardH        = useMeasuredHeight(cardInnerRef)
-  const posLockRef   = useRef(false)       // true once card has been placed once (no slide-in)
-  const sideStateRef = useRef('right')     // current side (ref so positioning rAF stays consistent)
+  const posLockRef   = useRef(false)
+  const sideStateRef = useRef('right')
 
-  const { activeIdx, getPos, canvasToWindow } = useTrackedObject(objects, stateRef, canvasRef)
+  const { activeIdx, visible, getPos, getProjR, canvasToWindow } =
+    useMetaballTracker(objects, stateRef, canvasRef)
+
   const isActive = activeIdx >= 0
-  const visible  = useVisibility(isActive)
 
-  // Current object data — stable reference, only changes on index switch
+  // Current object data — only changes on index switch
   const object = useMemo(
     () => (activeIdx >= 0 ? objects?.[activeIdx] ?? null : null),
     [activeIdx, objects]
   )
 
-  // Side (React state) — used for text-align; updated from positioning loop
   const [side, setSide] = useState('right')
 
-  // ── Positioning loop ──────────────────────────────────────────────────────
-  // Runs its own rAF, writes left/top directly to the wrapper DOM node.
-  // Completely bypasses React state → zero re-renders for position updates.
+  // ── Positioning loop — writes DOM directly, zero React re-renders ─────────
   useEffect(() => {
     let raf = null
 
@@ -396,6 +359,7 @@ export function MetaballCursorOverlay({
         const { left, top } = resolvePosition({
           ox, oy,
           side:  sideStateRef.current,
+          projR: getProjR(),
           cardW: CARD_WIDTH,
           cardH,
           winW:  win.w,
@@ -403,13 +367,11 @@ export function MetaballCursorOverlay({
         })
 
         if (!posLockRef.current) {
-          // First placement: snap instantly, no CSS transition
           el.style.transition = 'none'
           el.style.left = `${left}px`
           el.style.top  = `${top}px`
           posLockRef.current = true
         } else {
-          // Subsequent updates: smooth CSS transition
           el.style.transition = 'left 0.1s cubic-bezier(0.25,0.46,0.45,0.94), top 0.1s cubic-bezier(0.25,0.46,0.45,0.94)'
           el.style.left = `${left}px`
           el.style.top  = `${top}px`
@@ -423,12 +385,11 @@ export function MetaballCursorOverlay({
     return () => cancelAnimationFrame(raf)
   }, [isActive, getPos, canvasToWindow, getSide, cardH, win])
 
-  // Reset posLock when card hides so next appearance snaps again
+  // Reset posLock when card fully hides so next appearance snaps
   useEffect(() => {
     if (!visible) posLockRef.current = false
   }, [visible])
 
-  // ── Card content ──────────────────────────────────────────────────────────
   const content = render
     ? render({ object, visible, side })
     : children || <Card object={object} side={side} visible={visible} />
@@ -443,22 +404,20 @@ export function MetaballCursorOverlay({
         overflow: 'hidden',
       }}
     >
-      {/* Wrapper: positioned via direct DOM writes in the rAF loop */}
       <div
         ref={wrapperRef}
         className={className}
         style={{
           position: 'absolute',
           width: CARD_WIDTH,
-          // Height is auto — driven by content
           top: 0,
           left: 0,
           pointerEvents: 'none',
-          // Hidden until first placement to prevent flash at (0,0)
-          visibility: (visible || isActive) ? 'visible' : 'hidden',
+          // Only render in the DOM when an object is being tracked;
+          // the Card itself handles opacity/transform for the triggered fade
+          visibility: isActive ? 'visible' : 'hidden',
         }}
       >
-        {/* Inner ref used only for ResizeObserver height measurement */}
         <div ref={cardInnerRef}>
           {content}
         </div>
