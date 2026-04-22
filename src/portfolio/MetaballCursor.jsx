@@ -53,7 +53,25 @@ const CFG_GHOST_COUNT = 4                 // number of orbiting ghost blobs
 const CFG_GHOST_RADIUS = 14                // orbit radius (px)
 const CFG_GHOST_ALPHA_FACTOR = 0.55              // ghost opacity multiplier
 const CFG_GHOST_SIZE_SCALE = [0.7, 0.8, 0.9, 1.0] // per‑ghost size multiplier
-const CFG_GHOST_SEEDS = [0.0, 1.5, 3.0, 4.5]  // per‑ghost noise seed offsets
+const CFG_GHOST_SEEDS = [0.0, 1.5, 3.0, 4.5]  // per‑ghost noise seed offsets (unhovered)
+
+// ────────────────────────────────────────────────────────────────────────────────
+// 🎲 HOVERED-STATE RANDOMNESS
+// Per-object seeds that give each object a unique "fingerprint" when hovered.
+// Generated deterministically from object index so they're stable across frames.
+// ────────────────────────────────────────────────────────────────────────────────
+// Each object gets:
+//   hoveredAngleSeed   — rotational offset for ghost orbit phase (radians)
+//   hoveredNoiseOffset — 2D offset into noise field (x, y)
+//   hoveredOrbitSpeed  — multiplier on orbit angular speed (0.8–1.4)
+//   hoveredSizeJitter  — extra scale jitter per ghost slot (4 floats)
+// All packed into uniform arrays indexed by object idx.
+
+const CFG_HOVERED_ANGLE_VARIATION = Math.PI * 2   // full rotation pool
+const CFG_HOVERED_NOISE_OFFSET_RANGE = 50.0       // how far into noise field to offset
+const CFG_HOVERED_ORBIT_SPEED_MIN = 0.7           // slowest orbit speed multiplier
+const CFG_HOVERED_ORBIT_SPEED_MAX = 1.5           // fastest orbit speed multiplier
+const CFG_HOVERED_GHOST_JITTER = 0.25             // ± jitter on per-ghost size when hovered
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🌈 COLORS
@@ -83,6 +101,59 @@ const CFG_ENABLE_MATERIAL_HIGHLIGHT = false   // set to true to re-enable the bl
 // END OF CENTRAL CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ─── SEEDED PRNG (deterministic, no global state) ────────────────────────────
+function seededRng(seed) {
+  let s = (seed * 2654435769) | 0
+  return () => {
+    s = Math.imul(s ^ (s >>> 16), 0x45d9f3b) | 0
+    s = Math.imul(s ^ (s >>> 16), 0x45d9f3b) | 0
+    return (s >>> 0) / 0xffffffff
+  }
+}
+
+/**
+ * generateObjectHoveredSeeds(objectIndex, label)
+ * Returns a stable, deterministic set of per-object hovered randomness values.
+ * Called once per object during buildMetaballObjects.
+ */
+function generateObjectHoveredSeeds(objectIndex, label = '') {
+  let seedVal = objectIndex * 73856093
+  for (let i = 0; i < label.length; i++) {
+    seedVal ^= label.charCodeAt(i) * (i + 1) * 1234567
+  }
+  const rng = seededRng(seedVal)
+
+  const angleSeed = rng() * CFG_HOVERED_ANGLE_VARIATION
+  const noiseOffsetX = (rng() - 0.5) * 2 * CFG_HOVERED_NOISE_OFFSET_RANGE
+  const noiseOffsetY = (rng() - 0.5) * 2 * CFG_HOVERED_NOISE_OFFSET_RANGE
+  const orbitSpeed = CFG_HOVERED_ORBIT_SPEED_MIN + rng() * (CFG_HOVERED_ORBIT_SPEED_MAX - CFG_HOVERED_ORBIT_SPEED_MIN)
+
+  // 4 per-ghost size jitter values (multiplicative on CFG_GHOST_SIZE_SCALE)
+  const ghostSizeJitter = [
+    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+  ]
+
+  // Phase offset per ghost (spread differently per object)
+  const ghostPhaseOffset = [
+    rng() * Math.PI * 2,
+    rng() * Math.PI * 2,
+    rng() * Math.PI * 2,
+    rng() * Math.PI * 2,
+  ]
+
+  return {
+    angleSeed,
+    noiseOffsetX,
+    noiseOffsetY,
+    orbitSpeed,
+    ghostSizeJitter,
+    ghostPhaseOffset,
+  }
+}
+
 // ─── COLOR PALETTE (used for object highlight gradients) ──────────────────────
 export const METABALL_PALETTE = [
   { blob: new THREE.Color(0.25, 0.50, 0.95), a: new THREE.Color(0.35, 0.60, 1.00), b: new THREE.Color(0.60, 0.85, 1.00) },
@@ -99,6 +170,7 @@ export const METABALL_PALETTE = [
  * buildMetaballObjects(meshes)
  * Converts THREE.Mesh[] (from SceneLoader.interactiveMeshes) into MetaballObject[].
  * Adaptive stride: large meshes sample fewer vertices for fast projection.
+ * Now also attaches per-object hovered randomness seeds.
  */
 export function buildMetaballObjects(meshes) {
   return meshes.map((mesh, i) => {
@@ -112,6 +184,8 @@ export function buildMetaballObjects(meshes) {
     const vertCount = mesh.geometry.attributes.position.count
     const stride = Math.max(1, Math.floor(vertCount / 600))
 
+    const label = mesh.name || `Object ${i + 1}`
+
     return {
       mesh,
       geometry: mesh.geometry,
@@ -121,9 +195,11 @@ export function buildMetaballObjects(meshes) {
       material: mesh.material ?? null,
       wireframe: null,
       stride,
-      label: mesh.name || `Object ${i + 1}`,
+      label,
       title: mesh.name || null,
       desc: null,
+      // ── Per-object hovered randomness seeds (stable, deterministic) ──────
+      hoveredSeeds: generateObjectHoveredSeeds(i, label),
     }
   })
 }
@@ -180,10 +256,23 @@ uniform float u_curl;
 uniform float u_prism;
 uniform vec3  u_ripples[6];
 
-// NEW UNIFORMS
+// Unhovered trail uniforms
 uniform vec3  u_trailColor;                 // forced white for primary blobs
-uniform float u_ghostSizeScale[4];           // per‑ghost size multiplier
-uniform float u_ghostSeed[4];                // per‑ghost noise seed offset
+uniform float u_ghostSizeScale[4];          // per‑ghost size multiplier (unhovered)
+uniform float u_ghostSeed[4];               // per‑ghost noise seed offset (unhovered)
+
+// ── Hovered-state per-object randomness uniforms ──────────────────────────────
+// Packed as flat float arrays, indexed by object index (0..7)
+// angleSeed:      rotational phase offset for ghost orbit
+// noiseOffset:    2D offset into noise field per object (x packed in [0], y in [1])
+// orbitSpeed:     multiplier on ghost orbit angular speed
+// ghostSizeJitter: 4 per-ghost size multiplier jitter values
+// ghostPhaseOff:  4 per-ghost angular phase offsets
+uniform float u_hovAngleSeed[8];            // orbit phase offset per object
+uniform vec2  u_hovNoiseOffset[8];          // noise field XY offset per object
+uniform float u_hovOrbitSpeed[8];           // orbit speed multiplier per object
+uniform float u_hovGhostSizeJitter[32];     // 4 jitter floats × 8 objects (flat)
+uniform float u_hovGhostPhaseOff[32];       // 4 phase floats × 8 objects (flat)
 
 float smin(float a, float b, float k) {
   float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
@@ -241,20 +330,55 @@ void main() {
   float baseF   = sdf(uv, 0.0);
   float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
 
-  // Noise & curl displacement for trail
-  vec2  co      = curl(uv * u_noiseScale * 0.5 + u_time * 0.1) * u_curl * u_alpha;
-  float nAmt    = fbm((uv + co) * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
+  // ── Select per-object noise offset when hovered ───────────────────────────
+  // When u_activeIdx >= 0 we add the object-specific 2D noise offset
+  // so each hovered object samples a different region of the noise field.
+  vec2 activeNoiseOff = vec2(0.0);
+  float activeOrbitSpeed = 1.0;
+  float activeAngleSeed  = 0.0;
+  if (u_activeIdx >= 0) {
+    activeNoiseOff   = u_hovNoiseOffset[u_activeIdx];
+    activeOrbitSpeed = u_hovOrbitSpeed[u_activeIdx];
+    activeAngleSeed  = u_hovAngleSeed[u_activeIdx];
+  }
+
+  // Noise & curl displacement for trail (with per-object offset when hovered)
+  vec2 noiseUV  = (uv + activeNoiseOff) * u_noiseScale;
+  vec2  co      = curl(noiseUV * 0.5 + u_time * 0.1) * u_curl * u_alpha;
+  float nAmt    = fbm(noiseUV + co * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
   float trigIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, sdf(uv + co, nAmt));
 
-  // Ghost blobs
+  // Ghost blobs — use hovered seeds when active, unhovered seeds otherwise
   float ghostIns = 0.0;
   if (u_alpha > 0.0) {
     for (int g = 0; g < 4; g++) {
       if (g >= u_ghostCount) break;
-      float ang = float(g) * 6.28318 / float(u_ghostCount) + u_time * 1.8;
-      float gr  = u_ghostRadius * u_ghostSizeScale[g] * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
+
+      float baseAng = float(g) * 6.28318 / float(u_ghostCount);
+      float phaseOff = 0.0;
+      float sizeJitter = 1.0;
+      float noiseSeed = u_ghostSeed[g];        // unhovered default
+
+      if (u_activeIdx >= 0) {
+        // Hovered: use per-object, per-ghost randomness
+        // Flat array: index = u_activeIdx * 4 + g
+        // GLSL doesn't allow dynamic indexing into arrays with non-const in older GLSL,
+        // so we unroll for g via the loop variable (g is the loop counter, fine in GLSL ES 3.0)
+        // We use a workaround: accumulate selectively
+        phaseOff    = u_hovGhostPhaseOff[u_activeIdx  * 4 + g];
+        sizeJitter  = u_hovGhostSizeJitter[u_activeIdx * 4 + g];
+        noiseSeed   = u_hovAngleSeed[u_activeIdx] + float(g) * 1.7;
+        // orbit speed is per-object, applied to time
+      }
+
+      float orbSpeed = u_activeIdx >= 0 ? activeOrbitSpeed : 1.0;
+      float ang = baseAng + activeAngleSeed + phaseOff + u_time * 1.8 * orbSpeed;
+
+      float baseGhostSize = u_ghostSizeScale[g] * sizeJitter;
+      float gr  = u_ghostRadius * baseGhostSize * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
       vec2  off = vec2(cos(ang), sin(ang)) * gr;
-      vec2 noiseCoord = (uv - off) + u_ghostSeed[g];
+
+      vec2 noiseCoord = (uv - off) + noiseSeed + activeNoiseOff;
       float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
       ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
     }
@@ -303,6 +427,151 @@ void main() {
   res = mix(res, vec3(0.95, 0.85, 1.0), ripGlow * 0.4 * u_alpha);
 
   gl_FragColor = vec4(res, 1.0);
+}
+`
+
+// ─── MASK FRAGMENT SHADER ─────────────────────────────────────────────────────
+// Outputs only the metaball mask (totalIns) as a grayscale value.
+const _maskFrag = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform vec3  u_blobs[8];
+uniform int   u_count;
+uniform float u_k;
+uniform float u_edge;
+uniform float u_alpha;
+uniform float u_time;
+uniform float u_pulseScale;
+uniform vec3  u_blobColors[8];
+uniform vec3  u_cursorColor;
+uniform vec3  u_hoverColor;
+uniform float u_hoverMix;
+uniform int   u_activeIdx;
+uniform sampler2D tScene;
+uniform sampler2D tID;
+uniform float u_trigNoise;
+uniform float u_noiseScale;
+uniform float u_chromStr;
+uniform int   u_ghostCount;
+uniform float u_ghostRadius;
+uniform float u_ghostAlpha;
+uniform float u_lightness;
+uniform float u_breathe;
+uniform float u_curl;
+uniform float u_prism;
+uniform vec3  u_ripples[6];
+uniform vec3  u_trailColor;
+uniform float u_ghostSizeScale[4];
+uniform float u_ghostSeed[4];
+uniform float u_hovAngleSeed[8];
+uniform vec2  u_hovNoiseOffset[8];
+uniform float u_hovOrbitSpeed[8];
+uniform float u_hovGhostSizeJitter[32];
+uniform float u_hovGhostPhaseOff[32];
+
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(dot(hash2(i),             f),               dot(hash2(i + vec2(1,0)), f - vec2(1,0)), u.x),
+    mix(dot(hash2(i + vec2(0,1)), f - vec2(0,1)),   dot(hash2(i + vec2(1,1)), f - vec2(1,1)), u.x),
+    u.y);
+}
+float fbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { s += noise(p) * a; p *= 2.1; a *= 0.5; }
+  return s;
+}
+vec2 curl(vec2 p) {
+  float e = 0.01;
+  return vec2(
+     (fbm(p + vec2(e, 0.0)) - fbm(p - vec2(e, 0.0))) / (2.0 * e),
+    -(fbm(p + vec2(0.0, e)) - fbm(p - vec2(0.0, e))) / (2.0 * e)
+  );
+}
+float sdf(vec2 uv, float na) {
+  float f = 1e9;
+  for (int i = 0; i < 8; i++) {
+    if (i >= u_count) break;
+    float d = length(uv - u_blobs[i].xy) - u_blobs[i].z * u_breathe;
+    f = smin(f, d, u_k * u_blobs[0].z);
+  }
+  return f + na;
+}
+
+void main() {
+  vec2 uv    = gl_FragCoord.xy;
+  vec3 scene = texture2D(tScene, uv / u_res).rgb;
+
+  float mask = 1.0;
+  if (u_activeIdx >= 0) {
+    vec2 idUV = uv / u_res;
+    float idVal = texture2D(tID, idUV).r * 255.0;
+    float activeIdFloat = float(u_activeIdx + 1);
+    float isActive = step(abs(idVal - activeIdFloat), 0.5);
+    float isBackground = step(idVal, 0.5);
+    mask = max(isActive, isBackground);
+  }
+
+  float baseF   = sdf(uv, 0.0);
+  float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
+
+  vec2 activeNoiseOff = vec2(0.0);
+  float activeOrbitSpeed = 1.0;
+  float activeAngleSeed  = 0.0;
+  if (u_activeIdx >= 0) {
+    activeNoiseOff   = u_hovNoiseOffset[u_activeIdx];
+    activeOrbitSpeed = u_hovOrbitSpeed[u_activeIdx];
+    activeAngleSeed  = u_hovAngleSeed[u_activeIdx];
+  }
+
+  vec2 noiseUV  = (uv + activeNoiseOff) * u_noiseScale;
+  vec2  co      = curl(noiseUV * 0.5 + u_time * 0.1) * u_curl * u_alpha;
+  float nAmt    = fbm(noiseUV + co * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
+  float trigIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, sdf(uv + co, nAmt));
+
+  float ghostIns = 0.0;
+  if (u_alpha > 0.0) {
+    for (int g = 0; g < 4; g++) {
+      if (g >= u_ghostCount) break;
+
+      float baseAng = float(g) * 6.28318 / float(u_ghostCount);
+      float phaseOff = 0.0;
+      float sizeJitter = 1.0;
+      float noiseSeed = u_ghostSeed[g];
+
+      if (u_activeIdx >= 0) {
+        phaseOff    = u_hovGhostPhaseOff[u_activeIdx * 4 + g];
+        sizeJitter  = u_hovGhostSizeJitter[u_activeIdx * 4 + g];
+        noiseSeed   = u_hovAngleSeed[u_activeIdx] + float(g) * 1.7;
+      }
+
+      float orbSpeed = u_activeIdx >= 0 ? activeOrbitSpeed : 1.0;
+      float ang = baseAng + activeAngleSeed + phaseOff + u_time * 1.8 * orbSpeed;
+
+      float baseGhostSize = u_ghostSizeScale[g] * sizeJitter;
+      float gr  = u_ghostRadius * baseGhostSize * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
+      vec2  off = vec2(cos(ang), sin(ang)) * gr;
+
+      vec2 noiseCoord = (uv - off) + noiseSeed + activeNoiseOff;
+      float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
+      ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
+    }
+  }
+
+  float mainIns = min(1.0, baseIns + (trigIns - baseIns) * u_alpha);
+  float totalIns = min(1.0, mainIns + ghostIns);
+  totalIns *= mask;
+
+  gl_FragColor = vec4(totalIns, 0.0, 0.0, 1.0);
 }
 `
 
@@ -545,7 +814,7 @@ function createProjector(stride = 3) {
   }
 }
 
-// ─── BLOB PIPELINE (unchanged, uses cfg) ─────────────────────────────────────
+// ─── BLOB PIPELINE (modified to include mask pass) ────────────────────────────
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
@@ -581,6 +850,13 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     magFilter: THREE.LinearFilter,
   })
 
+  // ─── NEW: Mask render target ───────────────────────────────────────────────
+  const rtMask = new THREE.WebGLRenderTarget(rW, rH, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RedFormat,
+  })
+
   const blobScene = new THREE.Scene()
   const blobCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
   const ripUnis = Array.from({ length: 6 }, () => new THREE.Vector3(-1, 0, 0))
@@ -590,44 +866,87 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   )
   const blobColorArr = new Float32Array(colors8.flatMap(c => [c.r, c.g, c.b]))
 
+  // ── Build hovered-seed uniform arrays (8 objects × seed data) ─────────────
+  const hovAngleSeed      = new Float32Array(8)
+  const hovNoiseOffsetArr = new Float32Array(16)
+  const hovOrbitSpeed     = new Float32Array(8)
+  const hovGhostSizeJitter = new Float32Array(32)
+  const hovGhostPhaseOff  = new Float32Array(32)
+
+  for (let i = 0; i < 8; i++) {
+    const seeds = i < objects.length ? objects[i].hoveredSeeds : null
+    hovAngleSeed[i]  = seeds?.angleSeed ?? 0
+    hovNoiseOffsetArr[i * 2 + 0] = seeds?.noiseOffsetX ?? 0
+    hovNoiseOffsetArr[i * 2 + 1] = seeds?.noiseOffsetY ?? 0
+    hovOrbitSpeed[i] = seeds?.orbitSpeed ?? 1
+
+    for (let g = 0; g < 4; g++) {
+      hovGhostSizeJitter[i * 4 + g] = seeds?.ghostSizeJitter?.[g] ?? 1
+      hovGhostPhaseOff[i * 4 + g]   = seeds?.ghostPhaseOffset?.[g] ?? 0
+    }
+  }
+
+  const hovNoiseOffsetVec2 = Array.from({ length: 8 }, (_, i) =>
+    new THREE.Vector2(hovNoiseOffsetArr[i * 2], hovNoiseOffsetArr[i * 2 + 1])
+  )
+
+  // Shared uniforms object (used by both main material and mask material)
+  const sharedUniforms = {
+    u_res: { value: new THREE.Vector2(rW, rH) },
+    u_blobs: { value: Array.from({ length: 8 }, () => new THREE.Vector3(-9999, -9999, 0)) },
+    u_count: { value: cfg.trailCount },
+    u_k: { value: cfg.smin_k },
+    u_edge: { value: cfg.edgeSoftness },
+    u_alpha: { value: 0 },
+    u_time: { value: 0 },
+    u_pulseScale: { value: 1 },
+    u_blobColors: { value: blobColorArr },
+    u_cursorColor: { value: new THREE.Color(CFG_CURSOR_COLOR) },
+    u_hoverColor: { value: new THREE.Color(cfg.hoverTintColor) },
+    u_hoverMix: { value: 0 },
+    u_activeIdx: { value: -1 },
+    u_trigNoise: { value: cfg.triggeredNoiseStrength },
+    u_noiseScale: { value: cfg.blobNoiseScale },
+    u_chromStr: { value: cfg.chromaticStrength },
+    u_ghostCount: { value: cfg.ghostCount },
+    u_ghostRadius: { value: cfg.ghostRadius },
+    u_ghostAlpha: { value: cfg.ghostAlphaFactor },
+    u_lightness: { value: cfg.lightness },
+    u_breathe: { value: 1 },
+    u_curl: { value: cfg.curlStrength },
+    u_prism: { value: cfg.prismStrength },
+    u_ripples: { value: ripUnis },
+    tScene: { value: rtScene.texture },
+    tID: { value: rtID.texture },
+    u_trailColor: { value: new THREE.Color(cfg.trailColor) },
+    u_ghostSizeScale: { value: cfg.ghostSizeScale || [1, 1, 1, 1] },
+    u_ghostSeed: { value: cfg.ghostSeeds || [0, 1, 2, 3] },
+    u_hovAngleSeed:       { value: hovAngleSeed },
+    u_hovNoiseOffset:     { value: hovNoiseOffsetVec2 },
+    u_hovOrbitSpeed:      { value: hovOrbitSpeed },
+    u_hovGhostSizeJitter: { value: hovGhostSizeJitter },
+    u_hovGhostPhaseOff:   { value: hovGhostPhaseOff },
+  }
+
   const mat = new THREE.ShaderMaterial({
     vertexShader: _blobVert,
     fragmentShader: _blobFrag,
-    uniforms: {
-      u_res: { value: new THREE.Vector2(rW, rH) },
-      u_blobs: { value: Array.from({ length: 8 }, () => new THREE.Vector3(-9999, -9999, 0)) },
-      u_count: { value: cfg.trailCount },
-      u_k: { value: cfg.smin_k },
-      u_edge: { value: cfg.edgeSoftness },
-      u_alpha: { value: 0 },
-      u_time: { value: 0 },
-      u_pulseScale: { value: 1 },
-      u_blobColors: { value: blobColorArr },
-      u_cursorColor: { value: new THREE.Color(CFG_CURSOR_COLOR) },
-      u_hoverColor: { value: new THREE.Color(cfg.hoverTintColor) },
-      u_hoverMix: { value: 0 },
-      u_activeIdx: { value: -1 },
-      u_trigNoise: { value: cfg.triggeredNoiseStrength },
-      u_noiseScale: { value: cfg.blobNoiseScale },
-      u_chromStr: { value: cfg.chromaticStrength },
-      u_ghostCount: { value: cfg.ghostCount },
-      u_ghostRadius: { value: cfg.ghostRadius },
-      u_ghostAlpha: { value: cfg.ghostAlphaFactor },
-      u_lightness: { value: cfg.lightness },
-      u_breathe: { value: 1 },
-      u_curl: { value: cfg.curlStrength },
-      u_prism: { value: cfg.prismStrength },
-      u_ripples: { value: ripUnis },
-      tScene: { value: rtScene.texture },
-      tID: { value: rtID.texture },
-      u_trailColor: { value: new THREE.Color(cfg.trailColor) },
-      u_ghostSizeScale: { value: cfg.ghostSizeScale || [1, 1, 1, 1] },
-      u_ghostSeed: { value: cfg.ghostSeeds || [0, 1, 2, 3] },
-    },
+    uniforms: sharedUniforms,
     depthTest: false,
     depthWrite: false,
   })
   blobScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat))
+
+  // ─── Mask material and scene (shares uniforms) ─────────────────────────────
+  const maskMat = new THREE.ShaderMaterial({
+    vertexShader: _blobVert,
+    fragmentShader: _maskFrag,
+    uniforms: sharedUniforms,
+    depthTest: false,
+    depthWrite: false,
+  })
+  const maskScene = new THREE.Scene()
+  maskScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), maskMat))
 
   const projectors = objects.map(o => createProjector(o.stride ?? 3))
   const smoothProj = objects.map(() => ({ cx: 0, cy: 0, r: 0, init: false }))
@@ -639,6 +958,8 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   return {
     projectors,
     smoothProj,
+    maskTexture: rtMask.texture,
+    rtMask,
     get lastProj() { return lastProj },
 
     render(cs, scene, curPx, camera) {
@@ -657,7 +978,8 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
       if (Math.abs(rtScene.width - rW2) > 1 || Math.abs(rtScene.height - rH2) > 1) {
         rtScene.setSize(rW2, rH2)
-        mat.uniforms.u_res.value.set(rW2, rH2)
+        rtMask.setSize(rW2, rH2)
+        sharedUniforms.u_res.value.set(rW2, rH2)
       }
 
       // ID pass
@@ -681,7 +1003,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       const alpha = cs.alpha
       const anchor = cs.anchor
 
-      // Mesh color mutation (object highlight changed)
+      // Mesh color mutation (object highlight)
       if (cfg.enableMaterialHighlight) {
         objects.forEach((obj, i) => {
           const active = i === cs.activeId - 1
@@ -699,28 +1021,34 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       renderer.clear()
       renderer.render(scene, camera)
 
-      // Blob composite
+      // ─── Render mask pass ─────────────────────────────────────────────────
+      renderer.setRenderTarget(rtMask)
+      renderer.clear()
+      renderer.render(maskScene, blobCam)
+
+      // Final composite
       renderer.setRenderTarget(null)
       renderer.clear()
 
-      mat.uniforms.u_alpha.value = alpha
-      mat.uniforms.u_activeIdx.value = cs.activeId > 0 ? cs.activeId - 1 : -1
-      mat.uniforms.u_hoverMix.value = (1 - anchor) * cs.preWrap * cfg.hoverTintMix
-      mat.uniforms.u_time.value = time
-      mat.uniforms.u_pulseScale.value = cs.pulseScale
-      mat.uniforms.u_breathe.value = 1 + Math.sin(time * cfg.breatheFreq * Math.PI * 2) * cfg.breatheAmp
-      mat.uniforms.u_res.value.set(rW2, rH2)
+      // Update shared uniforms
+      sharedUniforms.u_alpha.value = alpha
+      sharedUniforms.u_activeIdx.value = cs.activeId > 0 ? cs.activeId - 1 : -1
+      sharedUniforms.u_hoverMix.value = (1 - anchor) * cs.preWrap * cfg.hoverTintMix
+      sharedUniforms.u_time.value = time
+      sharedUniforms.u_pulseScale.value = cs.pulseScale
+      sharedUniforms.u_breathe.value = 1 + Math.sin(time * cfg.breatheFreq * Math.PI * 2) * cfg.breatheAmp
+      sharedUniforms.u_res.value.set(rW2, rH2)
 
-      const ru = mat.uniforms.u_ripples.value
+      const ru = sharedUniforms.u_ripples.value
       const rips = cs.ripples
       for (let i = 0; i < 6; i++) {
         const rp = rips[i % rips.length]
         rp && rp.r >= 0 ? ru[i].set(rp.r, rp.str, 0) : ru[i].set(-1, 0, 0)
       }
 
-      mat.uniforms.u_trailColor.value.set(cfg.trailColor)
-      mat.uniforms.u_ghostSizeScale.value = cfg.ghostSizeScale
-      mat.uniforms.u_ghostSeed.value = cfg.ghostSeeds
+      sharedUniforms.u_trailColor.value.set(cfg.trailColor)
+      sharedUniforms.u_ghostSizeScale.value = cfg.ghostSizeScale
+      sharedUniforms.u_ghostSeed.value = cfg.ghostSeeds
 
       const projIdx = cs.activeId > 0
         ? cs.activeId - 1
@@ -747,7 +1075,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         projCx = lastProj.cx; projCy = lastProj.cy; projR = lastProj.r
       }
 
-      const blobs = mat.uniforms.u_blobs.value
+      const blobs = sharedUniforms.u_blobs.value
       const hb = THREE.MathUtils.clamp((alpha - cfg.baseAlpha) / (1 - cfg.baseAlpha), 0, 1)
 
       for (let i = 0; i < cfg.trailCount; i++) {
@@ -770,13 +1098,16 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       const w = el.clientWidth, h = el.clientHeight, d = renderer.getPixelRatio()
       renderer.setSize(w, h)
       rtScene.setSize(w * d, h * d)
-      mat.uniforms.u_res.value.set(w * d, h * d)
+      rtMask.setSize(w * d, h * d)
+      sharedUniforms.u_res.value.set(w * d, h * d)
     },
 
     dispose() {
       rtID.dispose()
       rtScene.dispose()
+      rtMask.dispose()
       mat.dispose()
+      maskMat.dispose()
       idMeshes.forEach(m => m.material.dispose())
     },
   }

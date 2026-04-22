@@ -6,77 +6,90 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useScroll, Environment, OrbitControls, ScrollControls } from '@react-three/drei'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
+import { MetaballHalftone } from './Metaballhalftone'
 import { MetaballCursorR3F, buildMetaballObjects } from './MetaballCursor'
-import { MetaballCursorOverlay } from './MetaballCursorOverlay'   // <-- updated import
+import { MetaballCursorOverlay } from './MetaballCursorOverlay'
 
 // ============= CONFIGURATION =============
 const CONFIG = {
   // Model
-  modelPath:             'scenes/Scene1.glb',
+  modelPath: 'scenes/Scene1.glb',
 
   // Camera path — must match exact object name in the GLB (case-insensitive)
-  cameraPathObjectName:  'CameraPath',
-  startMarkerName:       'Path_Start',
-  endMarkerName:         'Path_End',
+  cameraPathObjectName: 'CameraPath',
+  startMarkerName: 'Path_Start',
+  endMarkerName: 'Path_End',
 
   // Direction: true = travel end→start
-  reverseDirection:      true,
+  reverseDirection: true,
 
   // Controls
-  enableOrbitControls:   false,
+  enableOrbitControls: false,
 
   // Visual
-  backgroundColor:       '#111122',
-  environmentPreset:     'city',
+  backgroundColor: '#111122',
+  environmentPreset: 'city',
 
   // Lighting
-  ambientIntensity:          0.5,
+  ambientIntensity: 0.5,
   directionalLightIntensity: 1.0,
-  directionalLightPosition:  [10, 20, 5],
+  directionalLightPosition: [10, 20, 5],
 
   // Camera
-  cameraFOV:             60,
+  cameraFOV: 60,
   cameraDefaultPosition: [0, 2, 5],
 
   // Path
-  pathLookAheadDistance:       2.5,
-  curveTension:                0.5,
-  curveSampleMultiplier:       5,
-  markerSearchSamples:         1500,
+  pathLookAheadDistance: 2.5,
+  curveTension: 0.5,
+  curveSampleMultiplier: 5,
+  markerSearchSamples: 1500,
   pathInnerMarginStartPercent: 1,
-  pathInnerMarginEndPercent:   0,
+  pathInnerMarginEndPercent: 0,
 
   // Camera smoothing
   enableCameraSmoothing: true,
-  cameraLerpSharpness:   10,
-  cameraInertiaEnabled:  true,
+  cameraLerpSharpness: 10,
+  cameraInertiaEnabled: true,
   cameraInertiaStrength: 60,
-  cameraInertiaDamping:  14,
+  cameraInertiaDamping: 14,
 
   // UI
-  showScrollIndicator: true,
+  showScrollIndicator: false,
   scrollIndicatorText: 'SCROLL TO EXPLORE',
-  showProgressHUD:     true,
+  showProgressHUD: false,
 
   // MetaballCursor
   showMetaballCursor: true,
 
   // Debug
-  debugMode: true,
+  debugMode: false,
 
-  // 🆕 Skybox — dynamic linear gradient
-  useGradientSkybox:    true,
-  skyboxRadius:         500,
-  // Gradient start (scroll = 0)
+  // Skybox — dynamic linear gradient
+  useGradientSkybox: true,
+  skyboxRadius: 500,
   startCenterColor: '#ccfff0',
-  startEdgeColor:   '#006b4f',   // deep aqua-green
+  startEdgeColor: '#006b4f',
+  endCenterColor: '#cfff99',
+  endEdgeColor: '#2a9e00',
+  skyboxIntensity: 1,
 
-  endCenterColor:   '#cfff99',
-  endEdgeColor:     '#2a9e00',   // dark, saturated lime
-  skyboxIntensity:      1,
+  // Static vignette — brightness only, preserves color character better
+  useStaticVignette: true,
+  vignetteStrength: 0.26,
+  vignetteSoftness: [0.28, 1.08],
+  vignetteScale: [1.12, 1.02],
+  vignetteOffset: [0.0, -0.02],
+  vignetteCenterLift: 0.06,
 
-  // 🆕 Additional ambient light to complement gradient feel
-  extraAmbientColor:    '#c0c0d0',
+  // New: camera-aware vignette drift
+  vignetteFollowCamera: true,
+  vignetteFollowStrength: 0.12,
+  vignetteFollowLerp: 4.5,
+
+
+  // Additional ambient light to complement gradient feel
+  extraAmbientColor: '#c0c0d0',
   extraAmbientIntensity: 2.0,
 }
 
@@ -87,7 +100,7 @@ function buildCurveFromPoints(points) {
   for (let i = 1; i < points.length; i++) {
     if (points[i].distanceTo(points[i - 1]) > 0.01) unique.push(points[i])
   }
-  const base   = new THREE.CatmullRomCurve3(unique, false, 'catmullrom', CONFIG.curveTension)
+  const base = new THREE.CatmullRomCurve3(unique, false, 'catmullrom', CONFIG.curveTension)
   const spaced = base.getSpacedPoints(Math.max(200, unique.length * CONFIG.curveSampleMultiplier))
   return new THREE.CatmullRomCurve3(spaced, false, 'catmullrom', CONFIG.curveTension)
 }
@@ -95,26 +108,34 @@ function buildCurveFromPoints(points) {
 function findClosestTOnCurve(curve, targetPos) {
   if (!curve || !targetPos) return 0
   const tmp = new THREE.Vector3()
-  let closestT = 0, minDist = Infinity
+  let closestT = 0
+  let minDist = Infinity
+
   for (let i = 0; i <= CONFIG.markerSearchSamples; i++) {
     const t = i / CONFIG.markerSearchSamples
     curve.getPointAt(t, tmp)
     const d = tmp.distanceTo(targetPos)
-    if (d < minDist) { minDist = d; closestT = t }
+    if (d < minDist) {
+      minDist = d
+      closestT = t
+    }
   }
+
   return closestT
 }
 
 function buildTrimmedCurve(curve, rawStartT, rawEndT) {
   if (!curve) return null
   const startT = Math.min(rawStartT, rawEndT)
-  const endT   = Math.max(rawStartT, rawEndT)
-  const len    = Math.max(200, Math.round(curve.getLength() * 5))
-  const pts    = []
+  const endT = Math.max(rawStartT, rawEndT)
+  const len = Math.max(200, Math.round(curve.getLength() * 5))
+  const pts = []
+
   for (let i = 0; i <= len; i++) {
     const t = startT + (endT - startT) * (i / len)
     pts.push(curve.getPointAt(t))
   }
+
   return new THREE.CatmullRomCurve3(pts, false, 'catmullrom', CONFIG.curveTension)
 }
 
@@ -122,7 +143,6 @@ function buildTrimmedCurve(curve, rawStartT, rawEndT) {
 function extractPathFromObject(scene, pathObject, startMarkerName, endMarkerName) {
   const markers = { start: null, end: null }
 
-  // Find start/end markers anywhere in the scene
   scene.traverse((child) => {
     if (!markers.start && child.name === startMarkerName) {
       const p = new THREE.Vector3()
@@ -142,7 +162,6 @@ function extractPathFromObject(scene, pathObject, startMarkerName, endMarkerName
   const geom = pathObject?.geometry
 
   if (geom?.attributes?.position) {
-    // Always hide the path object
     pathObject.visible = false
 
     const pos = geom.attributes.position
@@ -164,8 +183,7 @@ function extractPathFromObject(scene, pathObject, startMarkerName, endMarkerName
     console.log(`📍 Path: ${pathPoints.length} points from "${pathObject.name}" (${pathObject.type})`)
   } else if (pathObject) {
     console.warn(`⚠️ Path object "${pathObject.name}" (${pathObject.type}) has no geometry.`)
-    // Try children — Blender sometimes exports path as a group
-    pathObject.traverse(child => {
+    pathObject.traverse((child) => {
       if (child === pathObject) return
       const cg = child.geometry
       if (!cg?.attributes?.position) return
@@ -185,33 +203,31 @@ function extractPathFromObject(scene, pathObject, startMarkerName, endMarkerName
   return { pathPoints, markers }
 }
 
-// ============= MARKER PATH CAMERA (runs inside Canvas, priority 0) =============
+// ============= MARKER PATH CAMERA =============
 function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
-  const scroll     = useScroll()
+  const scroll = useScroll()
   const { camera } = useThree()
 
-  const lookAheadRef      = useRef(new THREE.Vector3())
-  const tempRef           = useRef(new THREE.Vector3())
-  const prevRef           = useRef(new THREE.Vector3())
-  const dirRef            = useRef(new THREE.Vector3())
+  const lookAheadRef = useRef(new THREE.Vector3())
+  const tempRef = useRef(new THREE.Vector3())
+  const prevRef = useRef(new THREE.Vector3())
+  const dirRef = useRef(new THREE.Vector3())
   const fallbackTargetRef = useRef(new THREE.Vector3())
-  const lastTRef          = useRef(null)
-  const currentTRef       = useRef(null)
-  const velocityTRef      = useRef(0)
-  const initializedRef    = useRef(false)
-  const notifiedRef       = useRef(false)
-  const scrollPrimedRef   = useRef(false)
+  const lastTRef = useRef(null)
+  const currentTRef = useRef(null)
+  const velocityTRef = useRef(0)
+  const initializedRef = useRef(false)
+  const notifiedRef = useRef(false)
+  const scrollPrimedRef = useRef(false)
 
   const mapScrollToCurveT = useCallback((rawT) => {
-    const normalized = THREE.MathUtils.clamp(
-      CONFIG.reverseDirection ? 1 - rawT : rawT, 0, 1
-    )
+    const normalized = THREE.MathUtils.clamp(CONFIG.reverseDirection ? 1 - rawT : rawT, 0, 1)
     const sm = THREE.MathUtils.clamp(CONFIG.pathInnerMarginStartPercent ?? 0, 0, 99.9) / 100
-    const em = THREE.MathUtils.clamp(CONFIG.pathInnerMarginEndPercent   ?? 0, 0, 99.9) / 100
+    const em = THREE.MathUtils.clamp(CONFIG.pathInnerMarginEndPercent ?? 0, 0, 99.9) / 100
     const ism = CONFIG.reverseDirection ? em : sm
     const iem = CONFIG.reverseDirection ? sm : em
-    const is  = ism
-    const ie  = 1 - iem
+    const is = ism
+    const ie = 1 - iem
     if (is >= ie) return 0.5
     return is + (ie - is) * normalized
   }, [])
@@ -244,7 +260,7 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
     const pos = curve.getPointAt(t, tempRef.current)
     camera.position.copy(pos)
 
-    const len   = Math.max(0.0001, curve.getLength())
+    const len = Math.max(0.0001, curve.getLength())
     const delta = CONFIG.pathLookAheadDistance / len
     const lookT = Math.min(1, t + delta)
 
@@ -252,7 +268,8 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
       camera.lookAt(curve.getPointAt(lookT, lookAheadRef.current))
       return
     }
-    const prevT  = Math.max(0, t - delta)
+
+    const prevT = Math.max(0, t - delta)
     const prevPt = curve.getPointAt(prevT, prevRef.current)
     dirRef.current.copy(pos).sub(prevPt)
     if (dirRef.current.lengthSq() > 1e-12) {
@@ -262,16 +279,15 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
     }
   }, [curve, camera])
 
-  // Initialize on mount / when curve is ready
   useLayoutEffect(() => {
     if (!curve || !ready || !scroll) return
     primeScroll()
-    const rawT    = getRawScrollOffset()
+    const rawT = getRawScrollOffset()
     const targetT = mapScrollToCurveT(rawT)
-    currentTRef.current  = targetT
+    currentTRef.current = targetT
     velocityTRef.current = 0
     applyPoseAtT(targetT)
-    lastTRef.current   = targetT
+    lastTRef.current = targetT
     initializedRef.current = true
     if (!notifiedRef.current) {
       notifiedRef.current = true
@@ -282,19 +298,18 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
   useEffect(() => {
     if (!ready) {
       initializedRef.current = false
-      notifiedRef.current    = false
+      notifiedRef.current = false
       scrollPrimedRef.current = false
-      lastTRef.current       = null
-      currentTRef.current    = null
-      velocityTRef.current   = 0
+      lastTRef.current = null
+      currentTRef.current = null
+      velocityTRef.current = 0
     }
   }, [ready, curve])
 
-  // priority 0 — runs first, before MetaballCursorR3F (priority 1)
   useFrame((_, delta) => {
     if (!scroll || !curve || !ready || !initializedRef.current) return
 
-    const rawT    = getRawScrollOffset()
+    const rawT = getRawScrollOffset()
     const targetT = mapScrollToCurveT(rawT)
 
     if (currentTRef.current === null) currentTRef.current = targetT
@@ -302,14 +317,14 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
     let nextT = targetT
     if (CONFIG.enableCameraSmoothing) {
       if (CONFIG.cameraInertiaEnabled) {
-        let vel  = velocityTRef.current
-        vel     += (targetT - currentTRef.current) * CONFIG.cameraInertiaStrength * delta
-        vel     *= Math.exp(-CONFIG.cameraInertiaDamping * delta)
-        nextT    = THREE.MathUtils.clamp(currentTRef.current + vel * delta, 0, 1)
+        let vel = velocityTRef.current
+        vel += (targetT - currentTRef.current) * CONFIG.cameraInertiaStrength * delta
+        vel *= Math.exp(-CONFIG.cameraInertiaDamping * delta)
+        nextT = THREE.MathUtils.clamp(currentTRef.current + vel * delta, 0, 1)
         velocityTRef.current = vel
       } else {
         const a = 1 - Math.exp(-CONFIG.cameraLerpSharpness * delta)
-        nextT   = THREE.MathUtils.lerp(currentTRef.current, targetT, a)
+        nextT = THREE.MathUtils.lerp(currentTRef.current, targetT, a)
         velocityTRef.current = 0
       }
     } else {
@@ -322,7 +337,7 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
       applyPoseAtT(nextT)
       lastTRef.current = nextT
     }
-  }, 0)  // priority 0
+  }, 0)
 
   return null
 }
@@ -338,14 +353,16 @@ function ProgressTracker({ onProgress }) {
 
 // ============= INITIAL SCROLL PRIMER =============
 function InitialScrollPrimer({ enabled, percent = 0.01, onDone }) {
-  const scroll  = useScroll()
+  const scroll = useScroll()
   const doneRef = useRef(false)
 
   useEffect(() => {
     if (!enabled || doneRef.current || !scroll?.el) return
-    let r1 = 0, r2 = 0
+    let r1 = 0
+    let r2 = 0
+
     const apply = () => {
-      const el    = scroll.el
+      const el = scroll.el
       const ratio = THREE.MathUtils.clamp(percent, 0, 1)
       if (scroll.horizontal) {
         el.scrollLeft = Math.max(0, el.scrollWidth - el.clientWidth) * ratio
@@ -355,11 +372,21 @@ function InitialScrollPrimer({ enabled, percent = 0.01, onDone }) {
       doneRef.current = true
       onDone?.()
     }
-    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(apply) })
-    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2) }
+
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(apply)
+    })
+
+    return () => {
+      cancelAnimationFrame(r1)
+      cancelAnimationFrame(r2)
+    }
   }, [enabled, scroll, percent, onDone])
 
-  useEffect(() => { if (!enabled) doneRef.current = false }, [enabled])
+  useEffect(() => {
+    if (!enabled) doneRef.current = false
+  }, [enabled])
+
   return null
 }
 
@@ -367,11 +394,17 @@ function InitialScrollPrimer({ enabled, percent = 0.01, onDone }) {
 function LoadingIndicator() {
   return (
     <div style={{
-      position: 'fixed', top: '50%', left: '50%',
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
       transform: 'translate(-50%, -50%)',
-      color: 'white', background: 'rgba(0,0,0,0.75)',
-      padding: '20px 32px', borderRadius: 10,
-      fontFamily: 'monospace', fontSize: 14, zIndex: 3000,
+      color: 'white',
+      background: 'rgba(0,0,0,0.75)',
+      padding: '20px 32px',
+      borderRadius: 10,
+      fontFamily: 'monospace',
+      fontSize: 14,
+      zIndex: 3000,
       letterSpacing: '0.05em',
     }}>
       Loading scene…
@@ -389,22 +422,48 @@ function GradientSkybox({
   intensity = 1.0,
   progress = 0.0,
   direction = 'vertical',
+  vignetteEnabled = true,
+  vignetteStrength = 0.26,
+  vignetteSoftness = [0.28, 1.08],
+  vignetteScale = [1.12, 1.02],
+  vignetteOffset = [0.0, -0.02],
+  vignetteCenterLift = 0.06,
+  vignetteFollowCamera = true,
+  vignetteFollowStrength = 0.12,
+  vignetteFollowLerp = 4.5,
 }) {
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
+  const { size, camera } = useThree()
+
+  const followRef = useRef(new THREE.Vector2())
+  const lookDirRef = useRef(new THREE.Vector3())
+
+  const material = useMemo(() => (
+    new THREE.ShaderMaterial({
       uniforms: {
         startCenter: { value: new THREE.Color(startCenterColor) },
-        startEdge:   { value: new THREE.Color(startEdgeColor) },
-        endCenter:   { value: new THREE.Color(endCenterColor) },
-        endEdge:     { value: new THREE.Color(endEdgeColor) },
-        intensity:   { value: intensity },
-        progress:    { value: progress },
+        startEdge: { value: new THREE.Color(startEdgeColor) },
+        endCenter: { value: new THREE.Color(endCenterColor) },
+        endEdge: { value: new THREE.Color(endEdgeColor) },
+        intensity: { value: intensity },
+        progress: { value: progress },
+        aspect: { value: size.height > 0 ? size.width / size.height : 1 },
+        gradientAxis: { value: direction === 'horizontal' ? 1.0 : 0.0 },
+        vignetteEnabled: { value: vignetteEnabled ? 1.0 : 0.0 },
+        vignetteStrength: { value: vignetteStrength },
+        vignetteSoftness: { value: new THREE.Vector2(...vignetteSoftness) },
+        vignetteScale: { value: new THREE.Vector2(...vignetteScale) },
+        vignetteOffset: { value: new THREE.Vector2(...vignetteOffset) },
+        vignetteCenterLift: { value: vignetteCenterLift },
+        cameraInfluence: { value: new THREE.Vector2(0, 0) },
       },
       vertexShader: `
         varying vec3 vWorldPosition;
+        varying vec3 vLocalPosition;
+
         void main() {
           vec4 worldPosition = modelMatrix * vec4(position, 1.0);
           vWorldPosition = normalize(worldPosition.xyz);
+          vLocalPosition = normalize(position.xyz);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
@@ -415,60 +474,145 @@ function GradientSkybox({
         uniform vec3 endEdge;
         uniform float intensity;
         uniform float progress;
+        uniform float aspect;
+        uniform float gradientAxis;
+        uniform float vignetteEnabled;
+        uniform float vignetteStrength;
+        uniform vec2 vignetteSoftness;
+        uniform vec2 vignetteScale;
+        uniform vec2 vignetteOffset;
+        uniform float vignetteCenterLift;
+        uniform vec2 cameraInfluence;
+
         varying vec3 vWorldPosition;
-        
+        varying vec3 vLocalPosition;
+
         void main() {
-          float t = (vWorldPosition.y + 1.0) * 0.5;
+          float axis = mix(vWorldPosition.y, vWorldPosition.x, gradientAxis);
+          float t = (axis + 1.0) * 0.5;
+
           vec3 centerColor = mix(startCenter, endCenter, progress);
-          vec3 edgeColor   = mix(startEdge,   endEdge,   progress);
+          vec3 edgeColor = mix(startEdge, endEdge, progress);
           vec3 color = mix(centerColor, edgeColor, t);
-          gl_FragColor = vec4(color * intensity, 1.0);
+
+          if (vignetteEnabled > 0.5) {
+            vec2 uv = vLocalPosition.xy;
+            uv.x *= aspect;
+            uv = uv * vignetteScale + vignetteOffset + cameraInfluence;
+
+            float d = length(uv);
+            float mask = smoothstep(vignetteSoftness.x, vignetteSoftness.y, d);
+
+            float edgeDarken = 1.0 - mask * vignetteStrength;
+            float centerBrighten = 1.0 + pow(max(0.0, 1.0 - mask), 1.8) * vignetteCenterLift;
+
+            color *= edgeDarken * centerBrighten;
+          }
+
+          gl_FragColor = vec4(max(color, vec3(0.0)) * intensity, 1.0);
         }
       `,
       side: THREE.BackSide,
       depthWrite: false,
-    });
-  }, [startCenterColor, startEdgeColor, endCenterColor, endEdgeColor, intensity, progress]);
+    })
+  ), [
+    startCenterColor,
+    startEdgeColor,
+    endCenterColor,
+    endEdgeColor,
+    intensity,
+    progress,
+    size.width,
+    size.height,
+    direction,
+    vignetteEnabled,
+    vignetteStrength,
+    vignetteSoftness,
+    vignetteScale,
+    vignetteOffset,
+    vignetteCenterLift,
+  ])
 
   useEffect(() => {
-    if (material) {
-      material.uniforms.startCenter.value.set(startCenterColor);
-      material.uniforms.startEdge.value.set(startEdgeColor);
-      material.uniforms.endCenter.value.set(endCenterColor);
-      material.uniforms.endEdge.value.set(endEdgeColor);
-      material.uniforms.intensity.value = intensity;
-      material.uniforms.progress.value = progress;
+    material.uniforms.startCenter.value.set(startCenterColor)
+    material.uniforms.startEdge.value.set(startEdgeColor)
+    material.uniforms.endCenter.value.set(endCenterColor)
+    material.uniforms.endEdge.value.set(endEdgeColor)
+    material.uniforms.intensity.value = intensity
+    material.uniforms.progress.value = progress
+    material.uniforms.aspect.value = size.height > 0 ? size.width / size.height : 1
+    material.uniforms.gradientAxis.value = direction === 'horizontal' ? 1.0 : 0.0
+    material.uniforms.vignetteEnabled.value = vignetteEnabled ? 1.0 : 0.0
+    material.uniforms.vignetteStrength.value = vignetteStrength
+    material.uniforms.vignetteSoftness.value.set(...vignetteSoftness)
+    material.uniforms.vignetteScale.value.set(...vignetteScale)
+    material.uniforms.vignetteOffset.value.set(...vignetteOffset)
+    material.uniforms.vignetteCenterLift.value = vignetteCenterLift
+  }, [
+    material,
+    startCenterColor,
+    startEdgeColor,
+    endCenterColor,
+    endEdgeColor,
+    intensity,
+    progress,
+    size.width,
+    size.height,
+    direction,
+    vignetteEnabled,
+    vignetteStrength,
+    vignetteSoftness,
+    vignetteScale,
+    vignetteOffset,
+    vignetteCenterLift,
+  ])
+
+  useFrame((_, delta) => {
+    if (!vignetteEnabled || !vignetteFollowCamera) {
+      followRef.current.lerp(new THREE.Vector2(0, 0), 1 - Math.exp(-vignetteFollowLerp * delta))
+      material.uniforms.cameraInfluence.value.copy(followRef.current)
+      return
     }
-  }, [material, startCenterColor, startEdgeColor, endCenterColor, endEdgeColor, intensity, progress]);
+
+    camera.getWorldDirection(lookDirRef.current)
+
+    const targetX = -lookDirRef.current.x * vignetteFollowStrength
+    const targetY = -lookDirRef.current.y * vignetteFollowStrength
+
+    followRef.current.lerp(
+      new THREE.Vector2(targetX, targetY),
+      1 - Math.exp(-vignetteFollowLerp * delta),
+    )
+
+    material.uniforms.cameraInfluence.value.copy(followRef.current)
+  })
+
+  useEffect(() => () => material.dispose(), [material])
 
   return (
     <mesh material={material} renderOrder={0}>
       <sphereGeometry args={[radius, 64, 32]} />
     </mesh>
-  );
+  )
 }
 
 // ============= MAIN COMPONENT =============
 export default function Portfolio() {
-  // ── Path state ──────────────────────────────────────────────────────────────
-  const [pathPoints, setPathPoints]           = useState([])
-  const [markers,    setMarkers]              = useState({ start: null, end: null })
-  const [trimInfo,   setTrimInfo]             = useState({ startT: 0, endT: 1 })
-  const [trimmedCurve, setTrimmedCurve]       = useState(null)
+  const [pathPoints, setPathPoints] = useState([])
+  const [markers, setMarkers] = useState({ start: null, end: null })
+  const [trimInfo, setTrimInfo] = useState({ startT: 0, endT: 1 })
+  const [trimmedCurve, setTrimmedCurve] = useState(null)
   const [initialScrollPrimed, setScrollPrimed] = useState(false)
-  const [progress,   setProgress]             = useState(0)
-  const [isLoading,  setIsLoading]            = useState(true)
-  const [cameraReady, setCameraReady]         = useState(false)
-  const [error,      setError]                = useState(null)
+  const [progress, setProgress] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [cameraReady, setCameraReady] = useState(false)
+  const [error, setError] = useState(null)
 
-  // ── MetaballCursor state ─────────────────────────────────────────────────────
   const [metaballObjects, setMetaballObjects] = useState([])
   const metaballStateRef = useRef(null)
 
-  // ── Refs ─────────────────────────────────────────────────────────────────────
   const scrollContainerRef = useRef(null)
 
-  // ── Reset on curve change ────────────────────────────────────────────────────
   useEffect(() => {
     if (!trimmedCurve || isLoading) {
       setScrollPrimed(false)
@@ -476,22 +620,20 @@ export default function Portfolio() {
     }
   }, [trimmedCurve, isLoading])
 
-  // ── Build trimmed curve ──────────────────────────────────────────────────────
   const fullCurve = useMemo(() => buildCurveFromPoints(pathPoints), [pathPoints])
 
   useEffect(() => {
     if (!fullCurve || !markers.start || !markers.end) return
     const rawStartT = findClosestTOnCurve(fullCurve, markers.start)
-    const rawEndT   = findClosestTOnCurve(fullCurve, markers.end)
+    const rawEndT = findClosestTOnCurve(fullCurve, markers.end)
     const normStart = Math.min(rawStartT, rawEndT)
-    const normEnd   = Math.max(rawStartT, rawEndT)
+    const normEnd = Math.max(rawStartT, rawEndT)
     setTrimInfo({ startT: normStart, endT: normEnd, rawStartT, rawEndT })
     setTrimmedCurve(buildTrimmedCurve(fullCurve, rawStartT, rawEndT))
     console.log(`📐 Path trimmed: ${(normStart * 100).toFixed(1)}% → ${(normEnd * 100).toFixed(1)}%`)
     setIsLoading(false)
   }, [fullCurve, markers])
 
-  // ── SceneLoader callback ─────────────────────────────────────────────────────
   const handleSceneLoad = useCallback((loadedScene, gltf, meshInfo) => {
     const { pathObject, interactiveMeshes } = meshInfo
 
@@ -513,6 +655,7 @@ export default function Portfolio() {
       CONFIG.startMarkerName,
       CONFIG.endMarkerName,
     )
+
     setPathPoints(pts)
     setMarkers(markerPos)
 
@@ -528,7 +671,7 @@ export default function Portfolio() {
     if (pts.length < 2) {
       console.error(
         `❌ Path extraction failed (${pts.length} points).\n` +
-        `   Set CONFIG.cameraPathObjectName to match an object listed above.`
+        '   Set CONFIG.cameraPathObjectName to match an object listed above.',
       )
       setIsLoading(false)
     }
@@ -542,37 +685,43 @@ export default function Portfolio() {
     setIsLoading(false)
     const pts = []
     for (let i = 0; i <= 100; i++) {
-      const t = i / 100, a = t * Math.PI * 2
+      const t = i / 100
+      const a = t * Math.PI * 2
       pts.push(new THREE.Vector3(Math.cos(a) * 5, Math.sin(a) * 2, Math.sin(a * 2) * 3))
     }
     setPathPoints(pts)
     setMarkers({ start: pts[0], end: pts[pts.length - 1] })
   }, [])
 
-  const handleInitialPoseApplied  = useCallback(() => setCameraReady(true),   [])
-  const handleInitialScrollPrimed = useCallback(() => setScrollPrimed(true),  [])
-  const handleMetaballReady       = useCallback((state) => { metaballStateRef.current = state }, [])
+  const handleInitialPoseApplied = useCallback(() => setCameraReady(true), [])
+  const handleInitialScrollPrimed = useCallback(() => setScrollPrimed(true), [])
+  const handleMetaballReady = useCallback((state) => {
+    metaballStateRef.current = state
+  }, [])
 
   const effectiveProgress = CONFIG.reverseDirection ? 1 - progress : progress
 
-  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-
-      {/* ── Debug HUD ──────────────────────────────────────────────────────── */}
       {CONFIG.debugMode && (
         <div style={{
-          position: 'fixed', top: 20, left: 20,
-          color: 'white', background: 'rgba(0,0,0,0.9)',
-          padding: 15, borderRadius: 8,
-          fontFamily: 'monospace', fontSize: 12, zIndex: 2000,
+          position: 'fixed',
+          top: 20,
+          left: 20,
+          color: 'white',
+          background: 'rgba(0,0,0,0.9)',
+          padding: 15,
+          borderRadius: 8,
+          fontFamily: 'monospace',
+          fontSize: 12,
+          zIndex: 2000,
           pointerEvents: 'none',
           borderLeft: `4px solid ${markers.start && markers.end ? '#4caf50' : '#ff9800'}`,
         }}>
           <div><strong>🔍 PORTFOLIO DEBUG</strong></div>
           <div>Path points: {pathPoints.length}</div>
           <div>Start marker: {markers.start ? '✅' : '❌'}</div>
-          <div>End marker:   {markers.end   ? '✅' : '❌'}</div>
+          <div>End marker:   {markers.end ? '✅' : '❌'}</div>
           <div>Interactive meshes: {metaballObjects.length}</div>
           <div>Camera ready: {cameraReady ? '✅' : '⏳'}</div>
           {CONFIG.reverseDirection && (
@@ -598,13 +747,19 @@ export default function Portfolio() {
                     position: 'absolute',
                     left: `${trimInfo.startT * 100}%`,
                     width: `${(trimInfo.endT - trimInfo.startT) * 100}%`,
-                    height: '100%', background: '#4caf50', borderRadius: 2, opacity: 0.7,
+                    height: '100%',
+                    background: '#4caf50',
+                    borderRadius: 2,
+                    opacity: 0.7,
                   }} />
                   <div style={{
                     position: 'absolute',
                     left: `${effectiveProgress * 100}%`,
-                    width: 4, height: 12, background: 'yellow',
-                    transform: 'translateX(-2px) translateY(-4px)', borderRadius: 2,
+                    width: 4,
+                    height: 12,
+                    background: 'yellow',
+                    transform: 'translateX(-2px) translateY(-4px)',
+                    borderRadius: 2,
                   }} />
                 </div>
               </div>
@@ -613,30 +768,38 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* ── Error ──────────────────────────────────────────────────────────── */}
       {error && (
         <div style={{
-          position: 'fixed', top: '50%', left: '50%',
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
           transform: 'translate(-50%, -50%)',
-          color: 'white', background: 'rgba(200,0,0,0.85)',
-          padding: 20, borderRadius: 8, zIndex: 3000,
+          color: 'white',
+          background: 'rgba(200,0,0,0.85)',
+          padding: 20,
+          borderRadius: 8,
+          zIndex: 3000,
           fontFamily: 'monospace',
         }}>
           Error: {error}
         </div>
       )}
 
-      {/* ── Loading ────────────────────────────────────────────────────────── */}
       {(isLoading || !cameraReady) && <LoadingIndicator />}
 
-      {/* ── Progress HUD ───────────────────────────────────────────────────── */}
       {CONFIG.showProgressHUD && (
         <div style={{
-          position: 'fixed', top: 20, right: 20,
-          color: 'white', background: 'rgba(0,0,0,0.7)',
-          padding: '12px 20px', borderRadius: 8,
-          fontFamily: 'monospace', fontSize: 14,
-          zIndex: 1000, pointerEvents: 'none',
+          position: 'fixed',
+          top: 20,
+          right: 20,
+          color: 'white',
+          background: 'rgba(0,0,0,0.7)',
+          padding: '12px 20px',
+          borderRadius: 8,
+          fontFamily: 'monospace',
+          fontSize: 14,
+          zIndex: 1000,
+          pointerEvents: 'none',
         }}>
           <div>Scroll: {(progress * 100).toFixed(1)}%</div>
           {CONFIG.reverseDirection && (
@@ -648,14 +811,21 @@ export default function Portfolio() {
         </div>
       )}
 
-      {/* ── Scroll indicator ───────────────────────────────────────────────── */}
       {CONFIG.showScrollIndicator && (
         <div style={{
-          position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)',
-          color: 'white', background: 'rgba(0,0,0,0.5)',
-          padding: '10px 20px', borderRadius: 30,
-          fontFamily: 'sans-serif', fontSize: 14, letterSpacing: 1,
-          zIndex: 1000, pointerEvents: 'none',
+          position: 'fixed',
+          bottom: 30,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          color: 'white',
+          background: 'rgba(0,0,0,0.5)',
+          padding: '10px 20px',
+          borderRadius: 30,
+          fontFamily: 'sans-serif',
+          fontSize: 14,
+          letterSpacing: 1,
+          zIndex: 1000,
+          pointerEvents: 'none',
         }}>
           ↓ {CONFIG.scrollIndicatorText} ↓
         </div>
@@ -664,7 +834,8 @@ export default function Portfolio() {
       <div
         ref={scrollContainerRef}
         style={{
-          position: 'absolute', inset: 0,
+          position: 'absolute',
+          inset: 0,
           cursor: CONFIG.showMetaballCursor ? 'none' : 'auto',
         }}
       >
@@ -672,7 +843,8 @@ export default function Portfolio() {
           camera={{ position: CONFIG.cameraDefaultPosition, fov: CONFIG.cameraFOV }}
           style={{
             background: CONFIG.useGradientSkybox ? 'transparent' : CONFIG.backgroundColor,
-            width: '100%', height: '100%',
+            width: '100%',
+            height: '100%',
             opacity: cameraReady ? 1 : 0,
             transition: 'opacity 500ms ease',
             display: 'block',
@@ -701,7 +873,17 @@ export default function Portfolio() {
                 intensity={CONFIG.skyboxIntensity}
                 progress={effectiveProgress}
                 direction="vertical"
+                vignetteEnabled={CONFIG.useStaticVignette}
+                vignetteStrength={CONFIG.vignetteStrength}
+                vignetteSoftness={CONFIG.vignetteSoftness}
+                vignetteScale={CONFIG.vignetteScale}
+                vignetteOffset={CONFIG.vignetteOffset}
+                vignetteCenterLift={CONFIG.vignetteCenterLift}
+                vignetteFollowCamera={CONFIG.vignetteFollowCamera}
+                vignetteFollowStrength={CONFIG.vignetteFollowStrength}
+                vignetteFollowLerp={CONFIG.vignetteFollowLerp}
               />
+
             )}
 
             <ambientLight intensity={CONFIG.ambientIntensity} />
@@ -750,11 +932,17 @@ export default function Portfolio() {
 
       {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
         <MetaballCursorOverlay
-  objects={metaballObjects}
-  stateRef={metaballStateRef}
-  containerWidth={300}
-  containerHeight={120}
-/>
+          objects={metaballObjects}
+          stateRef={metaballStateRef}
+          containerWidth={300}
+          containerHeight={120}
+        />
+      )}
+      {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
+        <MetaballHalftone
+          objects={metaballObjects}
+          stateRef={metaballStateRef}
+        />
       )}
     </div>
   )
