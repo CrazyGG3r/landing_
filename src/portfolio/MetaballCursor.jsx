@@ -12,67 +12,72 @@ import * as THREE from 'three'
 // ────────────────────────────────────────────────────────────────────────────────
 // 🔧 BEHAVIOR & ANIMATION
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_TRAIL_COUNT          = 3                 // number of trailing metaballs (max 8)
-const CFG_TRAIL_SIZES          = [18, 38, 22]      // base radii (px) for each trail blob
-const CFG_FAST_DURATION_MS     = 110               // lerp speed for last (fastest) blob
-const CFG_SLOW_DURATION_MS     = 750               // lerp speed for earlier (slower) blobs
-const CFG_DWELL_MS             = 900               // hover duration before full activation
-const CFG_FADE_IN_MS           = 500               // fade‑in animation duration
-const CFG_FADE_OUT_MS          = 140               // fade‑out animation duration
-const CFG_REANCHOR_MS          = 110               // anchor lerp duration
-const CFG_PRE_WRAP_MS          = 260               // pre‑wrap scaling animation duration
-const CFG_PRE_WRAP_SCALE       = 1.58              // extra scale factor during pre‑wrap
-const CFG_PRE_WRAP_EASE_POWER  = 3                 // easing exponent for pre‑wrap
+const CFG_TRAIL_COUNT = 3                 // number of trailing metaballs (max 8)
+const CFG_TRAIL_SIZES = [18, 38, 22]      // base radii (px) for each trail blob
+const CFG_FAST_DURATION_MS = 110               // lerp speed for last (fastest) blob
+const CFG_SLOW_DURATION_MS = 750               // lerp speed for earlier (slower) blobs
+const CFG_DWELL_MS = 900               // hover duration before full activation
+const CFG_FADE_IN_MS = 500               // fade‑in animation duration
+const CFG_FADE_OUT_MS = 140               // fade‑out animation duration
+const CFG_REANCHOR_MS = 110               // anchor lerp duration
+const CFG_PRE_WRAP_MS = 260               // pre‑wrap scaling animation duration
+const CFG_PRE_WRAP_SCALE = 1.58              // extra scale factor during pre‑wrap
+const CFG_PRE_WRAP_EASE_POWER = 3                 // easing exponent for pre‑wrap
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🎨 VISUAL STYLE – TRAIL & METABALLS
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_SMIN_K               = 0.22              // smooth min factor for blob fusion
-const CFG_EDGE_SOFTNESS        = 0.0006            // edge softness (relative to resolution)
-const CFG_PULSE_SCALE          = 1.28              // max scale during pulse
-const CFG_PULSE_DURATION_MS    = 380               // pulse duration (ms)
-const CFG_BASE_ALPHA           = 0.28              // base alpha when idle
-const CFG_LIGHTNESS            = 0.65              // lightness boost for trail/ghost colors
+const CFG_SMIN_K = 0.22              // smooth min factor for blob fusion
+const CFG_EDGE_SOFTNESS = 0.0006            // edge softness (relative to resolution)
+const CFG_PULSE_SCALE = 1.28              // max scale during pulse
+const CFG_PULSE_DURATION_MS = 380               // pulse duration (ms)
+const CFG_BASE_ALPHA = 0.28              // base alpha when idle
+const CFG_LIGHTNESS = 0.65              // lightness boost for trail/ghost colors
 const CFG_UNTRIGGERED_SIZE_SCALE = 0.72            // size multiplier when not fully active
-const CFG_BREATHE_AMP          = 0.06              // breathing amplitude
-const CFG_BREATHE_FREQ         = 0.9               // breathing frequency (Hz)
+const CFG_BREATHE_AMP = 0.06              // breathing amplitude
+const CFG_BREATHE_FREQ = 0.9               // breathing frequency (Hz)
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🌊 NOISE & DISTORTION
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_TRIGGERED_NOISE_STR  = 300                // noise strength when active
-const CFG_BLOB_NOISE_SCALE     = 0.008             // base noise scale
-const CFG_CHROMATIC_STRENGTH   = 3.2               // chromatic aberration intensity
-const CFG_CURL_STRENGTH        = 18                // curl displacement amount
-const CFG_PRISM_STRENGTH       = 0.7               // prismatic color shift intensity
+const CFG_TRIGGERED_NOISE_STR = 300                // noise strength when active
+const CFG_BLOB_NOISE_SCALE = 0.008             // base noise scale
+const CFG_CHROMATIC_STRENGTH = 3.2               // chromatic aberration intensity
+const CFG_CURL_STRENGTH = 18                // curl displacement amount
+const CFG_PRISM_STRENGTH = 0.7               // prismatic color shift intensity
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 👻 GHOST BLOBS
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_GHOST_COUNT          = 4                 // number of orbiting ghost blobs
-const CFG_GHOST_RADIUS         = 14                // orbit radius (px)
-const CFG_GHOST_ALPHA_FACTOR   = 0.55              // ghost opacity multiplier
-const CFG_GHOST_SIZE_SCALE     = [0.7, 0.8, 0.9, 1.0] // per‑ghost size multiplier
-const CFG_GHOST_SEEDS          = [0.0, 1.5, 3.0, 4.5]  // per‑ghost noise seed offsets
+const CFG_GHOST_COUNT = 4                 // number of orbiting ghost blobs
+const CFG_GHOST_RADIUS = 14                // orbit radius (px)
+const CFG_GHOST_ALPHA_FACTOR = 0.55              // ghost opacity multiplier
+const CFG_GHOST_SIZE_SCALE = [0.7, 0.8, 0.9, 1.0] // per‑ghost size multiplier
+const CFG_GHOST_SEEDS = [0.0, 1.5, 3.0, 4.5]  // per‑ghost noise seed offsets
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🌈 COLORS
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_HOVER_TINT_COLOR     = 0x9fe8ff          // hover tint (hex)
-const CFG_HOVER_TINT_MIX       = 0.78              // how much hover color blends in
-const CFG_TRAIL_COLOR          = '#ffffff'         // primary trail color (forced white)
-const CFG_CURSOR_COLOR         = 0xffffff          // fallback cursor color
+const CFG_HOVER_TINT_COLOR = 0x9fe8ff          // hover tint (hex)
+const CFG_HOVER_TINT_MIX = 0.78              // how much hover color blends in
+const CFG_TRAIL_COLOR = '#ffffff'         // primary trail color (forced white)
+const CFG_CURSOR_COLOR = 0xffffff          // fallback cursor color
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🖼️ MASKING & ID RESOLUTION
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_ID_RESOLUTION        = 1024              // ID texture size (higher = sharper mask)
-const CFG_PROJECTION_MARGIN    = 1.1               // extra margin around projected bounds
+const CFG_ID_RESOLUTION = 1024              // ID texture size (higher = sharper mask)
+const CFG_PROJECTION_MARGIN = 1.1               // extra margin around projected bounds
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 💧 RIPPLES
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_RIPPLE_COUNT         = 3                 // number of ripples per pulse
+const CFG_RIPPLE_COUNT = 3                 // number of ripples per pulse
+
+// ────────────────────────────────────────────────────────────────────────────────
+// ✨ HIGHLIGHT BEHAVIOR
+// ────────────────────────────────────────────────────────────────────────────────
+const CFG_ENABLE_MATERIAL_HIGHLIGHT = false   // set to true to re-enable the blinking effect
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // END OF CENTRAL CONFIGURATION
@@ -97,28 +102,28 @@ export const METABALL_PALETTE = [
  */
 export function buildMetaballObjects(meshes) {
   return meshes.map((mesh, i) => {
-    const pal      = METABALL_PALETTE[i % METABALL_PALETTE.length]
+    const pal = METABALL_PALETTE[i % METABALL_PALETTE.length]
     const matColor = mesh.material?.color
-    const colorA   = matColor ? matColor.clone() : pal.a.clone()
-    const colorB   = pal.b.clone()
+    const colorA = matColor ? matColor.clone() : pal.a.clone()
+    const colorB = pal.b.clone()
     const blobColor = pal.blob.clone()
 
     // Adaptive stride: aim for ~600 sampled vertices max per mesh
     const vertCount = mesh.geometry.attributes.position.count
-    const stride    = Math.max(1, Math.floor(vertCount / 600))
+    const stride = Math.max(1, Math.floor(vertCount / 600))
 
     return {
       mesh,
-      geometry:   mesh.geometry,
+      geometry: mesh.geometry,
       blobColor,
       colorA,
       colorB,
-      material:   mesh.material ?? null,
-      wireframe:  null,
+      material: mesh.material ?? null,
+      wireframe: null,
       stride,
-      label:      mesh.name || `Object ${i + 1}`,
-      title:      mesh.name || null,
-      desc:       null,
+      label: mesh.name || `Object ${i + 1}`,
+      title: mesh.name || null,
+      desc: null,
     }
   })
 }
@@ -303,51 +308,52 @@ void main() {
 
 // ─── DEFAULT CONFIG (derived from central constants) ──────────────────────────
 export const DEFAULT_CFG = {
-  trailCount:              CFG_TRAIL_COUNT,
-  sizes:                   CFG_TRAIL_SIZES,
-  fastDur:                 CFG_FAST_DURATION_MS,
-  slowDur:                 CFG_SLOW_DURATION_MS,
-  smin_k:                  CFG_SMIN_K,
-  edgeSoftness:            CFG_EDGE_SOFTNESS,
-  dwellMs:                 CFG_DWELL_MS,
-  fadeInMs:                CFG_FADE_IN_MS,
-  fadeOutMs:               CFG_FADE_OUT_MS,
-  reanchorMs:              CFG_REANCHOR_MS,
-  idRes:                   CFG_ID_RESOLUTION,
-  margin:                  CFG_PROJECTION_MARGIN,
-  pulseScale:              CFG_PULSE_SCALE,
-  pulseDuration:           CFG_PULSE_DURATION_MS,
-  baseAlpha:               CFG_BASE_ALPHA,
-  triggeredNoiseStrength:  CFG_TRIGGERED_NOISE_STR,
-  lightness:               CFG_LIGHTNESS,
-  untriggeredSizeScale:    CFG_UNTRIGGERED_SIZE_SCALE,
-  blobNoiseScale:          CFG_BLOB_NOISE_SCALE,
-  chromaticStrength:       CFG_CHROMATIC_STRENGTH,
-  ghostCount:              CFG_GHOST_COUNT,
-  ghostRadius:             CFG_GHOST_RADIUS,
-  ghostAlphaFactor:        CFG_GHOST_ALPHA_FACTOR,
-  rippleCount:             CFG_RIPPLE_COUNT,
-  breatheAmp:              CFG_BREATHE_AMP,
-  breatheFreq:             CFG_BREATHE_FREQ,
-  curlStrength:            CFG_CURL_STRENGTH,
-  prismStrength:           CFG_PRISM_STRENGTH,
-  hoverTintColor:          CFG_HOVER_TINT_COLOR,
-  hoverTintMix:            CFG_HOVER_TINT_MIX,
-  preWrapMs:               CFG_PRE_WRAP_MS,
-  preWrapScale:            CFG_PRE_WRAP_SCALE,
-  preWrapEasePower:        CFG_PRE_WRAP_EASE_POWER,
-  trailColor:              CFG_TRAIL_COLOR,
-  ghostSizeScale:          CFG_GHOST_SIZE_SCALE,
-  ghostSeeds:              CFG_GHOST_SEEDS,
+  trailCount: CFG_TRAIL_COUNT,
+  sizes: CFG_TRAIL_SIZES,
+  fastDur: CFG_FAST_DURATION_MS,
+  slowDur: CFG_SLOW_DURATION_MS,
+  smin_k: CFG_SMIN_K,
+  edgeSoftness: CFG_EDGE_SOFTNESS,
+  dwellMs: CFG_DWELL_MS,
+  fadeInMs: CFG_FADE_IN_MS,
+  fadeOutMs: CFG_FADE_OUT_MS,
+  reanchorMs: CFG_REANCHOR_MS,
+  idRes: CFG_ID_RESOLUTION,
+  margin: CFG_PROJECTION_MARGIN,
+  pulseScale: CFG_PULSE_SCALE,
+  pulseDuration: CFG_PULSE_DURATION_MS,
+  baseAlpha: CFG_BASE_ALPHA,
+  triggeredNoiseStrength: CFG_TRIGGERED_NOISE_STR,
+  lightness: CFG_LIGHTNESS,
+  untriggeredSizeScale: CFG_UNTRIGGERED_SIZE_SCALE,
+  blobNoiseScale: CFG_BLOB_NOISE_SCALE,
+  chromaticStrength: CFG_CHROMATIC_STRENGTH,
+  ghostCount: CFG_GHOST_COUNT,
+  ghostRadius: CFG_GHOST_RADIUS,
+  ghostAlphaFactor: CFG_GHOST_ALPHA_FACTOR,
+  rippleCount: CFG_RIPPLE_COUNT,
+  breatheAmp: CFG_BREATHE_AMP,
+  breatheFreq: CFG_BREATHE_FREQ,
+  curlStrength: CFG_CURL_STRENGTH,
+  prismStrength: CFG_PRISM_STRENGTH,
+  hoverTintColor: CFG_HOVER_TINT_COLOR,
+  hoverTintMix: CFG_HOVER_TINT_MIX,
+  preWrapMs: CFG_PRE_WRAP_MS,
+  preWrapScale: CFG_PRE_WRAP_SCALE,
+  preWrapEasePower: CFG_PRE_WRAP_EASE_POWER,
+  trailColor: CFG_TRAIL_COLOR,
+  ghostSizeScale: CFG_GHOST_SIZE_SCALE,
+  ghostSeeds: CFG_GHOST_SEEDS,
+  enableMaterialHighlight: CFG_ENABLE_MATERIAL_HIGHLIGHT,
 }
 
 // ─── CURSOR STATE (unchanged) ─────────────────────────────────────────────────
 function createCursorState(cfg) {
   const { trailCount, fastDur, slowDur, fadeInMs, fadeOutMs,
-          reanchorMs, dwellMs, baseAlpha } = cfg
+    reanchorMs, dwellMs, baseAlpha } = cfg
 
-  const trail   = Array.from({ length: trailCount }, () => ({ x: -999, y: -999 }))
-  const goal    = { x: -999, y: -999 }
+  const trail = Array.from({ length: trailCount }, () => ({ x: -999, y: -999 }))
+  const goal = { x: -999, y: -999 }
   const ripples = Array.from({ length: cfg.rippleCount * 2 }, () => ({ r: -1, str: 0 }))
 
   let alpha = baseAlpha, anchor = 0, progress = 0
@@ -385,7 +391,7 @@ function createCursorState(cfg) {
     fadeLast = now
     const entering = fadeTgt > 0.5, dir = entering ? 1 : -1
     progress = Math.min(1, Math.max(0, progress + dir * dt / (entering ? fadeInMs : fadeOutMs)))
-    alpha  = entering
+    alpha = entering
       ? Math.max(baseAlpha, easeBack(progress))
       : Math.min(1, baseAlpha + progress * (1 - baseAlpha))
     anchor = Math.min(1, Math.max(0,
@@ -403,7 +409,7 @@ function createCursorState(cfg) {
     const dt = Math.min(preWrapLast ? now - preWrapLast : 16, 64)
     preWrapLast = now
     preWrapProg = Math.min(1, preWrapProg + dt / cfg.preWrapMs)
-    preWrap     = preWrapFrom + (preWrapTo - preWrapFrom) * easeOut(preWrapProg, cfg.preWrapEasePower)
+    preWrap = preWrapFrom + (preWrapTo - preWrapFrom) * easeOut(preWrapProg, cfg.preWrapEasePower)
     if (preWrapProg < 1) {
       preWrapRaf = requestAnimationFrame(preWrapTick)
     } else {
@@ -441,13 +447,13 @@ function createCursorState(cfg) {
   }
 
   return {
-    get trail()      { return trail },
-    get alpha()      { return alpha },
-    get anchor()     { return anchor },
-    get activeId()   { return activeId },
-    get preWrap()    { return preWrap },
+    get trail() { return trail },
+    get alpha() { return alpha },
+    get anchor() { return anchor },
+    get activeId() { return activeId },
+    get preWrap() { return preWrap },
     get pulseScale() { return pulseScale },
-    get ripples()    { return ripples },
+    get ripples() { return ripples },
 
     moveTo(x, y) {
       goal.x = x; goal.y = y
@@ -476,7 +482,7 @@ function createCursorState(cfg) {
       for (const rp of ripples) {
         if (rp.r < 0) continue
         const e = (now - rp.t0) * 0.001
-        rp.r   = e * rp.speed
+        rp.r = e * rp.speed
         rp.str = Math.max(0, 1 - e * 1.2)
         if (rp.str <= 0) rp.r = -1
       }
@@ -490,13 +496,13 @@ function createCursorState(cfg) {
 }
 
 // ─── PROJECTOR (unchanged) ───────────────────────────────────────────────────
-const _v3tmp  = new THREE.Vector3()
+const _v3tmp = new THREE.Vector3()
 const _ndcTmp = new THREE.Vector3()
 
 function createProjector(stride = 3) {
-  let cache   = null
+  let cache = null
   let lastMeshPos = new THREE.Vector3()
-  let lastCamPos  = new THREE.Vector3()
+  let lastCamPos = new THREE.Vector3()
 
   return {
     project(mesh, geo, camera, rW, rH) {
@@ -505,14 +511,14 @@ function createProjector(stride = 3) {
       const camPos = camera.position
 
       const meshMoved = meshWP.distanceTo(lastMeshPos) > 0.001
-      const camMoved  = camPos.distanceTo(lastCamPos)  > 0.05
+      const camMoved = camPos.distanceTo(lastCamPos) > 0.05
 
       if (!cache || meshMoved || camMoved) {
         lastMeshPos.copy(meshWP)
         lastCamPos.copy(camPos)
 
-        const mw    = mesh.matrixWorld
-        const pos   = geo.attributes.position
+        const mw = mesh.matrixWorld
+        const pos = geo.attributes.position
         const count = pos.count
         let minX = Infinity, maxX = -Infinity
         let minY = Infinity, maxY = -Infinity
@@ -522,10 +528,10 @@ function createProjector(stride = 3) {
           _v3tmp.fromBufferAttribute(pos, i).applyMatrix4(mw)
           _ndcTmp.copy(_v3tmp).project(camera)
           if (_ndcTmp.z > 1) continue
-          const sx = (_ndcTmp.x *  0.5 + 0.5) * rW
+          const sx = (_ndcTmp.x * 0.5 + 0.5) * rW
           const sy = (_ndcTmp.y * -0.5 + 0.5) * rH
-          if (sx < minX) minX = sx;  if (sx > maxX) maxX = sx
-          if (sy < minY) minY = sy;  if (sy > maxY) maxY = sy
+          if (sx < minX) minX = sx; if (sx > maxX) maxX = sx
+          if (sy < minY) minY = sy; if (sy > maxY) maxY = sy
           n++
         }
 
@@ -557,12 +563,12 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     const m = new THREE.Mesh(
       obj.geometry,
       new THREE.RawShaderMaterial({
-        vertexShader:   _idVert,
+        vertexShader: _idVert,
         fragmentShader: _idFrag,
         uniforms: { u_id: { value: (i + 1) / 255 } },
-        side:           THREE.DoubleSide,
-        depthTest:      true,
-        depthWrite:     true,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: true,
       })
     )
     m.frustumCulled = false
@@ -576,8 +582,8 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   })
 
   const blobScene = new THREE.Scene()
-  const blobCam   = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
-  const ripUnis   = Array.from({ length: 6 }, () => new THREE.Vector3(-1, 0, 0))
+  const blobCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  const ripUnis = Array.from({ length: 6 }, () => new THREE.Vector3(-1, 0, 0))
 
   const colors8 = Array.from({ length: 8 }, (_, i) =>
     i < objects.length ? objects[i].blobColor : new THREE.Color(0, 0, 0)
@@ -585,50 +591,50 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   const blobColorArr = new Float32Array(colors8.flatMap(c => [c.r, c.g, c.b]))
 
   const mat = new THREE.ShaderMaterial({
-    vertexShader:   _blobVert,
+    vertexShader: _blobVert,
     fragmentShader: _blobFrag,
     uniforms: {
-      u_res:        { value: new THREE.Vector2(rW, rH) },
-      u_blobs:      { value: Array.from({ length: 8 }, () => new THREE.Vector3(-9999, -9999, 0)) },
-      u_count:      { value: cfg.trailCount },
-      u_k:          { value: cfg.smin_k },
-      u_edge:       { value: cfg.edgeSoftness },
-      u_alpha:      { value: 0 },
-      u_time:       { value: 0 },
+      u_res: { value: new THREE.Vector2(rW, rH) },
+      u_blobs: { value: Array.from({ length: 8 }, () => new THREE.Vector3(-9999, -9999, 0)) },
+      u_count: { value: cfg.trailCount },
+      u_k: { value: cfg.smin_k },
+      u_edge: { value: cfg.edgeSoftness },
+      u_alpha: { value: 0 },
+      u_time: { value: 0 },
       u_pulseScale: { value: 1 },
       u_blobColors: { value: blobColorArr },
-      u_cursorColor:{ value: new THREE.Color(CFG_CURSOR_COLOR) },
+      u_cursorColor: { value: new THREE.Color(CFG_CURSOR_COLOR) },
       u_hoverColor: { value: new THREE.Color(cfg.hoverTintColor) },
-      u_hoverMix:   { value: 0 },
-      u_activeIdx:  { value: -1 },
-      u_trigNoise:  { value: cfg.triggeredNoiseStrength },
+      u_hoverMix: { value: 0 },
+      u_activeIdx: { value: -1 },
+      u_trigNoise: { value: cfg.triggeredNoiseStrength },
       u_noiseScale: { value: cfg.blobNoiseScale },
-      u_chromStr:   { value: cfg.chromaticStrength },
+      u_chromStr: { value: cfg.chromaticStrength },
       u_ghostCount: { value: cfg.ghostCount },
-      u_ghostRadius:{ value: cfg.ghostRadius },
+      u_ghostRadius: { value: cfg.ghostRadius },
       u_ghostAlpha: { value: cfg.ghostAlphaFactor },
-      u_lightness:  { value: cfg.lightness },
-      u_breathe:    { value: 1 },
-      u_curl:       { value: cfg.curlStrength },
-      u_prism:      { value: cfg.prismStrength },
-      u_ripples:    { value: ripUnis },
-      tScene:       { value: rtScene.texture },
-      tID:          { value: rtID.texture },
-      u_trailColor:      { value: new THREE.Color(cfg.trailColor) },
-      u_ghostSizeScale:  { value: cfg.ghostSizeScale || [1,1,1,1] },
-      u_ghostSeed:       { value: cfg.ghostSeeds || [0,1,2,3] },
+      u_lightness: { value: cfg.lightness },
+      u_breathe: { value: 1 },
+      u_curl: { value: cfg.curlStrength },
+      u_prism: { value: cfg.prismStrength },
+      u_ripples: { value: ripUnis },
+      tScene: { value: rtScene.texture },
+      tID: { value: rtID.texture },
+      u_trailColor: { value: new THREE.Color(cfg.trailColor) },
+      u_ghostSizeScale: { value: cfg.ghostSizeScale || [1, 1, 1, 1] },
+      u_ghostSeed: { value: cfg.ghostSeeds || [0, 1, 2, 3] },
     },
     depthTest: false,
     depthWrite: false,
   })
   blobScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat))
 
-  const projectors  = objects.map(o => createProjector(o.stride ?? 3))
-  const smoothProj  = objects.map(() => ({ cx: 0, cy: 0, r: 0, init: false }))
-  let   lastProj    = { cx: 0, cy: 0, r: 0, id: 0 }
-  const pixBuf      = new Uint8Array(4)
-  const tmpColor    = new THREE.Color()
-  let   lastTime    = performance.now()
+  const projectors = objects.map(o => createProjector(o.stride ?? 3))
+  const smoothProj = objects.map(() => ({ cx: 0, cy: 0, r: 0, init: false }))
+  let lastProj = { cx: 0, cy: 0, r: 0, id: 0 }
+  const pixBuf = new Uint8Array(4)
+  const tmpColor = new THREE.Color()
+  let lastTime = performance.now()
 
   return {
     projectors,
@@ -636,16 +642,16 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     get lastProj() { return lastProj },
 
     render(cs, scene, curPx, camera) {
-      const now  = performance.now()
+      const now = performance.now()
       const time = now * 0.001
-      const dt   = Math.max(8, now - lastTime)
-      lastTime   = now
+      const dt = Math.max(8, now - lastTime)
+      lastTime = now
 
       cs.updateRipples(now)
 
       const cW = el.clientWidth
       const cH = el.clientHeight
-      const d  = renderer.getPixelRatio()
+      const d = renderer.getPixelRatio()
       const rW2 = cW * d
       const rH2 = cH * d
 
@@ -672,19 +678,21 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
       cs.setHoveredId(pixBuf[0])
 
-      const alpha  = cs.alpha
+      const alpha = cs.alpha
       const anchor = cs.anchor
 
-      // Mesh color mutation
-      objects.forEach((obj, i) => {
-        const active = i === cs.activeId - 1
-        if (obj.colorA && obj.colorB && obj.material?.color) {
-          tmpColor.lerpColors(obj.colorA, obj.colorB, active ? alpha : 0)
-          obj.material.color.copy(tmpColor)
-          if (obj.material.emissive) obj.material.emissive.setScalar(active ? alpha * 0.4 : 0)
-        }
-        if (obj.wireframe) obj.wireframe.material.opacity = active ? 0.15 + alpha * 0.7 : 0.18
-      })
+      // Mesh color mutation (object highlight changed)
+      if (cfg.enableMaterialHighlight) {
+        objects.forEach((obj, i) => {
+          const active = i === cs.activeId - 1
+          if (obj.colorA && obj.colorB && obj.material?.color) {
+            tmpColor.lerpColors(obj.colorA, obj.colorB, active ? alpha : 0)
+            obj.material.color.copy(tmpColor)
+            if (obj.material.emissive) obj.material.emissive.setScalar(active ? alpha * 0.4 : 0)
+          }
+          if (obj.wireframe) obj.wireframe.material.opacity = active ? 0.15 + alpha * 0.7 : 0.18
+        })
+      }
 
       // Scene capture
       renderer.setRenderTarget(rtScene)
@@ -695,15 +703,15 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       renderer.setRenderTarget(null)
       renderer.clear()
 
-      mat.uniforms.u_alpha.value      = alpha
-      mat.uniforms.u_activeIdx.value  = cs.activeId > 0 ? cs.activeId - 1 : -1
-      mat.uniforms.u_hoverMix.value   = (1 - anchor) * cs.preWrap * cfg.hoverTintMix
-      mat.uniforms.u_time.value       = time
+      mat.uniforms.u_alpha.value = alpha
+      mat.uniforms.u_activeIdx.value = cs.activeId > 0 ? cs.activeId - 1 : -1
+      mat.uniforms.u_hoverMix.value = (1 - anchor) * cs.preWrap * cfg.hoverTintMix
+      mat.uniforms.u_time.value = time
       mat.uniforms.u_pulseScale.value = cs.pulseScale
-      mat.uniforms.u_breathe.value    = 1 + Math.sin(time * cfg.breatheFreq * Math.PI * 2) * cfg.breatheAmp
+      mat.uniforms.u_breathe.value = 1 + Math.sin(time * cfg.breatheFreq * Math.PI * 2) * cfg.breatheAmp
       mat.uniforms.u_res.value.set(rW2, rH2)
 
-      const ru   = mat.uniforms.u_ripples.value
+      const ru = mat.uniforms.u_ripples.value
       const rips = cs.ripples
       for (let i = 0; i < 6; i++) {
         const rp = rips[i % rips.length]
@@ -712,7 +720,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
       mat.uniforms.u_trailColor.value.set(cfg.trailColor)
       mat.uniforms.u_ghostSizeScale.value = cfg.ghostSizeScale
-      mat.uniforms.u_ghostSeed.value      = cfg.ghostSeeds
+      mat.uniforms.u_ghostSeed.value = cfg.ghostSeeds
 
       const projIdx = cs.activeId > 0
         ? cs.activeId - 1
@@ -722,12 +730,12 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         const obj = objects[projIdx]
         const raw = projectors[projIdx].project(obj.mesh, obj.geometry, camera, rW2, rH2)
         const tgtR = raw.r * cfg.margin
-        const s    = smoothProj[projIdx]
+        const s = smoothProj[projIdx]
         if (!s.init) { s.cx = raw.cx; s.cy = raw.cy; s.r = tgtR; s.init = true }
         const l = 0.25
         s.cx += (raw.cx - s.cx) * l
         s.cy += (raw.cy - s.cy) * l
-        s.r  += (tgtR   - s.r)  * l
+        s.r += (tgtR - s.r) * l
       }
 
       let projCx = 0, projCy = 0, projR = 0
@@ -740,17 +748,17 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       }
 
       const blobs = mat.uniforms.u_blobs.value
-      const hb    = THREE.MathUtils.clamp((alpha - cfg.baseAlpha) / (1 - cfg.baseAlpha), 0, 1)
+      const hb = THREE.MathUtils.clamp((alpha - cfg.baseAlpha) / (1 - cfg.baseAlpha), 0, 1)
 
       for (let i = 0; i < cfg.trailCount; i++) {
-        const p   = cs.trail[i]
-        const cx  = p.x * d
-        const cy  = rH2 - p.y * d
-        const bx  = projCx * anchor + cx * (1 - anchor)
-        const by  = (rH2 - projCy) * anchor + cy * (1 - anchor)
+        const p = cs.trail[i]
+        const cx = p.x * d
+        const cy = rH2 - p.y * d
+        const bx = projCx * anchor + cx * (1 - anchor)
+        const by = (rH2 - projCy) * anchor + cy * (1 - anchor)
         const baseR = (cfg.sizes[i] ?? cfg.sizes[0]) * d * 0.5
         const idleR = baseR * cfg.untriggeredSizeScale
-                    * (1 + (cfg.preWrapScale - 1) * cs.preWrap * (1 - anchor))
+          * (1 + (cfg.preWrapScale - 1) * cs.preWrap * (1 - anchor))
         blobs[i].set(bx, by, THREE.MathUtils.lerp(idleR, projR > 0 ? projR : idleR, hb))
       }
       for (let i = cfg.trailCount; i < 8; i++) blobs[i].set(-9999, -9999, 0)
@@ -809,20 +817,20 @@ function ObjectTooltip({ title, desc, x, y, color, visible, alpha }) {
 // ─── R3F INNER COMPONENT (unchanged) ─────────────────────────────────────────
 export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateReady }) {
   const { gl, scene, camera } = useThree()
-  const cfg        = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [])
+  const cfg = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [])
   const pipelineRef = useRef(null)
-  const csRef       = useRef(null)
-  const curPxRef    = useRef({ x: -999, y: -999 })
-  const readyRef    = useRef(false)
+  const csRef = useRef(null)
+  const curPxRef = useRef({ x: -999, y: -999 })
+  const readyRef = useRef(false)
 
   useEffect(() => {
     if (!objects?.length || !gl) return
 
     const pipeline = createBlobPipeline(gl, camera, objects, cfg)
-    const cs       = createCursorState(cfg)
+    const cs = createCursorState(cfg)
     pipelineRef.current = pipeline
-    csRef.current       = cs
-    readyRef.current    = true
+    csRef.current = cs
+    readyRef.current = true
     onStateReady?.({ cs, pipeline })
 
     return () => {
@@ -830,7 +838,7 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
       pipeline.dispose()
       cs.dispose()
       pipelineRef.current = null
-      csRef.current       = null
+      csRef.current = null
     }
   }, [objects, gl])
 
@@ -848,10 +856,10 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
     }
     const onLeave = () => csRef.current?.forceLeave()
 
-    el.addEventListener('mousemove',  onMove,  { passive: true })
+    el.addEventListener('mousemove', onMove, { passive: true })
     el.addEventListener('mouseleave', onLeave, { passive: true })
     return () => {
-      el.removeEventListener('mousemove',  onMove)
+      el.removeEventListener('mousemove', onMove)
       el.removeEventListener('mouseleave', onLeave)
     }
   }, [eventTarget, gl])
@@ -874,8 +882,8 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
 // ─── DOM OVERLAY (unchanged) ─────────────────────────────────────────────────
 export function MetaballCursorOverlay({ objects, stateRef, showHint = true }) {
   const [labelState, setLabelState] = useState({ idx: -1, x: 0, y: 0, visible: false, alpha: 0 })
-  const rafRef      = useRef(null)
-  const lastHovRef  = useRef(-1)
+  const rafRef = useRef(null)
+  const lastHovRef = useRef(-1)
   const lastAlphaRef = useRef(0)
 
   useEffect(() => {
@@ -888,7 +896,7 @@ export function MetaballCursorOverlay({ objects, stateRef, showHint = true }) {
       const { cs, pipeline } = stateRef?.current ?? {}
       if (!cs || !pipeline) return
 
-      const newHov   = cs.activeId - 1
+      const newHov = cs.activeId - 1
       const curAlpha = cs.anchor > 0.01
         ? Math.min(1, (cs.alpha - DEFAULT_CFG.baseAlpha) / (1 - DEFAULT_CFG.baseAlpha))
         : 0
