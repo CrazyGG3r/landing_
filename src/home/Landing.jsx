@@ -336,7 +336,7 @@ export default function Landing({
   const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
   const showLandingText = scene === 'landing' || isTransitioning;
   const preloaderAssets = useMemo(() => ({
-    images: ['/assets/images/banners/NGE.jpg'],
+    images: ['/images/banners/NGE.jpg'],
     json: ['/models/manifest.json'],
     binary: modelUrl ? [modelUrl] : [],
     preloaders: [],

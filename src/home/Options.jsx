@@ -32,9 +32,9 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
 
   const imageForLabel = useMemo(
     () => ({
-      Portfolio: '/assets/images/banners/NGE.jpg',
-      About: '/assets/images/banners/NGE.jpg',
-      Contact: '/assets/images/banners/NGE.jpg',
+      Portfolio: '/images/banners/NGE.jpg',
+      About: '/images/banners/NGE.jpg',
+      Contact: '/images/banners/NGE.jpg',
     }),
     []
   );

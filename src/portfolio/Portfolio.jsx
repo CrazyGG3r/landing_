@@ -12,7 +12,7 @@ import { MetaballCursorOverlay } from './MetaballCursorOverlay'   // <-- updated
 // ============= CONFIGURATION =============
 const CONFIG = {
   // Model
-  modelPath:             'assets/scenes/Scene1.glb',
+  modelPath:             'scenes/Scene1.glb',
 
   // Camera path — must match exact object name in the GLB (case-insensitive)
   cameraPathObjectName:  'CameraPath',
@@ -750,10 +750,11 @@ export default function Portfolio() {
 
       {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
         <MetaballCursorOverlay
-          objects={metaballObjects}
-          stateRef={metaballStateRef}
-          showHint={true}
-        />
+  objects={metaballObjects}
+  stateRef={metaballStateRef}
+  containerWidth={300}
+  containerHeight={120}
+/>
       )}
     </div>
   )
