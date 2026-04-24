@@ -7,9 +7,9 @@ export const SMAA_ENABLED = true;
 export const MODEL_ROUGHNESS = 0.2;
 export const MODEL_FRESNEL = 2.5;
 // Post FX tweaks
-export const BLOOM_STRENGTH = 0.25;
+export const BLOOM_STRENGTH = 0.15;
 export const BLOOM_RADIUS = 0.4;
-export const BLOOM_THRESHOLD = 0.1;
+export const BLOOM_THRESHOLD = 0.2;
 export const CHROMA_SHIFT = 0.0012;
 export const LENS_BLUR = 0.25;
 export const DOF_FOCUS = 1.5;
@@ -41,7 +41,7 @@ export const FONT_SUBTITLE = '"BL Melody ExtraLight", "Arial", sans-serif';
 export const FONT_LETTERBOX_TITLE = '"BL Melody Mono Bold", monospace';
 export const FONT_LETTERBOX_SUBTITLE = '"BL Melody Mono ExtraLight", monospace';
 // Background blend exposure
-export const CB_EXPOSURE = 0.85;
+export const CB_EXPOSURE = 0.55;
 // Shadow settings
 export const TITLE_SHADOW_INTENSITY = 0.45;
 export const TITLE_SHADOW_BLUR = 28;

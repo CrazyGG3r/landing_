@@ -36,8 +36,8 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
     () => ({
       Portfolio: '/images/banners/1.jpg',
       About: '/images/banners/2.jpg',
-      News: '/images/banners/4.jpg', // new image mapping
-      Contact: '/images/banners/3.jpg',
+      News: '/images/banners/3.jpg', // new image mapping
+      Contact: '/images/banners/4.jpg',
     }),
     []
   );
