@@ -14,28 +14,51 @@
  *   cs.anchor            — float 0→1: how "locked" the cursor is onto the object
  *   cs.alpha             — float: current metaball opacity
  *   pipeline.smoothProj  — array of { cx, cy, r } in canvas-pixel coords
+ *
+ * ---------------------------------------------------------------
+ * USAGE:
+ *   <MetaballCursorOverlay
+ *     objects={metaballObjects}
+ *     stateRef={metaballStateRef}
+ *     render={({ object, visible, side }) => (
+ *       <div>
+ *         <h3>{object.title}</h3>
+ *         <p>{object.desc}</p>
+ *         <img src={object.image} alt="" />
+ *         <button>Learn more</button>
+ *       </div>
+ *     )}
+ *   />
+ *
+ *   // Or use children:
+ *   <MetaballCursorOverlay ...>
+ *     {({ object }) => <CustomCard data={object} />}
+ *   </MetaballCursorOverlay>
+ *
+ *   // If neither render nor children given, a minimal default shows title & desc.
+ * ---------------------------------------------------------------
  */
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 
 // ─── TUNABLES ────────────────────────────────────────────────────────────────
 
-const CARD_WIDTH      = 260   // fixed width; height is auto
-const H_OFFSET        = 22    // horizontal gap: object edge → card edge  (px)
+const CARD_WIDTH = 260   // fixed width; height is auto
+const CARD_WIDTH_DEFAULT = 260
+const H_OFFSET = 22    // horizontal gap: object edge → card edge  (px)
 const V_CENTER_OFFSET = 0     // vertical nudge from object center          (px)
-const EDGE_MARGIN     = 14    // min distance from any viewport edge        (px)
+const EDGE_MARGIN = 14    // min distance from any viewport edge        (px)
 
 // Anchor thresholds — card appears/disappears based on cs.anchor value
-// anchor rises 0→1 as the dwell timer fires and the blob "locks on"
-const ANCHOR_SHOW_THRESHOLD = 0.55  // anchor must exceed this to show card
-const ANCHOR_HIDE_THRESHOLD = 0.30  // anchor must drop below this to hide card
+const ANCHOR_SHOW_THRESHOLD = 0.55
+const ANCHOR_HIDE_THRESHOLD = 0.30
 
-const SIDE_DEADZONE   = 0.07  // fraction of winW — side won't flip inside this band around center
-const POS_LERP        = 0.14  // exponential lerp factor per rAF frame (0 = frozen, 1 = instant)
+const SIDE_DEADZONE = 0.07  // fraction of winW — side won't flip inside this band
+const POS_LERP = 0.14  // exponential smoothing factor per rAF frame
 
-// CSS transition durations (ms)
-const FADE_IN_MS      = 200
-const FADE_OUT_MS     = 120
+// CSS transitions (ms)
+const FADE_IN_MS = 200
+const FADE_OUT_MS = 120
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +68,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 
 function useWindowSize() {
   const [size, setSize] = useState(() => ({
-    w: typeof window !== 'undefined' ? window.innerWidth  : 1200,
+    w: typeof window !== 'undefined' ? window.innerWidth : 1200,
     h: typeof window !== 'undefined' ? window.innerHeight : 800,
   }))
 
@@ -63,56 +86,44 @@ function useWindowSize() {
 }
 
 // ─── HOOK: useMetaballTracker ─────────────────────────────────────────────────
-// Polls stateRef every rAF frame.
-//
-// Returns:
-//   activeIdx  — React state, triggers re-render only on object switch
-//   visible    — React state, driven by cs.anchor crossing thresholds
-//   getPos     — stable callback returning current smoothed canvas-px position
-//   canvasToWindow — converts canvas-px coords → window CSS-px coords
 
 function useMetaballTracker(objects, stateRef, canvasRef) {
   const [activeIdx, setActiveIdx] = useState(-1)
-  const [visible,   setVisible]   = useState(false)
+  const [visible, setVisible] = useState(false)
 
-  // Live refs — updated every rAF, never trigger React re-renders
-  const posRef      = useRef({ x: 0, y: 0 })
-  const targetRef   = useRef({ x: 0, y: 0 })
-  // Smoothed projected radius in canvas-px, converted to CSS-px for positioning.
-  // Tracks the ID-mask silhouette radius so the card never overlaps the mesh.
-  const projRRef    = useRef(0)
-  const rafRef      = useRef(null)
-  const lastIdxRef  = useRef(-1)
-  const visRef      = useRef(false)   // shadow of `visible` to skip redundant setState
+  const posRef = useRef({ x: 0, y: 0 })
+  const targetRef = useRef({ x: 0, y: 0 })
+  const projRRef = useRef(0)
+  const rafRef = useRef(null)
+  const lastIdxRef = useRef(-1)
+  const visRef = useRef(false)
 
   useEffect(() => {
     const tick = () => {
       const { cs, pipeline } = stateRef?.current ?? {}
 
       if (cs && pipeline) {
-        const idx = cs.activeId - 1   // -1 means nothing hovered
+        const idx = cs.activeId - 1
 
-        // ── Position + radius tracking ────────────────────────────────────
+        // ── position + projected radius ────────────────────────────────
         if (idx >= 0 && pipeline.smoothProj[idx]) {
           const p = pipeline.smoothProj[idx]
           targetRef.current.x = p.cx
           targetRef.current.y = p.cy
-          // p.r is in canvas device-pixels; convert to CSS pixels for DOM use
           const dpr = window.devicePixelRatio || 1
           projRRef.current += (p.r / dpr - projRRef.current) * POS_LERP
         }
         posRef.current.x += (targetRef.current.x - posRef.current.x) * POS_LERP
         posRef.current.y += (targetRef.current.y - posRef.current.y) * POS_LERP
 
-        // ── Active index — only re-render on switch ────────────────────────
+        // ── active index ──────────────────────────────────────────────
         if (idx !== lastIdxRef.current) {
           lastIdxRef.current = idx
           setActiveIdx(idx)
         }
 
-        // ── Visibility — driven by cs.anchor crossing hysteresis band ──────
-        const anchor = cs.anchor   // 0 (idle) → 1 (fully triggered)
-
+        // ── visibility (anchor hysteresis) ────────────────────────────
+        const anchor = cs.anchor
         if (!visRef.current && anchor >= ANCHOR_SHOW_THRESHOLD) {
           visRef.current = true
           setVisible(true)
@@ -129,30 +140,26 @@ function useMetaballTracker(objects, stateRef, canvasRef) {
     return () => cancelAnimationFrame(rafRef.current)
   }, [objects, stateRef])
 
-  const getPos    = useCallback(() => ({ ...posRef.current }), [])
-  // Returns the live smoothed CSS-px radius of the active object's projected silhouette
-  const getProjR  = useCallback(() => projRRef.current, [])
+  const getPos = useCallback(() => ({ ...posRef.current }), [])
+  const getProjR = useCallback(() => projRRef.current, [])
 
   const canvasToWindow = useCallback((cx, cy) => {
     if (!canvasRef?.current) return { x: cx, y: cy }
     const rect = canvasRef.current.getBoundingClientRect()
-    const dpr  = window.devicePixelRatio || 1
+    const dpr = window.devicePixelRatio || 1
     return {
       x: rect.left + cx / dpr,
-      y: rect.top  + cy / dpr,
+      y: rect.top + cy / dpr,
     }
   }, [canvasRef])
 
   return { activeIdx, visible, getPos, getProjR, canvasToWindow }
 }
 
-// ─── POSITIONING: resolvePosition ────────────────────────────────────────────
-// projR — CSS-px radius of the object's projected ID-mask silhouette.
-// The card's nearest edge is placed at  objCenter ± (projR + H_OFFSET),
-// guaranteeing it never overlaps the mesh silhouette regardless of object size.
+// ─── POSITIONING ─────────────────────────────────────────────────────────────
 
 function resolvePosition({ ox, oy, side, projR, cardW, cardH, winW, winH }) {
-  const reach = projR + H_OFFSET   // distance from center to card near-edge
+  const reach = projR + H_OFFSET
 
   let left = side === 'right'
     ? ox + reach
@@ -208,68 +215,14 @@ function useMeasuredHeight(ref) {
   return height
 }
 
-// ─── CARD ─────────────────────────────────────────────────────────────────────
+// ─── CARD SHELL ───────────────────────────────────────────────────────────────
+// A generic, animated container that you can fill with anything.
+// Animations (opacity + scale) are applied automatically based on `visible`.
 
-function Card({ object, side, visible }) {
-  const align = side === 'right' ? 'left' : 'right'
-
+function CardShell({ side, visible, children }) {
   return (
-    <div
-      style={{
-        width: '100%',
-        padding: '8px 12px',
-        boxSizing: 'border-box',
-        textAlign: align,
-        fontFamily: '"DM Mono", "Fira Mono", ui-monospace, monospace',
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'scale(1) translateY(0)' : 'scale(0.96) translateY(4px)',
-        transition: visible
-          ? `opacity ${FADE_IN_MS}ms ease, transform ${FADE_IN_MS}ms ease`
-          : `opacity ${FADE_OUT_MS}ms ease, transform ${FADE_OUT_MS}ms ease`,
-        pointerEvents: 'none',
-        userSelect: 'none',
-        willChange: 'opacity, transform',
-      }}
-    >
-      {object?.title && (
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 500,
-            letterSpacing: '0.03em',
-            color: '#fff',
-            lineHeight: 1.4,
-            textShadow: '0 2px 8px rgba(0,0,0,0.6)',
-          }}
-        >
-          {object.title}
-        </div>
-      )}
-      {object?.desc && (
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: 11,
-            letterSpacing: '0.02em',
-            color: 'rgba(255,255,255,0.7)',
-            lineHeight: 1.5,
-            textShadow: '0 2px 6px rgba(0,0,0,0.5)',
-          }}
-        >
-          {object.desc}
-        </div>
-      )}
-      <img
-        src="/test/test.png"
-        alt="test"
-        style={{
-          display: 'block',
-          marginTop: 10,
-          maxWidth: '100%',
-          height: 'auto',
-          borderRadius: 4,
-        }}
-      />
+    <div>
+      {children}
     </div>
   )
 }
@@ -302,13 +255,15 @@ function Hint({ show }) {
 // ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
 
 /**
+ * MetaballCursorOverlay
+ *
  * @param {object[]}  objects    — metaball object array (from buildMetaballObjects)
  * @param {React.MutableRefObject} stateRef — ref holding { cs, pipeline }
  * @param {React.MutableRefObject} [canvasRef] — ref to the <canvas> DOM element
- * @param {boolean}   [showHint=true]
- * @param {string}    [className='']
+ * @param {boolean}   [showHint=true] — show "hover any object" hint when idle
+ * @param {string}    [className=''] — CSS class for the outer wrapper
  * @param {Function}  [render]   — custom render prop: ({ object, visible, side }) => ReactNode
- * @param {ReactNode} [children]
+ * @param {Function|ReactNode} [children] — children as render function or static element
  */
 export function MetaballCursorOverlay({
   objects,
@@ -318,13 +273,15 @@ export function MetaballCursorOverlay({
   className = '',
   render,
   children,
+  cardWidth = CARD_WIDTH_DEFAULT,   // <-- new prop
 }) {
-  const win          = useWindowSize()
-  const getSide      = useSideMemory()
-  const wrapperRef   = useRef(null)
+  const win = useWindowSize()
+  const getSide = useSideMemory()
+  const wrapperRef = useRef(null)
   const cardInnerRef = useRef(null)
-  const cardH        = useMeasuredHeight(cardInnerRef)
-  const posLockRef   = useRef(false)
+  const cardW = cardWidth;
+  const cardH = useMeasuredHeight(cardInnerRef)
+  const posLockRef = useRef(false)
   const sideStateRef = useRef('right')
 
   const { activeIdx, visible, getPos, getProjR, canvasToWindow } =
@@ -332,7 +289,7 @@ export function MetaballCursorOverlay({
 
   const isActive = activeIdx >= 0
 
-  // Current object data — only changes on index switch
+  // Current object data – only changes on index switch
   const object = useMemo(
     () => (activeIdx >= 0 ? objects?.[activeIdx] ?? null : null),
     [activeIdx, objects]
@@ -340,7 +297,7 @@ export function MetaballCursorOverlay({
 
   const [side, setSide] = useState('right')
 
-  // ── Positioning loop — writes DOM directly, zero React re-renders ─────────
+  // ── smooth positioning loop ─────────────────────────────────────────────
   useEffect(() => {
     let raf = null
 
@@ -358,23 +315,23 @@ export function MetaballCursorOverlay({
 
         const { left, top } = resolvePosition({
           ox, oy,
-          side:  sideStateRef.current,
+          side: sideStateRef.current,
           projR: getProjR(),
-          cardW: CARD_WIDTH,
+          cardW,          // <-- use the prop
           cardH,
-          winW:  win.w,
-          winH:  win.h,
+          winW: win.w,
+          winH: win.h,
         })
 
         if (!posLockRef.current) {
           el.style.transition = 'none'
           el.style.left = `${left}px`
-          el.style.top  = `${top}px`
+          el.style.top = `${top}px`
           posLockRef.current = true
         } else {
           el.style.transition = 'left 0.1s cubic-bezier(0.25,0.46,0.45,0.94), top 0.1s cubic-bezier(0.25,0.46,0.45,0.94)'
           el.style.left = `${left}px`
-          el.style.top  = `${top}px`
+          el.style.top = `${top}px`
         }
       }
 
@@ -385,14 +342,41 @@ export function MetaballCursorOverlay({
     return () => cancelAnimationFrame(raf)
   }, [isActive, getPos, canvasToWindow, getSide, cardH, win])
 
-  // Reset posLock when card fully hides so next appearance snaps
+  // reset position lock when hidden → next appearance snaps immediately
   useEffect(() => {
     if (!visible) posLockRef.current = false
   }, [visible])
 
-  const content = render
-    ? render({ object, visible, side })
-    : children || <Card object={object} side={side} visible={visible} />
+  // ── content resolution ─────────────────────────────────────────────────
+  // 1. render prop wins
+  // 2. children (if a function, call it; otherwise render directly)
+  // 3. fallback: minimal default using object.title / object.desc
+  const resolveContent = () => {
+    if (render) return render({ object, visible, side })
+    if (typeof children === 'function') return children({ object, visible, side })
+    if (children) return children
+
+    // default tidy card if nothing provided – no hardcoded image
+    if (object) {
+      return (
+        <>
+          {object.title && (
+            <div style={{ fontSize: 13, fontWeight: 500, letterSpacing: '0.03em', lineHeight: 1.4 }}>
+              {object.title}
+            </div>
+          )}
+          {object.desc && (
+            <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7, lineHeight: 1.5 }}>
+              {object.desc}
+            </div>
+          )}
+        </>
+      )
+    }
+    return null
+  }
+
+  const content = resolveContent()
 
   return (
     <div
@@ -406,23 +390,22 @@ export function MetaballCursorOverlay({
     >
       <div
         ref={wrapperRef}
-        className={className}
         style={{
           position: 'absolute',
-          width: CARD_WIDTH,
+          width: cardW,   // <-- use the prop width
           top: 0,
           left: 0,
           pointerEvents: 'none',
-          // Only render in the DOM when an object is being tracked;
-          // the Card itself handles opacity/transform for the triggered fade
           visibility: isActive ? 'visible' : 'hidden',
         }}
       >
+        {/* inner container measured for height */}
         <div ref={cardInnerRef}>
-          {content}
+          <CardShell side={side} visible={visible}>
+            {content}
+          </CardShell>
         </div>
       </div>
-
       {showHint && <Hint show={!visible && !isActive} />}
     </div>
   )

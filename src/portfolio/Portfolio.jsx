@@ -19,6 +19,7 @@ import {
   PostCompositeOverlay,
   buildPostCompositeFilter,
 } from './PortfolioCompositeEffects'
+import RetroTitle from './RetroTitle'   // adjust path as needed
 
 const CONFIG = {
   modelPath: 'scenes/Portfolio.glb',
@@ -54,10 +55,10 @@ const CONFIG = {
   debugMode: false,
   useGradientSkybox: true,
   skyboxRadius: 500,
-  startCenterColor: '#ccfff0',
-  startEdgeColor: '#006b4f',
-  endCenterColor: '#cfff99',
-  endEdgeColor: '#2a9e00',
+  startCenterColor: '#7df1cb', //'#ccfff0'
+  startEdgeColor: '#015230', //'#006b4f'
+  endCenterColor: '#f3ca7f', //'#cfff99'
+  endEdgeColor: '#fa8541', //'#2a9e00'
   skyboxIntensity: 1,
   useStaticVignette: true,
   vignetteStrength: 0.26,
@@ -1161,8 +1162,20 @@ export default function Portfolio() {
         <MetaballCursorOverlay
           objects={metaballObjects}
           stateRef={metaballStateRef}
-          containerWidth={300}
-          containerHeight={120}
+          cardWidth={400}                // generous width for the retro text
+          render={({ object, visible }) => {
+            // Only render when the cursor has fully locked on (visible===true)
+            if (!visible || !object) return null;
+
+            // Force remount when the hovered object changes → animation replays
+            return (
+              <RetroTitle
+                key={object.title}
+                title={object.title}
+                description={object.desc ?? ''}
+              />
+            );
+          }}
         />
       )}
     </div>
