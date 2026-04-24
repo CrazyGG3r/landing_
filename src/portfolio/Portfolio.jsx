@@ -852,18 +852,24 @@ export default function Portfolio() {
     setPathPoints(extractedPoints)
     setMarkers(extractedMarkers)
 
-    if (interactiveMeshes.length > 0) {
-      const objects = buildMetaballObjects(interactiveMeshes)
+    // Filter interactiveMeshes: keep only those with name starting with "I_"
+    const filteredMeshes = (interactiveMeshes || []).filter(
+      (mesh) => mesh && mesh.name && mesh.name.startsWith('I_')
+    )
+
+    if (filteredMeshes.length > 0) {
+      const objects = buildMetaballObjects(filteredMeshes)
       setMetaballObjects(objects)
 
-      console.log(`🫧 MetaballCursor: ${objects.length} objects registered`)
+      console.log(`🫧 MetaballCursor: ${objects.length} interactive objects registered`)
       objects.forEach((object, index) => {
         console.log(
-          `   [${index}] "${object.label}" (${object.geometry.attributes.position.count} verts, stride ${object.stride})`,
+          `   [${index}] "${object.label}" → title="${object.title}" desc="${object.desc}"` +
+          ` (${object.geometry.attributes.position.count} verts, stride ${object.stride})`,
         )
       })
     } else {
-      console.warn('⚠️ No interactive meshes found — MetaballCursor will be inactive.')
+      console.warn('⚠️ No interactive meshes (with "I_" prefix) found — MetaballCursor will be inactive.')
     }
 
     if (extractedPoints.length < 2) {
@@ -1099,10 +1105,10 @@ export default function Portfolio() {
               )}
 
               <Environment
-  files={CONFIG.hdriPath}
-  background={false}
-  intensity={CONFIG.environmentIntensity}
-/>
+                files={CONFIG.hdriPath}
+                background={false}
+                intensity={CONFIG.environmentIntensity}
+              />
 
               <directionalLight
                 position={CONFIG.directionalLightPosition}

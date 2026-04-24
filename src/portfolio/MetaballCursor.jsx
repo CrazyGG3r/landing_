@@ -12,96 +12,87 @@ import * as THREE from 'three'
 // ────────────────────────────────────────────────────────────────────────────────
 // 🔧 BEHAVIOR & ANIMATION
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_TRAIL_COUNT = 3                 // number of trailing metaballs (max 8)
-const CFG_TRAIL_SIZES = [18, 38, 22]      // base radii (px) for each trail blob
-const CFG_FAST_DURATION_MS = 110               // lerp speed for last (fastest) blob
-const CFG_SLOW_DURATION_MS = 750               // lerp speed for earlier (slower) blobs
-const CFG_DWELL_MS = 900               // hover duration before full activation
-const CFG_FADE_IN_MS = 500               // fade‑in animation duration
-const CFG_FADE_OUT_MS = 140               // fade‑out animation duration
-const CFG_REANCHOR_MS = 110               // anchor lerp duration
-const CFG_PRE_WRAP_MS = 260               // pre‑wrap scaling animation duration
-const CFG_PRE_WRAP_SCALE = 1.58              // extra scale factor during pre‑wrap
-const CFG_PRE_WRAP_EASE_POWER = 3                 // easing exponent for pre‑wrap
+const CFG_TRAIL_COUNT = 3
+const CFG_TRAIL_SIZES = [18, 38, 22]
+const CFG_FAST_DURATION_MS = 110
+const CFG_SLOW_DURATION_MS = 750
+const CFG_DWELL_MS = 900
+const CFG_FADE_IN_MS = 500
+const CFG_FADE_OUT_MS = 140
+const CFG_REANCHOR_MS = 110
+const CFG_PRE_WRAP_MS = 260
+const CFG_PRE_WRAP_SCALE = 1.58
+const CFG_PRE_WRAP_EASE_POWER = 3
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🎨 VISUAL STYLE – TRAIL & METABALLS
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_SMIN_K = 0.22              // smooth min factor for blob fusion
-const CFG_EDGE_SOFTNESS = 0.0006            // edge softness (relative to resolution)
-const CFG_PULSE_SCALE = 1.28              // max scale during pulse
-const CFG_PULSE_DURATION_MS = 380               // pulse duration (ms)
-const CFG_BASE_ALPHA = 0.28              // base alpha when idle
-const CFG_LIGHTNESS = 0.65              // lightness boost for trail/ghost colors
-const CFG_UNTRIGGERED_SIZE_SCALE = 0.72            // size multiplier when not fully active
-const CFG_BREATHE_AMP = 0.06              // breathing amplitude
-const CFG_BREATHE_FREQ = 0.9               // breathing frequency (Hz)
+const CFG_SMIN_K = 0.22
+const CFG_EDGE_SOFTNESS = 0.0006
+const CFG_PULSE_SCALE = 1.28
+const CFG_PULSE_DURATION_MS = 380
+const CFG_BASE_ALPHA = 0.28
+const CFG_LIGHTNESS = 0.65
+const CFG_UNTRIGGERED_SIZE_SCALE = 0.72
+const CFG_BREATHE_AMP = 0.06
+const CFG_BREATHE_FREQ = 0.9
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🌊 NOISE & DISTORTION
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_TRIGGERED_NOISE_STR = 300                // noise strength when active
-const CFG_BLOB_NOISE_SCALE = 0.008             // base noise scale
-const CFG_CHROMATIC_STRENGTH = 3.2               // chromatic aberration intensity
-const CFG_CURL_STRENGTH = 18                // curl displacement amount
-const CFG_PRISM_STRENGTH = 0.7               // prismatic color shift intensity
+const CFG_TRIGGERED_NOISE_STR = 300
+const CFG_BLOB_NOISE_SCALE = 0.008
+const CFG_CHROMATIC_STRENGTH = 3.2
+const CFG_CURL_STRENGTH = 18
+const CFG_PRISM_STRENGTH = 0.7
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 👻 GHOST BLOBS
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_GHOST_COUNT = 4                 // number of orbiting ghost blobs
-const CFG_GHOST_RADIUS = 14                // orbit radius (px)
-const CFG_GHOST_ALPHA_FACTOR = 0.55              // ghost opacity multiplier
-const CFG_GHOST_SIZE_SCALE = [0.7, 0.8, 0.9, 1.0] // per‑ghost size multiplier
-const CFG_GHOST_SEEDS = [0.0, 1.5, 3.0, 4.5]  // per‑ghost noise seed offsets (unhovered)
+const CFG_GHOST_COUNT = 4
+const CFG_GHOST_RADIUS = 14
+const CFG_GHOST_ALPHA_FACTOR = 0.55
+const CFG_GHOST_SIZE_SCALE = [0.7, 0.8, 0.9, 1.0]
+const CFG_GHOST_SEEDS = [0.0, 1.5, 3.0, 4.5]
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🎲 HOVERED-STATE RANDOMNESS
-// Per-object seeds that give each object a unique "fingerprint" when hovered.
-// Generated deterministically from object index so they're stable across frames.
 // ────────────────────────────────────────────────────────────────────────────────
-// Each object gets:
-//   hoveredAngleSeed   — rotational offset for ghost orbit phase (radians)
-//   hoveredNoiseOffset — 2D offset into noise field (x, y)
-//   hoveredOrbitSpeed  — multiplier on orbit angular speed (0.8–1.4)
-//   hoveredSizeJitter  — extra scale jitter per ghost slot (4 floats)
-// All packed into uniform arrays indexed by object idx.
-
-const CFG_HOVERED_ANGLE_VARIATION = Math.PI * 2   // full rotation pool
-const CFG_HOVERED_NOISE_OFFSET_RANGE = 50.0       // how far into noise field to offset
-const CFG_HOVERED_ORBIT_SPEED_MIN = 0.7           // slowest orbit speed multiplier
-const CFG_HOVERED_ORBIT_SPEED_MAX = 1.5           // fastest orbit speed multiplier
-const CFG_HOVERED_GHOST_JITTER = 0.25             // ± jitter on per-ghost size when hovered
+const CFG_HOVERED_ANGLE_VARIATION = Math.PI * 2
+const CFG_HOVERED_NOISE_OFFSET_RANGE = 50.0
+const CFG_HOVERED_ORBIT_SPEED_MIN = 0.7
+const CFG_HOVERED_ORBIT_SPEED_MAX = 1.5
+const CFG_HOVERED_GHOST_JITTER = 0.25
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🌈 COLORS
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_HOVER_TINT_COLOR = 0x9fe8ff          // hover tint (hex)
-const CFG_HOVER_TINT_MIX = 0.78              // how much hover color blends in
-const CFG_TRAIL_COLOR = '#ffffff'         // primary trail color (forced white)
-const CFG_CURSOR_COLOR = 0xffffff          // fallback cursor color
+const CFG_HOVER_TINT_COLOR = 0x9fe8ff
+const CFG_HOVER_TINT_MIX = 0.78
+const CFG_TRAIL_COLOR = '#ffffff'
+const CFG_CURSOR_COLOR = 0xffffff
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 🖼️ MASKING & ID RESOLUTION
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_ID_RESOLUTION = 1024              // ID texture size (higher = sharper mask)
-const CFG_PROJECTION_MARGIN = 1.1               // extra margin around projected bounds
+const CFG_ID_RESOLUTION = 1024
+const CFG_PROJECTION_MARGIN = 1.1
 
 // ────────────────────────────────────────────────────────────────────────────────
 // 💧 RIPPLES
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_RIPPLE_COUNT = 3                 // number of ripples per pulse
+const CFG_RIPPLE_COUNT = 3
 
 // ────────────────────────────────────────────────────────────────────────────────
 // ✨ HIGHLIGHT BEHAVIOR
 // ────────────────────────────────────────────────────────────────────────────────
-const CFG_ENABLE_MATERIAL_HIGHLIGHT = false   // set to true to re-enable the blinking effect
+const CFG_ENABLE_MATERIAL_HIGHLIGHT = false
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // END OF CENTRAL CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── SEEDED PRNG (deterministic, no global state) ────────────────────────────
+// ─── SEEDED PRNG ────────────────────────────────────────────────────────────
 function seededRng(seed) {
   let s = (seed * 2654435769) | 0
   return () => {
@@ -111,11 +102,6 @@ function seededRng(seed) {
   }
 }
 
-/**
- * generateObjectHoveredSeeds(objectIndex, label)
- * Returns a stable, deterministic set of per-object hovered randomness values.
- * Called once per object during buildMetaballObjects.
- */
 function generateObjectHoveredSeeds(objectIndex, label = '') {
   let seedVal = objectIndex * 73856093
   for (let i = 0; i < label.length; i++) {
@@ -123,38 +109,27 @@ function generateObjectHoveredSeeds(objectIndex, label = '') {
   }
   const rng = seededRng(seedVal)
 
-  const angleSeed = rng() * CFG_HOVERED_ANGLE_VARIATION
-  const noiseOffsetX = (rng() - 0.5) * 2 * CFG_HOVERED_NOISE_OFFSET_RANGE
-  const noiseOffsetY = (rng() - 0.5) * 2 * CFG_HOVERED_NOISE_OFFSET_RANGE
-  const orbitSpeed = CFG_HOVERED_ORBIT_SPEED_MIN + rng() * (CFG_HOVERED_ORBIT_SPEED_MAX - CFG_HOVERED_ORBIT_SPEED_MIN)
-
-  // 4 per-ghost size jitter values (multiplicative on CFG_GHOST_SIZE_SCALE)
-  const ghostSizeJitter = [
-    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
-    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
-    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
-    1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
-  ]
-
-  // Phase offset per ghost (spread differently per object)
-  const ghostPhaseOffset = [
-    rng() * Math.PI * 2,
-    rng() * Math.PI * 2,
-    rng() * Math.PI * 2,
-    rng() * Math.PI * 2,
-  ]
-
   return {
-    angleSeed,
-    noiseOffsetX,
-    noiseOffsetY,
-    orbitSpeed,
-    ghostSizeJitter,
-    ghostPhaseOffset,
+    angleSeed: rng() * CFG_HOVERED_ANGLE_VARIATION,
+    noiseOffsetX: (rng() - 0.5) * 2 * CFG_HOVERED_NOISE_OFFSET_RANGE,
+    noiseOffsetY: (rng() - 0.5) * 2 * CFG_HOVERED_NOISE_OFFSET_RANGE,
+    orbitSpeed: CFG_HOVERED_ORBIT_SPEED_MIN + rng() * (CFG_HOVERED_ORBIT_SPEED_MAX - CFG_HOVERED_ORBIT_SPEED_MIN),
+    ghostSizeJitter: [
+      1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+      1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+      1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+      1 + (rng() - 0.5) * 2 * CFG_HOVERED_GHOST_JITTER,
+    ],
+    ghostPhaseOffset: [
+      rng() * Math.PI * 2,
+      rng() * Math.PI * 2,
+      rng() * Math.PI * 2,
+      rng() * Math.PI * 2,
+    ],
   }
 }
 
-// ─── COLOR PALETTE (used for object highlight gradients) ──────────────────────
+// ─── COLOR PALETTE ──────────────────────────────────────────────────────────
 export const METABALL_PALETTE = [
   { blob: new THREE.Color(0.25, 0.50, 0.95), a: new THREE.Color(0.35, 0.60, 1.00), b: new THREE.Color(0.60, 0.85, 1.00) },
   { blob: new THREE.Color(0.75, 0.20, 0.85), a: new THREE.Color(0.85, 0.35, 0.90), b: new THREE.Color(1.00, 0.60, 1.00) },
@@ -168,9 +143,8 @@ export const METABALL_PALETTE = [
 
 /**
  * buildMetaballObjects(meshes)
- * Converts THREE.Mesh[] (from SceneLoader.interactiveMeshes) into MetaballObject[].
- * Adaptive stride: large meshes sample fewer vertices for fast projection.
- * Now also attaches per-object hovered randomness seeds.
+ * Parses the name "I_Title_Description" and sets title/desc properties.
+ * Only objects with the "I_" prefix should be passed in.
  */
 export function buildMetaballObjects(meshes) {
   return meshes.map((mesh, i) => {
@@ -180,11 +154,33 @@ export function buildMetaballObjects(meshes) {
     const colorB = pal.b.clone()
     const blobColor = pal.blob.clone()
 
-    // Adaptive stride: aim for ~600 sampled vertices max per mesh
     const vertCount = mesh.geometry.attributes.position.count
     const stride = Math.max(1, Math.floor(vertCount / 600))
 
-    const label = mesh.name || `Object ${i + 1}`
+    const rawName = mesh.name || `Object ${i + 1}`
+    let label = rawName
+    let title = null
+    let desc = null
+
+    // Parse name according to convention: I_Title_Description
+    if (rawName.startsWith('I_')) {
+      const payload = rawName.slice(2)           // remove "I_"
+      const firstUnderscore = payload.indexOf('_')
+      if (firstUnderscore > 0) {
+        title = payload.substring(0, firstUnderscore)
+        desc = payload.substring(firstUnderscore + 1)
+      } else {
+        // No description underscore, entire payload is title
+        title = payload
+        desc = null
+      }
+      // Use title as the display label (fallback to rawName if empty)
+      label = title || rawName
+    } else {
+      // Fallback: should not happen if pre-filtered, but keep safe
+      title = rawName
+      desc = null
+    }
 
     return {
       mesh,
@@ -196,17 +192,16 @@ export function buildMetaballObjects(meshes) {
       wireframe: null,
       stride,
       label,
-      title: mesh.name || null,
-      desc: null,
-      // ── Per-object hovered randomness seeds (stable, deterministic) ──────
+      title,
+      desc,
       hoveredSeeds: generateObjectHoveredSeeds(i, label),
     }
   })
 }
 
+
 // ─── SHADERS ──────────────────────────────────────────────────────────────────
 
-// ID pass — renders each mesh as a flat color encoding its index
 const _idVert = `
   uniform mat4 modelViewMatrix;
   uniform mat4 projectionMatrix;
@@ -223,216 +218,9 @@ const _idFrag = `
   }
 `
 
-// Blob composite — full-screen quad that composites metaballs over the scene
 const _blobVert = `void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`
 
 const _blobFrag = `
-precision highp float;
-
-uniform vec2  u_res;
-uniform vec3  u_blobs[8];
-uniform int   u_count;
-uniform float u_k;
-uniform float u_edge;
-uniform float u_alpha;
-uniform float u_time;
-uniform float u_pulseScale;
-uniform vec3  u_blobColors[8];
-uniform vec3  u_cursorColor;
-uniform vec3  u_hoverColor;
-uniform float u_hoverMix;
-uniform int   u_activeIdx;
-uniform sampler2D tScene;
-uniform sampler2D tID;          // ID texture for masking
-uniform float u_trigNoise;
-uniform float u_noiseScale;
-uniform float u_chromStr;
-uniform int   u_ghostCount;
-uniform float u_ghostRadius;
-uniform float u_ghostAlpha;
-uniform float u_lightness;
-uniform float u_breathe;
-uniform float u_curl;
-uniform float u_prism;
-uniform vec3  u_ripples[6];
-
-// Unhovered trail uniforms
-uniform vec3  u_trailColor;                 // forced white for primary blobs
-uniform float u_ghostSizeScale[4];          // per‑ghost size multiplier (unhovered)
-uniform float u_ghostSeed[4];               // per‑ghost noise seed offset (unhovered)
-
-// ── Hovered-state per-object randomness uniforms ──────────────────────────────
-// Packed as flat float arrays, indexed by object index (0..7)
-// angleSeed:      rotational phase offset for ghost orbit
-// noiseOffset:    2D offset into noise field per object (x packed in [0], y in [1])
-// orbitSpeed:     multiplier on ghost orbit angular speed
-// ghostSizeJitter: 4 per-ghost size multiplier jitter values
-// ghostPhaseOff:  4 per-ghost angular phase offsets
-uniform float u_hovAngleSeed[8];            // orbit phase offset per object
-uniform vec2  u_hovNoiseOffset[8];          // noise field XY offset per object
-uniform float u_hovOrbitSpeed[8];           // orbit speed multiplier per object
-uniform float u_hovGhostSizeJitter[32];     // 4 jitter floats × 8 objects (flat)
-uniform float u_hovGhostPhaseOff[32];       // 4 phase floats × 8 objects (flat)
-
-float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
-}
-vec2 hash2(vec2 p) {
-  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
-  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
-}
-float noise(vec2 p) {
-  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(dot(hash2(i),             f),               dot(hash2(i + vec2(1,0)), f - vec2(1,0)), u.x),
-    mix(dot(hash2(i + vec2(0,1)), f - vec2(0,1)),   dot(hash2(i + vec2(1,1)), f - vec2(1,1)), u.x),
-    u.y);
-}
-float fbm(vec2 p) {
-  float s = 0.0, a = 0.5;
-  for (int i = 0; i < 4; i++) { s += noise(p) * a; p *= 2.1; a *= 0.5; }
-  return s;
-}
-vec2 curl(vec2 p) {
-  float e = 0.01;
-  return vec2(
-     (fbm(p + vec2(e, 0.0)) - fbm(p - vec2(e, 0.0))) / (2.0 * e),
-    -(fbm(p + vec2(0.0, e)) - fbm(p - vec2(0.0, e))) / (2.0 * e)
-  );
-}
-float sdf(vec2 uv, float na) {
-  float f = 1e9;
-  for (int i = 0; i < 8; i++) {
-    if (i >= u_count) break;
-    float d = length(uv - u_blobs[i].xy) - u_blobs[i].z * u_breathe;
-    f = smin(f, d, u_k * u_blobs[0].z);
-  }
-  return f + na;
-}
-
-void main() {
-  vec2 uv    = gl_FragCoord.xy;
-  vec3 scene = texture2D(tScene, uv / u_res).rgb;
-
-  // ─── MASK from ID texture ──────────────────────────────────────────────────
-  float mask = 1.0;
-  if (u_activeIdx >= 0) {
-    vec2 idUV = uv / u_res;
-    float idVal = texture2D(tID, idUV).r * 255.0;
-    float activeIdFloat = float(u_activeIdx + 1);
-    float isActive = step(abs(idVal - activeIdFloat), 0.5);
-    float isBackground = step(idVal, 0.5);
-    mask = max(isActive, isBackground);
-  }
-
-  // Base trail SDF
-  float baseF   = sdf(uv, 0.0);
-  float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
-
-  // ── Select per-object noise offset when hovered ───────────────────────────
-  // When u_activeIdx >= 0 we add the object-specific 2D noise offset
-  // so each hovered object samples a different region of the noise field.
-  vec2 activeNoiseOff = vec2(0.0);
-  float activeOrbitSpeed = 1.0;
-  float activeAngleSeed  = 0.0;
-  if (u_activeIdx >= 0) {
-    activeNoiseOff   = u_hovNoiseOffset[u_activeIdx];
-    activeOrbitSpeed = u_hovOrbitSpeed[u_activeIdx];
-    activeAngleSeed  = u_hovAngleSeed[u_activeIdx];
-  }
-
-  // Noise & curl displacement for trail (with per-object offset when hovered)
-  vec2 noiseUV  = (uv + activeNoiseOff) * u_noiseScale;
-  vec2  co      = curl(noiseUV * 0.5 + u_time * 0.1) * u_curl * u_alpha;
-  float nAmt    = fbm(noiseUV + co * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
-  float trigIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, sdf(uv + co, nAmt));
-
-  // Ghost blobs — use hovered seeds when active, unhovered seeds otherwise
-  float ghostIns = 0.0;
-  if (u_alpha > 0.0) {
-    for (int g = 0; g < 4; g++) {
-      if (g >= u_ghostCount) break;
-
-      float baseAng = float(g) * 6.28318 / float(u_ghostCount);
-      float phaseOff = 0.0;
-      float sizeJitter = 1.0;
-      float noiseSeed = u_ghostSeed[g];        // unhovered default
-
-      if (u_activeIdx >= 0) {
-        // Hovered: use per-object, per-ghost randomness
-        // Flat array: index = u_activeIdx * 4 + g
-        // GLSL doesn't allow dynamic indexing into arrays with non-const in older GLSL,
-        // so we unroll for g via the loop variable (g is the loop counter, fine in GLSL ES 3.0)
-        // We use a workaround: accumulate selectively
-        phaseOff    = u_hovGhostPhaseOff[u_activeIdx  * 4 + g];
-        sizeJitter  = u_hovGhostSizeJitter[u_activeIdx * 4 + g];
-        noiseSeed   = u_hovAngleSeed[u_activeIdx] + float(g) * 1.7;
-        // orbit speed is per-object, applied to time
-      }
-
-      float orbSpeed = u_activeIdx >= 0 ? activeOrbitSpeed : 1.0;
-      float ang = baseAng + activeAngleSeed + phaseOff + u_time * 1.8 * orbSpeed;
-
-      float baseGhostSize = u_ghostSizeScale[g] * sizeJitter;
-      float gr  = u_ghostRadius * baseGhostSize * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
-      vec2  off = vec2(cos(ang), sin(ang)) * gr;
-
-      vec2 noiseCoord = (uv - off) + noiseSeed + activeNoiseOff;
-      float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
-      ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
-    }
-  }
-
-  float mainIns = min(1.0, baseIns + (trigIns - baseIns) * u_alpha);
-  float totalIns = min(1.0, mainIns + ghostIns);
-
-  float ripGlow = 0.0;
-  for (int r = 0; r < 6; r++) {
-    if (u_ripples[r].x < 0.0) continue;
-    ripGlow += smoothstep(3.0, 0.0, abs(baseF - u_ripples[r].x)) * u_ripples[r].y;
-  }
-
-  // Apply mask
-  mainIns  *= mask;
-  ghostIns *= mask;
-  totalIns *= mask;
-  ripGlow  *= mask;
-
-  // Colors
-  vec3 trailBase = mix(mix(u_trailColor, vec3(1.0), u_lightness), u_trailColor, u_alpha) * u_pulseScale;
-  vec3 tgt = u_activeIdx >= 0 ? u_blobColors[u_activeIdx] : u_cursorColor;
-  tgt = mix(tgt, u_hoverColor, clamp(u_hoverMix, 0.0, 1.0));
-  vec3 ghostCol = mix(mix(tgt, vec3(1.0), u_lightness), tgt, u_alpha) * u_pulseScale;
-
-  float et   = smoothstep(0.0, 0.3, totalIns) * (1.0 - smoothstep(0.7, 1.0, totalIns));
-  vec3  prism = (vec3(0.9, 0.2, 0.1) + vec3(0.1, 0.9, 0.2) * 0.8 + vec3(0.1, 0.2, 0.9) * 0.6)
-                * et * u_prism * u_alpha * mask;
-
-  vec3 fs = scene;
-  if (u_alpha > 0.0 && u_chromStr > 0.0) {
-    vec2 rd  = length(uv - u_blobs[0].xy) > 0.001 ? normalize(uv - u_blobs[0].xy) : vec2(1.0, 0.0);
-    float cs = u_chromStr * totalIns * u_alpha;
-    fs = vec3(
-      texture2D(tScene, (uv + rd * cs)        / u_res).r,
-      scene.g,
-      texture2D(tScene, (uv - rd * cs * 0.7)  / u_res).b
-    );
-  }
-
-  vec3 res = mix(fs, mix(fs, trailBase, mainIns), 1.0 - u_alpha);
-  res = mix(res, ghostCol, ghostIns * (1.0 - u_alpha));
-  res = mix(res, 1.0 - fs, totalIns * u_alpha);
-  res += prism * (1.0 - res);
-  res = mix(res, vec3(0.95, 0.85, 1.0), ripGlow * 0.4 * u_alpha);
-
-  gl_FragColor = vec4(res, 1.0);
-}
-`
-
-// ─── MASK FRAGMENT SHADER ─────────────────────────────────────────────────────
-// Outputs only the metaball mask (totalIns) as a grayscale value.
-const _maskFrag = `
 precision highp float;
 
 uniform vec2  u_res;
@@ -542,25 +330,193 @@ void main() {
   if (u_alpha > 0.0) {
     for (int g = 0; g < 4; g++) {
       if (g >= u_ghostCount) break;
-
       float baseAng = float(g) * 6.28318 / float(u_ghostCount);
       float phaseOff = 0.0;
       float sizeJitter = 1.0;
       float noiseSeed = u_ghostSeed[g];
+      if (u_activeIdx >= 0) {
+        phaseOff    = u_hovGhostPhaseOff[u_activeIdx  * 4 + g];
+        sizeJitter  = u_hovGhostSizeJitter[u_activeIdx * 4 + g];
+        noiseSeed   = u_hovAngleSeed[u_activeIdx] + float(g) * 1.7;
+      }
+      float orbSpeed = u_activeIdx >= 0 ? activeOrbitSpeed : 1.0;
+      float ang = baseAng + activeAngleSeed + phaseOff + u_time * 1.8 * orbSpeed;
+      float baseGhostSize = u_ghostSizeScale[g] * sizeJitter;
+      float gr  = u_ghostRadius * baseGhostSize * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
+      vec2  off = vec2(cos(ang), sin(ang)) * gr;
+      vec2 noiseCoord = (uv - off) + noiseSeed + activeNoiseOff;
+      float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
+      ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
+    }
+  }
 
+  float mainIns = min(1.0, baseIns + (trigIns - baseIns) * u_alpha);
+  float totalIns = min(1.0, mainIns + ghostIns);
+
+  float ripGlow = 0.0;
+  for (int r = 0; r < 6; r++) {
+    if (u_ripples[r].x < 0.0) continue;
+    ripGlow += smoothstep(3.0, 0.0, abs(baseF - u_ripples[r].x)) * u_ripples[r].y;
+  }
+
+  mainIns  *= mask;
+  ghostIns *= mask;
+  totalIns *= mask;
+  ripGlow  *= mask;
+
+  vec3 trailBase = mix(mix(u_trailColor, vec3(1.0), u_lightness), u_trailColor, u_alpha) * u_pulseScale;
+  vec3 tgt = u_activeIdx >= 0 ? u_blobColors[u_activeIdx] : u_cursorColor;
+  tgt = mix(tgt, u_hoverColor, clamp(u_hoverMix, 0.0, 1.0));
+  vec3 ghostCol = mix(mix(tgt, vec3(1.0), u_lightness), tgt, u_alpha) * u_pulseScale;
+
+  float et   = smoothstep(0.0, 0.3, totalIns) * (1.0 - smoothstep(0.7, 1.0, totalIns));
+  vec3  prism = (vec3(0.9, 0.2, 0.1) + vec3(0.1, 0.9, 0.2) * 0.8 + vec3(0.1, 0.2, 0.9) * 0.6)
+                * et * u_prism * u_alpha * mask;
+
+  vec3 fs = scene;
+  if (u_alpha > 0.0 && u_chromStr > 0.0) {
+    vec2 rd  = length(uv - u_blobs[0].xy) > 0.001 ? normalize(uv - u_blobs[0].xy) : vec2(1.0, 0.0);
+    float cs = u_chromStr * totalIns * u_alpha;
+    fs = vec3(
+      texture2D(tScene, (uv + rd * cs)        / u_res).r,
+      scene.g,
+      texture2D(tScene, (uv - rd * cs * 0.7)  / u_res).b
+    );
+  }
+
+  vec3 res = mix(fs, mix(fs, trailBase, mainIns), 1.0 - u_alpha);
+  res = mix(res, ghostCol, ghostIns * (1.0 - u_alpha));
+  res = mix(res, 1.0 - fs, totalIns * u_alpha);
+  res += prism * (1.0 - res);
+  res = mix(res, vec3(0.95, 0.85, 1.0), ripGlow * 0.4 * u_alpha);
+
+  gl_FragColor = vec4(res, 1.0);
+}
+`
+
+const _maskFrag = `
+precision highp float;
+
+uniform vec2  u_res;
+uniform vec3  u_blobs[8];
+uniform int   u_count;
+uniform float u_k;
+uniform float u_edge;
+uniform float u_alpha;
+uniform float u_time;
+uniform float u_pulseScale;
+uniform vec3  u_blobColors[8];
+uniform vec3  u_cursorColor;
+uniform vec3  u_hoverColor;
+uniform float u_hoverMix;
+uniform int   u_activeIdx;
+uniform sampler2D tScene;
+uniform sampler2D tID;
+uniform float u_trigNoise;
+uniform float u_noiseScale;
+uniform float u_chromStr;
+uniform int   u_ghostCount;
+uniform float u_ghostRadius;
+uniform float u_ghostAlpha;
+uniform float u_lightness;
+uniform float u_breathe;
+uniform float u_curl;
+uniform float u_prism;
+uniform vec3  u_ripples[6];
+uniform vec3  u_trailColor;
+uniform float u_ghostSizeScale[4];
+uniform float u_ghostSeed[4];
+uniform float u_hovAngleSeed[8];
+uniform vec2  u_hovNoiseOffset[8];
+uniform float u_hovOrbitSpeed[8];
+uniform float u_hovGhostSizeJitter[32];
+uniform float u_hovGhostPhaseOff[32];
+
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p), u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(dot(hash2(i),             f),               dot(hash2(i + vec2(1,0)), f - vec2(1,0)), u.x),
+    mix(dot(hash2(i + vec2(0,1)), f - vec2(0,1)),   dot(hash2(i + vec2(1,1)), f - vec2(1,1)), u.x),
+    u.y);
+}
+float fbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { s += noise(p) * a; p *= 2.1; a *= 0.5; }
+  return s;
+}
+vec2 curl(vec2 p) {
+  float e = 0.01;
+  return vec2(
+     (fbm(p + vec2(e, 0.0)) - fbm(p - vec2(e, 0.0))) / (2.0 * e),
+    -(fbm(p + vec2(0.0, e)) - fbm(p - vec2(0.0, e))) / (2.0 * e)
+  );
+}
+float sdf(vec2 uv, float na) {
+  float f = 1e9;
+  for (int i = 0; i < 8; i++) {
+    if (i >= u_count) break;
+    float d = length(uv - u_blobs[i].xy) - u_blobs[i].z * u_breathe;
+    f = smin(f, d, u_k * u_blobs[0].z);
+  }
+  return f + na;
+}
+
+void main() {
+  vec2 uv    = gl_FragCoord.xy;
+
+  float mask = 1.0;
+  if (u_activeIdx >= 0) {
+    vec2 idUV = uv / u_res;
+    float idVal = texture2D(tID, idUV).r * 255.0;
+    float activeIdFloat = float(u_activeIdx + 1);
+    float isActive = step(abs(idVal - activeIdFloat), 0.5);
+    float isBackground = step(idVal, 0.5);
+    mask = max(isActive, isBackground);
+  }
+
+  float baseF   = sdf(uv, 0.0);
+  float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
+
+  vec2 activeNoiseOff = vec2(0.0);
+  float activeOrbitSpeed = 1.0;
+  float activeAngleSeed  = 0.0;
+  if (u_activeIdx >= 0) {
+    activeNoiseOff   = u_hovNoiseOffset[u_activeIdx];
+    activeOrbitSpeed = u_hovOrbitSpeed[u_activeIdx];
+    activeAngleSeed  = u_hovAngleSeed[u_activeIdx];
+  }
+
+  vec2 noiseUV  = (uv + activeNoiseOff) * u_noiseScale;
+  vec2  co      = curl(noiseUV * 0.5 + u_time * 0.1) * u_curl * u_alpha;
+  float nAmt    = fbm(noiseUV + co * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha;
+  float trigIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, sdf(uv + co, nAmt));
+
+  float ghostIns = 0.0;
+  if (u_alpha > 0.0) {
+    for (int g = 0; g < 4; g++) {
+      if (g >= u_ghostCount) break;
+      float baseAng = float(g) * 6.28318 / float(u_ghostCount);
+      float phaseOff = 0.0;
+      float sizeJitter = 1.0;
+      float noiseSeed = u_ghostSeed[g];
       if (u_activeIdx >= 0) {
         phaseOff    = u_hovGhostPhaseOff[u_activeIdx * 4 + g];
         sizeJitter  = u_hovGhostSizeJitter[u_activeIdx * 4 + g];
         noiseSeed   = u_hovAngleSeed[u_activeIdx] + float(g) * 1.7;
       }
-
       float orbSpeed = u_activeIdx >= 0 ? activeOrbitSpeed : 1.0;
       float ang = baseAng + activeAngleSeed + phaseOff + u_time * 1.8 * orbSpeed;
-
       float baseGhostSize = u_ghostSizeScale[g] * sizeJitter;
       float gr  = u_ghostRadius * baseGhostSize * (0.6 + 0.4 * sin(float(g) * 1.7 + u_time * 2.5));
       vec2  off = vec2(cos(ang), sin(ang)) * gr;
-
       vec2 noiseCoord = (uv - off) + noiseSeed + activeNoiseOff;
       float gf = sdf(uv - off, fbm(noiseCoord * u_noiseScale + u_time * 0.2) * u_trigNoise * u_alpha);
       ghostIns = min(1.0, ghostIns + (1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, gf)) * u_ghostAlpha * u_alpha);
@@ -575,7 +531,6 @@ void main() {
 }
 `
 
-// ─── DEFAULT CONFIG (derived from central constants) ──────────────────────────
 export const DEFAULT_CFG = {
   trailCount: CFG_TRAIL_COUNT,
   sizes: CFG_TRAIL_SIZES,
@@ -616,11 +571,9 @@ export const DEFAULT_CFG = {
   enableMaterialHighlight: CFG_ENABLE_MATERIAL_HIGHLIGHT,
 }
 
-// ─── CURSOR STATE (unchanged) ─────────────────────────────────────────────────
+// Cursor state
 function createCursorState(cfg) {
-  const { trailCount, fastDur, slowDur, fadeInMs, fadeOutMs,
-    reanchorMs, dwellMs, baseAlpha } = cfg
-
+  const { trailCount, fastDur, slowDur, fadeInMs, fadeOutMs, reanchorMs, dwellMs, baseAlpha } = cfg
   const trail = Array.from({ length: trailCount }, () => ({ x: -999, y: -999 }))
   const goal = { x: -999, y: -999 }
   const ripples = Array.from({ length: cfg.rippleCount * 2 }, () => ({ r: -1, str: 0 }))
@@ -663,9 +616,7 @@ function createCursorState(cfg) {
     alpha = entering
       ? Math.max(baseAlpha, easeBack(progress))
       : Math.min(1, baseAlpha + progress * (1 - baseAlpha))
-    anchor = Math.min(1, Math.max(0,
-      anchor + Math.sign(anchorTgt - anchor) * dt / (entering ? fadeInMs : reanchorMs)
-    ))
+    anchor = Math.min(1, Math.max(0, anchor + Math.sign(anchorTgt - anchor) * dt / (entering ? fadeInMs : reanchorMs)))
     if (progress > 0 && progress < 1) {
       fadeRaf = requestAnimationFrame(fadeTick)
     } else {
@@ -764,7 +715,7 @@ function createCursorState(cfg) {
   }
 }
 
-// ─── PROJECTOR (unchanged) ───────────────────────────────────────────────────
+// ─── PROJECTOR ───────────────────────────────────────────────────────────────
 const _v3tmp = new THREE.Vector3()
 const _ndcTmp = new THREE.Vector3()
 
@@ -814,7 +765,7 @@ function createProjector(stride = 3) {
   }
 }
 
-// ─── BLOB PIPELINE (modified to include mask pass) ────────────────────────────
+// ─── BLOB PIPELINE ───────────────────────────────────────────────────────────
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
@@ -829,17 +780,14 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   idScene.background = new THREE.Color(0, 0, 0)
 
   const idMeshes = objects.map((obj, i) => {
-    const m = new THREE.Mesh(
-      obj.geometry,
-      new THREE.RawShaderMaterial({
-        vertexShader: _idVert,
-        fragmentShader: _idFrag,
-        uniforms: { u_id: { value: (i + 1) / 255 } },
-        side: THREE.DoubleSide,
-        depthTest: true,
-        depthWrite: true,
-      })
-    )
+    const m = new THREE.Mesh(obj.geometry, new THREE.RawShaderMaterial({
+      vertexShader: _idVert,
+      fragmentShader: _idFrag,
+      uniforms: { u_id: { value: (i + 1) / 255 } },
+      side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: true,
+    }))
     m.frustumCulled = false
     idScene.add(m)
     return m
@@ -850,7 +798,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     magFilter: THREE.LinearFilter,
   })
 
-  // ─── NEW: Mask render target ───────────────────────────────────────────────
   const rtMask = new THREE.WebGLRenderTarget(rW, rH, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -862,35 +809,30 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   const ripUnis = Array.from({ length: 6 }, () => new THREE.Vector3(-1, 0, 0))
 
   const colors8 = Array.from({ length: 8 }, (_, i) =>
-    i < objects.length ? objects[i].blobColor : new THREE.Color(0, 0, 0)
-  )
+    i < objects.length ? objects[i].blobColor : new THREE.Color(0, 0, 0))
   const blobColorArr = new Float32Array(colors8.flatMap(c => [c.r, c.g, c.b]))
 
-  // ── Build hovered-seed uniform arrays (8 objects × seed data) ─────────────
-  const hovAngleSeed      = new Float32Array(8)
+  const hovAngleSeed = new Float32Array(8)
   const hovNoiseOffsetArr = new Float32Array(16)
-  const hovOrbitSpeed     = new Float32Array(8)
+  const hovOrbitSpeed = new Float32Array(8)
   const hovGhostSizeJitter = new Float32Array(32)
-  const hovGhostPhaseOff  = new Float32Array(32)
+  const hovGhostPhaseOff = new Float32Array(32)
 
   for (let i = 0; i < 8; i++) {
     const seeds = i < objects.length ? objects[i].hoveredSeeds : null
-    hovAngleSeed[i]  = seeds?.angleSeed ?? 0
+    hovAngleSeed[i] = seeds?.angleSeed ?? 0
     hovNoiseOffsetArr[i * 2 + 0] = seeds?.noiseOffsetX ?? 0
     hovNoiseOffsetArr[i * 2 + 1] = seeds?.noiseOffsetY ?? 0
     hovOrbitSpeed[i] = seeds?.orbitSpeed ?? 1
-
     for (let g = 0; g < 4; g++) {
       hovGhostSizeJitter[i * 4 + g] = seeds?.ghostSizeJitter?.[g] ?? 1
-      hovGhostPhaseOff[i * 4 + g]   = seeds?.ghostPhaseOffset?.[g] ?? 0
+      hovGhostPhaseOff[i * 4 + g] = seeds?.ghostPhaseOffset?.[g] ?? 0
     }
   }
 
   const hovNoiseOffsetVec2 = Array.from({ length: 8 }, (_, i) =>
-    new THREE.Vector2(hovNoiseOffsetArr[i * 2], hovNoiseOffsetArr[i * 2 + 1])
-  )
+    new THREE.Vector2(hovNoiseOffsetArr[i * 2], hovNoiseOffsetArr[i * 2 + 1]))
 
-  // Shared uniforms object (used by both main material and mask material)
   const sharedUniforms = {
     u_res: { value: new THREE.Vector2(rW, rH) },
     u_blobs: { value: Array.from({ length: 8 }, () => new THREE.Vector3(-9999, -9999, 0)) },
@@ -921,11 +863,11 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     u_trailColor: { value: new THREE.Color(cfg.trailColor) },
     u_ghostSizeScale: { value: cfg.ghostSizeScale || [1, 1, 1, 1] },
     u_ghostSeed: { value: cfg.ghostSeeds || [0, 1, 2, 3] },
-    u_hovAngleSeed:       { value: hovAngleSeed },
-    u_hovNoiseOffset:     { value: hovNoiseOffsetVec2 },
-    u_hovOrbitSpeed:      { value: hovOrbitSpeed },
+    u_hovAngleSeed: { value: hovAngleSeed },
+    u_hovNoiseOffset: { value: hovNoiseOffsetVec2 },
+    u_hovOrbitSpeed: { value: hovOrbitSpeed },
     u_hovGhostSizeJitter: { value: hovGhostSizeJitter },
-    u_hovGhostPhaseOff:   { value: hovGhostPhaseOff },
+    u_hovGhostPhaseOff: { value: hovGhostPhaseOff },
   }
 
   const mat = new THREE.ShaderMaterial({
@@ -937,7 +879,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   })
   blobScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat))
 
-  // ─── Mask material and scene (shares uniforms) ─────────────────────────────
   const maskMat = new THREE.ShaderMaterial({
     vertexShader: _blobVert,
     fragmentShader: _maskFrag,
@@ -970,11 +911,9 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
       cs.updateRipples(now)
 
-      const cW = el.clientWidth
-      const cH = el.clientHeight
+      const cW = el.clientWidth, cH = el.clientHeight
       const d = renderer.getPixelRatio()
-      const rW2 = cW * d
-      const rH2 = cH * d
+      const rW2 = cW * d, rH2 = cH * d
 
       if (Math.abs(rtScene.width - rW2) > 1 || Math.abs(rtScene.height - rH2) > 1) {
         rtScene.setSize(rW2, rH2)
@@ -982,7 +921,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         sharedUniforms.u_res.value.set(rW2, rH2)
       }
 
-      // ID pass
       idMeshes.forEach((m, i) => {
         objects[i].mesh.updateWorldMatrix(true, false)
         m.matrixAutoUpdate = false
@@ -997,13 +935,11 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       const sx = Math.max(0, Math.min(cfg.idRes - 1, Math.round((curPx.x / cW) * cfg.idRes)))
       const sy = Math.max(0, Math.min(cfg.idRes - 1, Math.round((1 - curPx.y / cH) * cfg.idRes)))
       renderer.readRenderTargetPixels(rtID, sx, sy, 1, 1, pixBuf)
-
       cs.setHoveredId(pixBuf[0])
 
       const alpha = cs.alpha
       const anchor = cs.anchor
 
-      // Mesh color mutation (object highlight)
       if (cfg.enableMaterialHighlight) {
         objects.forEach((obj, i) => {
           const active = i === cs.activeId - 1
@@ -1016,21 +952,17 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         })
       }
 
-      // Scene capture
       renderer.setRenderTarget(rtScene)
       renderer.clear()
       renderer.render(scene, camera)
 
-      // ─── Render mask pass ─────────────────────────────────────────────────
       renderer.setRenderTarget(rtMask)
       renderer.clear()
       renderer.render(maskScene, blobCam)
 
-      // Final composite
       renderer.setRenderTarget(null)
       renderer.clear()
 
-      // Update shared uniforms
       sharedUniforms.u_alpha.value = alpha
       sharedUniforms.u_activeIdx.value = cs.activeId > 0 ? cs.activeId - 1 : -1
       sharedUniforms.u_hoverMix.value = (1 - anchor) * cs.preWrap * cfg.hoverTintMix
@@ -1080,13 +1012,11 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
       for (let i = 0; i < cfg.trailCount; i++) {
         const p = cs.trail[i]
-        const cx = p.x * d
-        const cy = rH2 - p.y * d
+        const cx = p.x * d, cy = rH2 - p.y * d
         const bx = projCx * anchor + cx * (1 - anchor)
         const by = (rH2 - projCy) * anchor + cy * (1 - anchor)
         const baseR = (cfg.sizes[i] ?? cfg.sizes[0]) * d * 0.5
-        const idleR = baseR * cfg.untriggeredSizeScale
-          * (1 + (cfg.preWrapScale - 1) * cs.preWrap * (1 - anchor))
+        const idleR = baseR * cfg.untriggeredSizeScale * (1 + (cfg.preWrapScale - 1) * cs.preWrap * (1 - anchor))
         blobs[i].set(bx, by, THREE.MathUtils.lerp(idleR, projR > 0 ? projR : idleR, hb))
       }
       for (let i = cfg.trailCount; i < 8; i++) blobs[i].set(-9999, -9999, 0)
@@ -1113,7 +1043,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   }
 }
 
-// ─── R3F INNER COMPONENT ─────────────────────────────────────────────────────
 export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateReady }) {
   const { gl, scene, camera } = useThree()
   const cfg = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [])
@@ -1124,14 +1053,12 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
 
   useEffect(() => {
     if (!objects?.length || !gl) return
-
     const pipeline = createBlobPipeline(gl, camera, objects, cfg)
     const cs = createCursorState(cfg)
     pipelineRef.current = pipeline
     csRef.current = cs
     readyRef.current = true
     onStateReady?.({ cs, pipeline })
-
     return () => {
       readyRef.current = false
       pipeline.dispose()
@@ -1144,7 +1071,6 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
   useEffect(() => {
     const el = eventTarget?.current ?? gl.domElement
     if (!el) return
-
     const onMove = e => {
       const rect = gl.domElement.getBoundingClientRect()
       const x = e.clientX - rect.left
@@ -1154,7 +1080,6 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
       csRef.current?.moveTo(x, y)
     }
     const onLeave = () => csRef.current?.forceLeave()
-
     el.addEventListener('mousemove', onMove, { passive: true })
     el.addEventListener('mouseleave', onLeave, { passive: true })
     return () => {
@@ -1178,7 +1103,5 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
   return null
 }
 
-// Re-export overlay from the new file for backward compatibility
 export { MetaballCursorOverlay } from './MetaballCursorOverlay'
-
 export default MetaballCursorR3F
