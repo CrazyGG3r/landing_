@@ -19,6 +19,7 @@ import {
   PostCompositeOverlay,
   buildPostCompositeFilter,
 } from './PortfolioCompositeEffects'
+import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import RetroTitle from './RetroTitle'   // adjust path as needed
 
 const CONFIG = {
@@ -52,6 +53,9 @@ const CONFIG = {
   scrollIndicatorText: 'SCROLL TO EXPLORE',
   showProgressHUD: false,
   showMetaballCursor: true,
+  enableClickToFocusObject: true,
+  focusScrollDurationMs: 1200,
+  logScrollProgress: true,
   debugMode: false,
   useGradientSkybox: true,
   skyboxRadius: 500,
@@ -125,6 +129,38 @@ function findClosestTOnCurve(curve, targetPos) {
   }
 
   return closestT
+}
+
+function mapCurveTToScrollOffset(curveT) {
+  const startMargin = THREE.MathUtils.clamp(
+    CONFIG.pathInnerMarginStartPercent ?? 0,
+    0,
+    99.9,
+  ) / 100
+  const endMargin = THREE.MathUtils.clamp(
+    CONFIG.pathInnerMarginEndPercent ?? 0,
+    0,
+    99.9,
+  ) / 100
+
+  const innerStart = CONFIG.reverseDirection ? endMargin : startMargin
+  const innerEnd = 1 - (CONFIG.reverseDirection ? startMargin : endMargin)
+
+  if (innerStart >= innerEnd) return 0.5
+
+  const normalized = THREE.MathUtils.clamp(
+    (curveT - innerStart) / (innerEnd - innerStart),
+    0,
+    1,
+  )
+
+  return CONFIG.reverseDirection ? 1 - normalized : normalized
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5
+    ? 4 * t * t * t
+    : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
 function buildTrimmedCurve(curve, rawStartT, rawEndT) {
@@ -405,7 +441,7 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
   return null
 }
 
-function ProgressTracker({ onProgress }) {
+function ProgressTracker({ onProgress, logToConsole = false }) {
   const scroll = useScroll()
   const lastProgressRef = useRef(-1)
 
@@ -417,6 +453,10 @@ function ProgressTracker({ onProgress }) {
 
     lastProgressRef.current = nextProgress
     onProgress(nextProgress)
+
+    if (logToConsole) {
+      console.log(`[portfolio] scroll: ${(nextProgress * 100).toFixed(2)}%`)
+    }
   })
 
   return null
@@ -462,6 +502,129 @@ function InitialScrollPrimer({ enabled, percent = INITIAL_SCROLL_PERCENT, onDone
       doneRef.current = false
     }
   }, [enabled])
+
+  return null
+}
+
+function InteractiveObjectFocusScroller({
+  enabled,
+  objects,
+  curve,
+  stateRef,
+  eventTarget,
+  durationMs = 1200,
+}) {
+  const scroll = useScroll()
+  const animationRef = useRef(null)
+
+  const focusTargets = useMemo(() => {
+    if (!curve || !objects?.length) return []
+
+    const worldPosition = new THREE.Vector3()
+
+    return objects.map((object, index) => {
+      object.mesh?.updateWorldMatrix(true, false)
+      object.mesh?.getWorldPosition(worldPosition)
+
+      const curveT = findClosestTOnCurve(curve, worldPosition)
+      const manualScrollPercent = INTERACTIVE_OBJECT_SCROLL_TARGETS[index]?.scrollPercent
+      const hasManualTarget = typeof manualScrollPercent === 'number'
+      const scrollOffset = hasManualTarget
+        ? THREE.MathUtils.clamp(manualScrollPercent / 100, 0, 1)
+        : mapCurveTToScrollOffset(curveT)
+
+      return {
+        curveT,
+        scrollOffset,
+        hasManualTarget,
+      }
+    })
+  }, [curve, objects])
+
+  useEffect(() => () => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!enabled || !scroll?.el || !eventTarget?.current || !focusTargets.length) {
+      return undefined
+    }
+
+    const getCurrentOffset = () => {
+      if (scroll.horizontal) {
+        const max = Math.max(1, scroll.el.scrollWidth - scroll.el.clientWidth)
+        return scroll.el.scrollLeft / max
+      }
+
+      const max = Math.max(1, scroll.el.scrollHeight - scroll.el.clientHeight)
+      return scroll.el.scrollTop / max
+    }
+
+    const setOffset = (offset) => {
+      const nextOffset = THREE.MathUtils.clamp(offset, 0, 1)
+
+      if (scroll.horizontal) {
+        const max = Math.max(1, scroll.el.scrollWidth - scroll.el.clientWidth)
+        scroll.el.scrollLeft = max * nextOffset
+        return
+      }
+
+      const max = Math.max(1, scroll.el.scrollHeight - scroll.el.clientHeight)
+      scroll.el.scrollTop = max * nextOffset
+    }
+
+    const animateToOffset = (targetOffset) => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+
+      const startOffset = getCurrentOffset()
+      const delta = targetOffset - startOffset
+
+      if (Math.abs(delta) < 0.001) {
+        setOffset(targetOffset)
+        return
+      }
+
+      const startedAt = performance.now()
+      const duration = Math.max(1, durationMs)
+
+      const tick = (now) => {
+        const t = THREE.MathUtils.clamp((now - startedAt) / duration, 0, 1)
+        setOffset(startOffset + delta * easeInOutCubic(t))
+
+        if (t < 1) {
+          animationRef.current = requestAnimationFrame(tick)
+        } else {
+          animationRef.current = null
+        }
+      }
+
+      animationRef.current = requestAnimationFrame(tick)
+    }
+
+    const handleClick = () => {
+      const activeIndex = (stateRef.current?.cs?.activeId ?? 0) - 1
+      const target = focusTargets[activeIndex]
+
+      if (!target) return
+
+      animateToOffset(target.scrollOffset)
+    }
+
+    const targetElement = eventTarget.current
+    targetElement.addEventListener('click', handleClick)
+
+    return () => {
+      targetElement.removeEventListener('click', handleClick)
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = null
+      }
+    }
+  }, [durationMs, enabled, eventTarget, focusTargets, scroll, stateRef])
 
   return null
 }
@@ -1135,13 +1298,27 @@ export default function Portfolio() {
                 />
               )}
 
-              <ProgressTracker onProgress={setProgress} />
+              <ProgressTracker
+                onProgress={setProgress}
+                logToConsole={CONFIG.logScrollProgress}
+              />
 
               {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
                 <MetaballCursorR3F
                   objects={metaballObjects}
                   eventTarget={scrollContainerRef}
                   onStateReady={handleMetaballReady}
+                />
+              )}
+
+              {CONFIG.showMetaballCursor && metaballObjects.length > 0 && trimmedCurve && (
+                <InteractiveObjectFocusScroller
+                  enabled={CONFIG.enableClickToFocusObject}
+                  objects={metaballObjects}
+                  curve={trimmedCurve}
+                  stateRef={metaballStateRef}
+                  eventTarget={scrollContainerRef}
+                  durationMs={CONFIG.focusScrollDurationMs}
                 />
               )}
 
