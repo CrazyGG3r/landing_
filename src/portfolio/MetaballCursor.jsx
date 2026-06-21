@@ -734,6 +734,14 @@ function createCursorState(cfg) {
       startFade(baseAlpha, 0)
     },
 
+    fadeOut() {
+      if (dwellTimer) clearTimeout(dwellTimer)
+      if (pulseTimer) cancelAnimationFrame(pulseTimer)
+      activeId = 0; pulseScale = 1
+      startPreWrap(0)
+      startFade(0, 0)
+    },
+
     updateRipples(now) {
       for (const rp of ripples) {
         if (rp.r < 0) continue
@@ -1099,7 +1107,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 // REACT COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateReady }) {
+export function MetaballCursorR3F({ objects, eventTarget, config = {}, disabled = false, onStateReady }) {
   const { gl, scene, camera } = useThree()
   const cfg         = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [])
   const pipelineRef = useRef(null)
@@ -1127,6 +1135,13 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
 
   // Mouse tracking
   useEffect(() => {
+    if (disabled) {
+      curPxRef.current.x = -999
+      curPxRef.current.y = -999
+      csRef.current?.fadeOut()
+      return undefined
+    }
+
     const el = eventTarget?.current ?? gl.domElement
     if (!el) return
     const onMove = (e) => {
@@ -1142,7 +1157,15 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, onStateRe
       el.removeEventListener('mousemove', onMove)
       el.removeEventListener('mouseleave', onLeave)
     }
-  }, [eventTarget, gl])
+  }, [disabled, eventTarget, gl])
+
+  useEffect(() => {
+    if (disabled) {
+      curPxRef.current.x = -999
+      curPxRef.current.y = -999
+      csRef.current?.fadeOut()
+    }
+  }, [disabled])
 
   // Resize observer
   useEffect(() => {

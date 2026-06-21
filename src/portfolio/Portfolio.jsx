@@ -10,6 +10,7 @@ import React, {
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js'
 import { Environment, OrbitControls, ScrollControls, useScroll } from '@react-three/drei'
+import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
 import { MetaballCursorR3F, buildMetaballObjects } from './MetaballCursor'
@@ -55,6 +56,9 @@ const CONFIG = {
   showMetaballCursor: true,
   enableClickToFocusObject: true,
   focusScrollDurationMs: 1200,
+  transitionFadeStartProgress: 0.6,
+  transitionFadeMinMs: 500,
+  transitionFadeMaxMs: 1000,
   logScrollProgress: true,
   debugMode: false,
   useGradientSkybox: true,
@@ -161,6 +165,15 @@ function easeInOutCubic(t) {
   return t < 0.5
     ? 4 * t * t * t
     : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+function getTransitionFadeDuration(distance) {
+  const normalizedDistance = THREE.MathUtils.clamp(Math.abs(distance), 0, 1)
+  return THREE.MathUtils.lerp(
+    CONFIG.transitionFadeMinMs,
+    CONFIG.transitionFadeMaxMs,
+    normalizedDistance,
+  )
 }
 
 function buildTrimmedCurve(curve, rawStartT, rawEndT) {
@@ -512,10 +525,13 @@ function InteractiveObjectFocusScroller({
   curve,
   stateRef,
   eventTarget,
+  onFocusStart,
+  onPageTransition,
   durationMs = 1200,
 }) {
   const scroll = useScroll()
   const animationRef = useRef(null)
+  const clickLockedRef = useRef(false)
 
   const focusTargets = useMemo(() => {
     if (!curve || !objects?.length) return []
@@ -523,11 +539,13 @@ function InteractiveObjectFocusScroller({
     const worldPosition = new THREE.Vector3()
 
     return objects.map((object, index) => {
+      const manualTarget = INTERACTIVE_OBJECT_SCROLL_TARGETS[index] ?? {}
+
       object.mesh?.updateWorldMatrix(true, false)
       object.mesh?.getWorldPosition(worldPosition)
 
       const curveT = findClosestTOnCurve(curve, worldPosition)
-      const manualScrollPercent = INTERACTIVE_OBJECT_SCROLL_TARGETS[index]?.scrollPercent
+      const manualScrollPercent = manualTarget.scrollPercent
       const hasManualTarget = typeof manualScrollPercent === 'number'
       const scrollOffset = hasManualTarget
         ? THREE.MathUtils.clamp(manualScrollPercent / 100, 0, 1)
@@ -537,6 +555,7 @@ function InteractiveObjectFocusScroller({
         curveT,
         scrollOffset,
         hasManualTarget,
+        routePath: manualTarget.routePath,
       }
     })
   }, [curve, objects])
@@ -575,16 +594,22 @@ function InteractiveObjectFocusScroller({
       scroll.el.scrollTop = max * nextOffset
     }
 
-    const animateToOffset = (targetOffset) => {
+    const animateToOffset = (target) => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
 
+      const targetOffset = target.scrollOffset
       const startOffset = getCurrentOffset()
       const delta = targetOffset - startOffset
+      const fadeDurationMs = getTransitionFadeDuration(delta)
+      let transitionStarted = false
 
       if (Math.abs(delta) < 0.001) {
         setOffset(targetOffset)
+        if (target.routePath) {
+          onPageTransition?.(target.routePath, fadeDurationMs)
+        }
         return
       }
 
@@ -595,10 +620,18 @@ function InteractiveObjectFocusScroller({
         const t = THREE.MathUtils.clamp((now - startedAt) / duration, 0, 1)
         setOffset(startOffset + delta * easeInOutCubic(t))
 
+        if (!transitionStarted && target.routePath && t >= CONFIG.transitionFadeStartProgress) {
+          transitionStarted = true
+          onPageTransition?.(target.routePath, fadeDurationMs)
+        }
+
         if (t < 1) {
           animationRef.current = requestAnimationFrame(tick)
         } else {
           animationRef.current = null
+          if (!transitionStarted && target.routePath) {
+            onPageTransition?.(target.routePath, fadeDurationMs)
+          }
         }
       }
 
@@ -606,12 +639,16 @@ function InteractiveObjectFocusScroller({
     }
 
     const handleClick = () => {
+      if (clickLockedRef.current) return
+
       const activeIndex = (stateRef.current?.cs?.activeId ?? 0) - 1
       const target = focusTargets[activeIndex]
 
       if (!target) return
 
-      animateToOffset(target.scrollOffset)
+      clickLockedRef.current = true
+      onFocusStart?.()
+      animateToOffset(target)
     }
 
     const targetElement = eventTarget.current
@@ -624,7 +661,7 @@ function InteractiveObjectFocusScroller({
         animationRef.current = null
       }
     }
-  }, [durationMs, enabled, eventTarget, focusTargets, scroll, stateRef])
+  }, [durationMs, enabled, eventTarget, focusTargets, onFocusStart, onPageTransition, scroll, stateRef])
 
   return null
 }
@@ -938,6 +975,7 @@ function DebugPanel({
 }
 
 export default function Portfolio() {
+  const navigate = useNavigate()
   const [pathPoints, setPathPoints] = useState([])
   const [markers, setMarkers] = useState({ start: null, end: null })
   const [trimInfo, setTrimInfo] = useState({ startT: 0, endT: 1 })
@@ -948,9 +986,16 @@ export default function Portfolio() {
   const [cameraReady, setCameraReady] = useState(false)
   const [error, setError] = useState(null)
   const [metaballObjects, setMetaballObjects] = useState([])
+  const [pageTransition, setPageTransition] = useState({
+    mounted: false,
+    visible: false,
+    durationMs: CONFIG.transitionFadeMinMs,
+  })
 
   const metaballStateRef = useRef(null)
   const scrollContainerRef = useRef(null)
+  const pageTransitionFrameRef = useRef(null)
+  const pageTransitionTimeoutRef = useRef(null)
 
   const fullCurve = useMemo(() => buildCurveFromPoints(pathPoints), [pathPoints])
   const compositeFilter = useMemo(
@@ -1083,6 +1128,44 @@ export default function Portfolio() {
 
   const handleMetaballReady = useCallback((state) => {
     metaballStateRef.current = state
+  }, [])
+
+  const beginPageTransition = useCallback((routePath, durationMs) => {
+    if (!routePath) return
+
+    if (pageTransitionFrameRef.current) {
+      cancelAnimationFrame(pageTransitionFrameRef.current)
+    }
+    if (pageTransitionTimeoutRef.current) {
+      clearTimeout(pageTransitionTimeoutRef.current)
+    }
+
+    setPageTransition({
+      mounted: true,
+      visible: false,
+      durationMs,
+    })
+
+    pageTransitionFrameRef.current = requestAnimationFrame(() => {
+      setPageTransition({
+        mounted: true,
+        visible: true,
+        durationMs,
+      })
+    })
+
+    pageTransitionTimeoutRef.current = setTimeout(() => {
+      navigate(routePath)
+    }, durationMs)
+  }, [navigate])
+
+  useEffect(() => () => {
+    if (pageTransitionFrameRef.current) {
+      cancelAnimationFrame(pageTransitionFrameRef.current)
+    }
+    if (pageTransitionTimeoutRef.current) {
+      clearTimeout(pageTransitionTimeoutRef.current)
+    }
   }, [])
 
   const effectiveProgress = CONFIG.reverseDirection ? 1 - progress : progress
@@ -1318,6 +1401,7 @@ export default function Portfolio() {
                   curve={trimmedCurve}
                   stateRef={metaballStateRef}
                   eventTarget={scrollContainerRef}
+                  onPageTransition={beginPageTransition}
                   durationMs={CONFIG.focusScrollDurationMs}
                 />
               )}
@@ -1352,6 +1436,21 @@ export default function Portfolio() {
                 description={object.desc ?? ''}
               />
             );
+          }}
+        />
+      )}
+
+      {pageTransition.mounted && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 5000,
+            pointerEvents: 'none',
+            background: '#ffffff',
+            opacity: pageTransition.visible ? 1 : 0,
+            transition: `opacity ${pageTransition.durationMs}ms ease-in-out`,
           }}
         />
       )}

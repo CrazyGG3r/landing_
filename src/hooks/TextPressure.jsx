@@ -252,7 +252,7 @@ export default function TextPressure({
       // Load the Compressa font
       const font = new FontFace(
         'Compressa VF',
-        'url(https://res.cloudinary.com/dr6lvwubh/raw/upload/v1529908256/CompressaPRO-GX.woff2)'
+        'url(https://res.cloudinary.com/losrodriguez/raw/upload/v1782070311/CompressaPRO-GX_xfju37.woff2)'
       );
 
       font.load().then(() => {
