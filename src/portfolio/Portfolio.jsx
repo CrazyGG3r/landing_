@@ -56,6 +56,7 @@ const CONFIG = {
   showMetaballCursor: true,
   enableClickToFocusObject: true,
   focusScrollDurationMs: 1200,
+  cursorCommitDurationMs: 520,
   transitionFadeStartProgress: 0.6,
   transitionFadeMinMs: 500,
   transitionFadeMaxMs: 1000,
@@ -974,6 +975,93 @@ function DebugPanel({
   )
 }
 
+function CursorCommitFlash({ point }) {
+  const x = point?.x ?? window.innerWidth / 2
+  const y = point?.y ?? window.innerHeight / 2
+
+  return (
+    <>
+      <style>
+        {`
+          @keyframes portfolioCursorCommitFlash {
+            0% {
+              opacity: 0;
+              transform: translate(-50%, -50%) scale(0.08) rotate(0deg);
+              filter: blur(0px);
+            }
+            18% {
+              opacity: 0.92;
+            }
+            52% {
+              opacity: 0.44;
+              filter: blur(1px);
+            }
+            100% {
+              opacity: 0;
+              transform: translate(-50%, -50%) scale(1.45) rotate(38deg);
+              filter: blur(10px);
+            }
+          }
+
+          @keyframes portfolioCursorCommitCore {
+            0% {
+              opacity: 0;
+              transform: translate(-50%, -50%) scale(0.18);
+            }
+            18% {
+              opacity: 1;
+            }
+            100% {
+              opacity: 0;
+              transform: translate(-50%, -50%) scale(0.02);
+            }
+          }
+        `}
+      </style>
+
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: x,
+          top: y,
+          width: 'min(78vw, 780px)',
+          aspectRatio: '1',
+          zIndex: 4600,
+          pointerEvents: 'none',
+          borderRadius: '50%',
+          mixBlendMode: 'screen',
+          opacity: 0,
+          animation: 'portfolioCursorCommitFlash 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          background: [
+            'radial-gradient(circle, rgba(255,255,255,0.98) 0 2%, transparent 7%)',
+            'radial-gradient(circle, transparent 0 16%, rgba(159,232,255,0.8) 17%, transparent 25%)',
+            'conic-gradient(from 20deg, transparent 0 14%, rgba(255,120,202,0.78) 17%, transparent 25%, rgba(126,241,203,0.72) 32%, transparent 42%, rgba(255,255,255,0.58) 48%, transparent 60%)',
+          ].join(', '),
+        }}
+      />
+
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: x,
+          top: y,
+          width: 'min(18vw, 180px)',
+          aspectRatio: '1',
+          zIndex: 4601,
+          pointerEvents: 'none',
+          borderRadius: '50%',
+          mixBlendMode: 'screen',
+          opacity: 0,
+          animation: 'portfolioCursorCommitCore 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards',
+          background: 'radial-gradient(circle, rgba(255,255,255,1) 0 18%, rgba(159,232,255,0.68) 36%, transparent 72%)',
+        }}
+      />
+    </>
+  )
+}
+
 export default function Portfolio() {
   const navigate = useNavigate()
   const [pathPoints, setPathPoints] = useState([])
@@ -991,11 +1079,15 @@ export default function Portfolio() {
     visible: false,
     durationMs: CONFIG.transitionFadeMinMs,
   })
+  const [metaballCursorCommitting, setMetaballCursorCommitting] = useState(false)
+  const [metaballCursorDismissed, setMetaballCursorDismissed] = useState(false)
+  const [metaballCommitPoint, setMetaballCommitPoint] = useState(null)
 
   const metaballStateRef = useRef(null)
   const scrollContainerRef = useRef(null)
   const pageTransitionFrameRef = useRef(null)
   const pageTransitionTimeoutRef = useRef(null)
+  const metaballCommitTimeoutRef = useRef(null)
 
   const fullCurve = useMemo(() => buildCurveFromPoints(pathPoints), [pathPoints])
   const compositeFilter = useMemo(
@@ -1130,6 +1222,25 @@ export default function Portfolio() {
     metaballStateRef.current = state
   }, [])
 
+  const handleInteractiveObjectFocusStart = useCallback(() => {
+    if (metaballCommitTimeoutRef.current) {
+      clearTimeout(metaballCommitTimeoutRef.current)
+    }
+
+    const cursorState = metaballStateRef.current
+    const commitPoint = cursorState?.pipeline?.getCommitPoint?.()
+
+    setMetaballCommitPoint(commitPoint)
+    setMetaballCursorCommitting(true)
+    cursorState?.cs?.commitDismiss?.()
+
+    metaballCommitTimeoutRef.current = setTimeout(() => {
+      setMetaballCursorDismissed(true)
+      setMetaballCursorCommitting(false)
+      metaballCommitTimeoutRef.current = null
+    }, CONFIG.cursorCommitDurationMs)
+  }, [])
+
   const beginPageTransition = useCallback((routePath, durationMs) => {
     if (!routePath) return
 
@@ -1165,6 +1276,9 @@ export default function Portfolio() {
     }
     if (pageTransitionTimeoutRef.current) {
       clearTimeout(pageTransitionTimeoutRef.current)
+    }
+    if (metaballCommitTimeoutRef.current) {
+      clearTimeout(metaballCommitTimeoutRef.current)
     }
   }, [])
 
@@ -1390,6 +1504,7 @@ export default function Portfolio() {
                 <MetaballCursorR3F
                   objects={metaballObjects}
                   eventTarget={scrollContainerRef}
+                  disabled={metaballCursorDismissed}
                   onStateReady={handleMetaballReady}
                 />
               )}
@@ -1401,6 +1516,7 @@ export default function Portfolio() {
                   curve={trimmedCurve}
                   stateRef={metaballStateRef}
                   eventTarget={scrollContainerRef}
+                  onFocusStart={handleInteractiveObjectFocusStart}
                   onPageTransition={beginPageTransition}
                   durationMs={CONFIG.focusScrollDurationMs}
                 />
@@ -1419,7 +1535,11 @@ export default function Portfolio() {
         )}
       </div>
 
-      {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
+      {metaballCursorCommitting && (
+        <CursorCommitFlash point={metaballCommitPoint} />
+      )}
+
+      {CONFIG.showMetaballCursor && metaballObjects.length > 0 && !metaballCursorCommitting && !metaballCursorDismissed && (
         <MetaballCursorOverlay
           objects={metaballObjects}
           stateRef={metaballStateRef}

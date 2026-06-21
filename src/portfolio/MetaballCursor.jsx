@@ -678,6 +678,18 @@ function createCursorState(cfg) {
     }
   }
 
+  function spawnCommitRipples() {
+    const now = performance.now()
+    for (let i = 0; i < ripples.length; i++) {
+      ripples[i] = {
+        r:     i * 9,
+        str:   1,
+        speed: 220 + i * 34,
+        t0:    now,
+      }
+    }
+  }
+
   function triggerPulse() {
     if (pulseTimer) cancelAnimationFrame(pulseTimer)
     const t0   = performance.now()
@@ -740,6 +752,36 @@ function createCursorState(cfg) {
       activeId = 0; pulseScale = 1
       startPreWrap(0)
       startFade(0, 0)
+    },
+
+    commitDismiss() {
+      if (dwellTimer) {
+        clearTimeout(dwellTimer)
+        dwellTimer = null
+      }
+      if (pulseTimer) cancelAnimationFrame(pulseTimer)
+
+      startPreWrap(1)
+      startFade(1, 1)
+      spawnCommitRipples()
+
+      const t0 = performance.now()
+      const tick = (now) => {
+        const t = Math.min(1, (now - t0) / 420)
+        const collapse = 1 - t
+        pulseScale = 0.18 + (cfg.pulseScale * 1.55 - 0.18) * collapse * collapse
+
+        if (t < 1) {
+          pulseTimer = requestAnimationFrame(tick)
+        } else {
+          pulseScale = 0.18
+          pulseTimer = null
+          startPreWrap(0)
+          startFade(0, 1)
+        }
+      }
+
+      pulseTimer = requestAnimationFrame(tick)
     },
 
     updateRipples(now) {
@@ -956,6 +998,15 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     maskTexture: rtMask.texture,
     rtMask,
     get lastProj() { return lastProj },
+    getCommitPoint() {
+      const dpr = renderer.getPixelRatio()
+      if (!lastProj.id || lastProj.r <= 0 || !dpr) return null
+
+      return {
+        x: lastProj.cx / dpr,
+        y: lastProj.cy / dpr,
+      }
+    },
 
     render(cs, scene, curPx, camera) {
       const now  = performance.now()
