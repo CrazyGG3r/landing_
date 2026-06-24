@@ -236,18 +236,38 @@ vec2 fitUv(vec2 uv, out float mask){
     mask = 0.0;
     return uv;
   }
-  float ar = iResolution.x / iResolution.y;
-  float imgAr = uImageSize.x / uImageSize.y;
-  vec2 tuv = uv;
-  if (imgAr > ar) {
-    float scale = ar / imgAr;
-    tuv.y = (uv.y - 0.5) * scale + 0.5;
+
+  float canvasAspect = iResolution.x / iResolution.y;
+  float imgAspect = uImageSize.x / uImageSize.y;
+
+  // Scale factors for cover: we want the image to be at least as wide AND tall as canvas
+  float scaleX, scaleY;
+  if (imgAspect > canvasAspect) {
+    // Image is wider → fit by height (crop left/right)
+    scaleX = imgAspect / canvasAspect;
+    scaleY = 1.0;
   } else {
-    float scale = imgAr / ar;
-    tuv.x = (uv.x - 0.5) * scale + 0.5;
+    // Image is taller → fit by width (crop top/bottom)
+    scaleX = 1.0;
+    scaleY = canvasAspect / imgAspect;
   }
-  mask = step(0.0, tuv.x) * step(tuv.x, 1.0) * step(0.0, tuv.y) * step(tuv.y, 1.0);
-  return clamp(tuv, 0.0, 1.0);
+
+  // Center the scaled image
+  vec2 offset = vec2((1.0 - scaleX) * 0.5, (1.0 - scaleY) * 0.5);
+
+  // Map canvas UV to image UV (values will exceed 0..1 where cropping occurs)
+  vec2 imgUv = (uv - offset) / vec2(scaleX, scaleY);
+
+  // Mask is always 1.0 inside canvas because we cover entirely (no empty areas)
+  mask = 1.0;
+
+  // Clamp to texture edges to avoid sampling outside image bounds
+  vec2 clamped = clamp(imgUv, 0.0, 1.0);
+
+  // Flip Y to correct WebGL origin
+  clamped.y = 1.0 - clamped.y;
+
+  return clamped;
 }
 
 void main(){

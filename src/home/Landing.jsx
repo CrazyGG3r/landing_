@@ -41,6 +41,19 @@ export default function Landing({
   cbNoise = 0.08,
   preloaderDuration = 3,
 }) {
+  const readableTextPreset = {
+    mixBlendMode: 'normal',
+    textShadow: '0 0 2px rgba(0,0,0,0.8), 0 2px 6px rgba(0,0,0,0.6), 0 0 16px rgba(0,0,0,0.4)',
+    // Add a tiny dark stroke effect via -webkit-text-stroke (optional, use sparingly)
+    WebkitTextStroke: '0.5px rgba(0,0,0,0.3)',
+  };
+  const readableGradientPreset = {
+    ...readableTextPreset,
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(220,200,255,0.8) 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+  };
   const bgCanvasRef = useRef(null);
   const logoRef = useRef(null);
   const landingLogoSlotRef = useRef(null);
@@ -61,6 +74,7 @@ export default function Landing({
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
       (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
   });
+
   const [sceneLoaded, setSceneLoaded] = useState(false);
   const [modelUrl, setModelUrl] = useState(null);
   const { width: viewportWidth, height: viewportHeight } = useViewport();
@@ -336,7 +350,7 @@ export default function Landing({
   const subtitleLetterSpacing = isTight ? '0.28em' : '0.45em';
   const showLandingText = scene === 'landing' || isTransitioning;
   const preloaderAssets = useMemo(() => ({
-    images: ['/assets/images/banners/NGE.jpg'],
+    images: ['/images/banners/NGE.jpg'],
     json: ['/models/manifest.json'],
     binary: modelUrl ? [modelUrl] : [],
     preloaders: [],
@@ -529,100 +543,102 @@ export default function Landing({
           transition: 'opacity 0.25s ease',
         }}>
           <BacklitText style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 'min(1200px, 92vw)',
-          zIndex: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: isCompact ? 'center' : 'flex-start',
-          justifyContent: 'center',
-          gap: isCompact ? 12 : 24,
-          color: 'rgba(255,255,255,1)',
-          mixBlendMode: isMobile ? 'normal' : 'screen',
-          filter: 'none',
-          padding: isCompact ? '0 12px' : '0 24px',
-        }}>
-          <div style={{
-            pointerEvents: 'auto',
-            width: '100%',
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 'min(1200px, 92vw)',
+            zIndex: 10,
             display: 'flex',
-            flexDirection: isCompact ? 'column' : 'row',
-            alignItems: isCompact ? 'center' : 'stretch',
-            gap: isCompact ? 16 : 28,
+            flexDirection: 'column',
+            alignItems: isCompact ? 'center' : 'flex-start',
+            justifyContent: 'center',
+            gap: isCompact ? 12 : 24,
+            color: 'rgba(255,255,255,1)',
+            mixBlendMode: isMobile ? 'normal' : 'screen',
+            filter: 'none',
+            padding: isCompact ? '0 12px' : '0 24px',
           }}>
-            <div
-              ref={landingLogoSlotRef}
-              style={{
-                width: `${logoSize}px`,
-                height: `${logoSize}px`,
-                aspectRatio: '1 / 1',
-                flex: '0 0 auto',
-              }}
-            />
-            <div
-              ref={titleTextRef}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: isCompact ? 'center' : 'flex-start',
-                justifyContent: 'center',
-              }}
-            >
-              <DynamicShadowText level="subtitle" style={{
-                fontSize: preTitleFontSize,
-                letterSpacing: preTitleLetterSpacing,
-                color: 'rgba(255,255,255,0.25)',
-                textTransform: 'uppercase',
-                marginBottom: 8,
-                fontWeight: 300,
-                fontFamily: FONT_SUBTITLE,
-                display: 'block',
-                textAlign: isCompact ? 'center' : 'left',
-              }}>
-                We present to you
-              </DynamicShadowText>
-
-              <TitleTarget onClick={handleTitleClick}>
-                <DynamicShadowText level="title" style={{
-                  fontWeight: 800,
-                  fontSize: titleFontSize,
-                  letterSpacing: titleLetterSpacing,
-                  color: 'rgba(255,255,255,1)',
-                  textTransform: 'uppercase',
-                  margin: 0,
-                  lineHeight: 1.2,
-                  fontFamily: FONT_TITLE,
-                  display: 'block',
-                  textAlign: isCompact ? 'center' : 'left',
-                  cursor: 'pointer',
-                }}>
-                  BOLTFORGED
+            <div style={{
+              pointerEvents: 'auto',
+              width: '100%',
+              display: 'flex',
+              flexDirection: isCompact ? 'column' : 'row',
+              alignItems: isCompact ? 'center' : 'stretch',
+              gap: isCompact ? 16 : 28,
+            }}>
+              <div
+                ref={landingLogoSlotRef}
+                style={{
+                  width: `${logoSize}px`,
+                  height: `${logoSize}px`,
+                  aspectRatio: '1 / 1',
+                  flex: '0 0 auto',
+                }}
+              />
+              <div
+                ref={titleTextRef}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: isCompact ? 'center' : 'flex-start',
+                  justifyContent: 'center',
+                }}
+              >
+                <DynamicShadowText
+                  level="subtitle"
+                  style={{
+                    fontSize: preTitleFontSize,
+                    letterSpacing: preTitleLetterSpacing,
+                    color: 'rgba(255,255,255,0.9)',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                    fontWeight: 300,
+                    fontFamily: FONT_SUBTITLE,
+                    display: 'block',
+                    textAlign: isCompact ? 'center' : 'left',
+                    ...readableTextPreset,               // <-- modular injection
+                  }}
+                >
+                  We present to you
                 </DynamicShadowText>
-              </TitleTarget>
 
-              <DynamicShadowText level="subtitle" style={{
-                fontSize: subtitleFontSize,
-                letterSpacing: subtitleLetterSpacing,
-                color: 'rgba(255,255,255,0.4)',
-                textTransform: 'uppercase',
-                marginTop: isMobile ? 4 : 8,
-                fontWeight: 300,
-                fontFamily: FONT_SUBTITLE,
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.5) 0%, rgba(200,180,255,0.3) 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                padding: '0',
-                display: 'block',
-                textAlign: isCompact ? 'center' : 'left',
-              }}>
-                House of Creatives
-              </DynamicShadowText>
+                <TitleTarget onClick={handleTitleClick}>
+                  <DynamicShadowText level="title" style={{
+                    fontWeight: 800,
+                    fontSize: titleFontSize,
+                    letterSpacing: titleLetterSpacing,
+                    color: 'rgba(255,255,255,1)',
+                    textTransform: 'uppercase',
+                    margin: 0,
+                    lineHeight: 1.2,
+                    fontFamily: FONT_TITLE,
+                    display: 'block',
+                    textAlign: isCompact ? 'center' : 'left',
+                    cursor: 'pointer',
+                  }}>
+                    BOLTFORGED
+                  </DynamicShadowText>
+                </TitleTarget>
+
+                <DynamicShadowText
+                  level="subtitle"
+                  style={{
+                    fontSize: subtitleFontSize,
+                    letterSpacing: subtitleLetterSpacing,
+                    textTransform: 'uppercase',
+                    marginTop: isMobile ? 4 : 8,
+                    fontWeight: 300,
+                    fontFamily: FONT_SUBTITLE,
+                    display: 'block',
+                    textAlign: isCompact ? 'center' : 'left',
+                    ...readableGradientPreset,           // <-- all readability + gradient
+                  }}
+                >
+                  House of Creatives
+                </DynamicShadowText>
+              </div>
             </div>
-          </div>
           </BacklitText>
         </div>
 

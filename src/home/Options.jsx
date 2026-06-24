@@ -7,6 +7,7 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   const containerRef = useRef(null);
   const portfolioRef = useRef(null);
   const aboutRef = useRef(null);
+  const newsRef = useRef(null); // new ref for News
   const contactRef = useRef(null);
 
   const [activeImage, setActiveImage] = useState(null);
@@ -15,6 +16,7 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   const deadZones = useDeadZonesFromRefs(containerRef, [
     portfolioRef,
     aboutRef,
+    newsRef, // added
     contactRef,
   ]);
 
@@ -32,9 +34,10 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
 
   const imageForLabel = useMemo(
     () => ({
-      Portfolio: '/assets/images/banners/NGE.jpg',
-      About: '/assets/images/banners/NGE.jpg',
-      Contact: '/assets/images/banners/NGE.jpg',
+      Portfolio: '/images/banners/1.jpg',
+      About: '/images/banners/2.jpg',
+      News: '/images/banners/3.jpg', // new image mapping
+      Contact: '/images/banners/4.jpg',
     }),
     []
   );
@@ -47,6 +50,7 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   const links = [
     { label: 'Portfolio', ref: portfolioRef, path: '/portfolio' },
     { label: 'About', ref: aboutRef, path: '/about' },
+    { label: 'News', ref: newsRef, path: '/news' }, // new link inserted between About and Contact
     { label: 'Contact', ref: contactRef, path: '/contact' },
   ];
 
