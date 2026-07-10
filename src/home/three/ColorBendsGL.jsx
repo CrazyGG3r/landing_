@@ -96,6 +96,10 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     const ptrS = { x: 0, y: 0 };
 
     const loop = () => {
+      if (document.hidden) {
+        raf = requestAnimationFrame(loop);
+        return;
+      }
       const elapsed = (performance.now() - start) / 1000;
       const { rotation: rot, autoRotate: ar } = propsRef.current;
       const deg = (rot % 360) + ar * elapsed;

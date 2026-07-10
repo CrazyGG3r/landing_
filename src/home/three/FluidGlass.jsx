@@ -67,7 +67,13 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
 
     const mount = mountRef.current;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    } catch (err) {
+      console.warn('FluidGlass: WebGL renderer unavailable, skipping scene.', err);
+      return undefined;
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setClearColor(0x000000, 0);
@@ -293,6 +299,13 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
         if (finalVBlurPass && mount.clientHeight) {
           finalVBlurPass.uniforms.v.value = blurValue / mount.clientHeight;
         }
+        // --final-blur only ever animates during the preloader's ~3s window,
+        // then settles permanently at FINAL_BLUR_DEFAULT — once it's there,
+        // there's nothing left to observe for the rest of the page's life.
+        if (blurObserver && Math.abs(blurValue - FINAL_BLUR_DEFAULT) < 0.001) {
+          blurObserver.disconnect();
+          blurObserver = null;
+        }
       };
 
       blurObserver = new MutationObserver(updateBlur);
@@ -315,6 +328,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
 
     const loop = () => {
       raf = requestAnimationFrame(loop);
+      if (document.hidden) return;
       const t = clock.getElapsedTime();
 
       const mx = mouseRef.current?.x ?? 0;

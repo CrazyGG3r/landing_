@@ -22,37 +22,6 @@ export const useViewport = () => {
   return size;
 };
 
-export const useRefreshOnResize = () => {
-  useEffect(() => {
-    let resizeTimer;
-    let orientationTimer;
-
-    const handleResize = () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        window.location.reload();
-      }, 250);
-    };
-
-    const handleOrientation = () => {
-      clearTimeout(orientationTimer);
-      orientationTimer = setTimeout(() => {
-        window.location.reload();
-      }, 250);
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleOrientation);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleOrientation);
-      clearTimeout(resizeTimer);
-      clearTimeout(orientationTimer);
-    };
-  }, []);
-};
-
 export function useResizeObserver(ref, cb) {
   useEffect(() => {
     if (!ref.current) return;

@@ -596,6 +596,7 @@ export default function FaultyTerminal({
 
     const update=t=>{
       rafRef.current=requestAnimationFrame(update);
+      if(document.hidden) return;
       if(pageLoadAnimationRef.current&&loadStartRef.current===0) loadStartRef.current=t;
       gl.useProgram(prog);
 

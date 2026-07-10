@@ -13,6 +13,7 @@ import { Environment, OrbitControls, ScrollControls, useScroll } from '@react-th
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
+import VHSInstances from './VHSInstances'
 import { MetaballCursorR3F, buildMetaballObjects } from './MetaballCursor'
 import { MetaballCursorOverlay } from './MetaballCursorOverlay'
 import {
@@ -24,7 +25,9 @@ import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import RetroTitle from './RetroTitle'   // adjust path as needed
 
 const CONFIG = {
-  modelPath: 'scenes/Portfolio.glb',
+  modelPath: 'scenes/vhs/InitialScene.glb',
+  vhsModelPath: 'models/vhs/VHSUnit.glb',
+  vhsScale: 9, // uniform scale-up factor applied to every placed VHS unit
   cameraPathObjectName: 'CameraPath',
   startMarkerName: 'Path_Start',
   endMarkerName: 'Path_End',
@@ -648,7 +651,7 @@ function InteractiveObjectFocusScroller({
       if (!target) return
 
       clickLockedRef.current = true
-      onFocusStart?.()
+      onFocusStart?.(activeIndex)
       animateToOffset(target)
     }
 
@@ -1074,6 +1077,7 @@ export default function Portfolio() {
   const [cameraReady, setCameraReady] = useState(false)
   const [error, setError] = useState(null)
   const [metaballObjects, setMetaballObjects] = useState([])
+  const [vhsEmptyTransforms, setVhsEmptyTransforms] = useState([])
   const [pageTransition, setPageTransition] = useState({
     mounted: false,
     visible: false,
@@ -1084,6 +1088,7 @@ export default function Portfolio() {
   const [metaballCommitPoint, setMetaballCommitPoint] = useState(null)
 
   const metaballStateRef = useRef(null)
+  const vhsControllerRef = useRef(null)
   const scrollContainerRef = useRef(null)
   const pageTransitionFrameRef = useRef(null)
   const pageTransitionTimeoutRef = useRef(null)
@@ -1158,6 +1163,23 @@ export default function Portfolio() {
       (mesh) => mesh && mesh.name && mesh.name.startsWith('I_')
     )
 
+    // "I_" empties (no geometry of their own) mark where a VHSUnit.glb clone
+    // should be spawned — collect their world transforms for <VHSInstances>.
+    const vhsTransforms = []
+    loadedScene.traverse((child) => {
+      if (child.isMesh) return
+      if (!child.name || !child.name.startsWith('I_')) return
+
+      child.updateWorldMatrix(true, false)
+      const position = new THREE.Vector3()
+      const quaternion = new THREE.Quaternion()
+      const scale = new THREE.Vector3()
+      child.getWorldPosition(position)
+      child.getWorldQuaternion(quaternion)
+      child.getWorldScale(scale)
+      vhsTransforms.push({ name: child.name, position, quaternion, scale })
+    })
+
     if (filteredMeshes.length > 0) {
       const objects = buildMetaballObjects(filteredMeshes)
       setMetaballObjects(objects)
@@ -1169,6 +1191,9 @@ export default function Portfolio() {
           ` (${object.geometry.attributes.position.count} verts, stride ${object.stride})`,
         )
       })
+    } else if (vhsTransforms.length > 0) {
+      setVhsEmptyTransforms(vhsTransforms)
+      console.log(`📼 ${vhsTransforms.length} VHS empties found — spawning VHSUnit.glb instances`)
     } else {
       console.warn('⚠️ No interactive meshes (with "I_" prefix) found — MetaballCursor will be inactive.')
     }
@@ -1222,7 +1247,28 @@ export default function Portfolio() {
     metaballStateRef.current = state
   }, [])
 
-  const handleInteractiveObjectFocusStart = useCallback(() => {
+  const handleVhsInstancesReady = useCallback((meshes) => {
+    if (!meshes?.length) return
+    const objects = buildMetaballObjects(meshes)
+    setMetaballObjects(objects)
+
+    console.log(`📼 VHSInstances: ${objects.length} interactive VHS units registered`)
+    objects.forEach((object, index) => {
+      console.log(
+        `   [${index}] "${object.label}" → title="${object.title}" desc="${object.desc}"`,
+      )
+    })
+  }, [])
+
+  const handleVhsControllerReady = useCallback((api) => {
+    vhsControllerRef.current = api
+  }, [])
+
+  const handleInteractiveObjectFocusStart = useCallback((activeIndex) => {
+    if (typeof activeIndex === 'number' && activeIndex >= 0) {
+      vhsControllerRef.current?.playClick(activeIndex)
+    }
+
     if (metaballCommitTimeoutRef.current) {
       clearTimeout(metaballCommitTimeoutRef.current)
     }
@@ -1486,6 +1532,19 @@ export default function Portfolio() {
                   onError={handleError}
                 />
               </Suspense>
+
+              {vhsEmptyTransforms.length > 0 && (
+                <Suspense fallback={null}>
+                  <VHSInstances
+                    emptyTransforms={vhsEmptyTransforms}
+                    modelPath={CONFIG.vhsModelPath}
+                    scale={CONFIG.vhsScale}
+                    stateRef={metaballStateRef}
+                    onInstancesReady={handleVhsInstancesReady}
+                    onControllerReady={handleVhsControllerReady}
+                  />
+                </Suspense>
+              )}
 
               {trimmedCurve && (
                 <MarkerPathCamera

@@ -13,5 +13,3 @@ export { MouseContext, MouseProvider } from './core/MouseContext';
 export { default as Options } from './Options';
 export * from './core/constants';
 export * from './core/hooks';
-export * from './three/shaders';
-export * from './three/postfx';

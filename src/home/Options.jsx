@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FONT_LETTERBOX_TITLE } from './core/constants';
 import FaultyTerminal, { useDeadZonesFromRefs } from './components/FaultyTerminal';
+import WebGLErrorBoundary from './components/WebGLErrorBoundary';
 
 const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
   const containerRef = useRef(null);
@@ -70,19 +71,21 @@ const Options = memo(function Options({ logoSlotRef, rootRef, active }) {
         overflow: 'hidden',
       }}
     >
-      <FaultyTerminal
-        pause={!active}
-        mouseReact={active}
-        deadZones={deadZones}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 1,
-        }}
-        imageUrl={activeImage}
-        imageOpacity={imageOpacity}
-        preloadUrls={preloadUrls}
-      />
+      <WebGLErrorBoundary>
+        <FaultyTerminal
+          pause={!active}
+          mouseReact={active}
+          deadZones={deadZones}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 1,
+          }}
+          imageUrl={activeImage}
+          imageOpacity={imageOpacity}
+          preloadUrls={preloadUrls}
+        />
+      </WebGLErrorBoundary>
 
       <div
         style={{

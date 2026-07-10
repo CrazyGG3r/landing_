@@ -81,6 +81,7 @@ export const DynamicShadowText = memo(function DynamicShadowText({ children, sty
   const ref = useRef(null);
   const mouseRef = useContext(MouseContext);
   const lastShadowRef = useRef('');
+  const lastInputsRef = useRef({ mx: null, my: null, emission: null });
   const emissionHostRef = useRef(null);
 
   const shadowIntensity = level === 'title' ? TITLE_SHADOW_INTENSITY : SUBTITLE_SHADOW_INTENSITY;
@@ -89,28 +90,45 @@ export const DynamicShadowText = memo(function DynamicShadowText({ children, sty
 
   useEffect(() => {
     let raf;
+    const eps = 0.002;
     const loop = () => {
       if (ref.current && mouseRef.current) {
         const mx = mouseRef.current.x || 0;
         const my = mouseRef.current.y || 0;
-
-        const shadowX = mx * shadowDistance;
-        const shadowY = my * shadowDistance;
 
         if (!emissionHostRef.current) {
           emissionHostRef.current = ref.current.closest('[data-emission]');
         }
         const emission = parseFloat(emissionHostRef.current?.dataset?.emission || '0') || 0;
 
-        const shadow = `
-          ${shadowX}px ${shadowY}px ${shadowBlur}px rgba(0,0,0,${shadowIntensity}),
-          ${shadowX * 0.3}px ${shadowY * 0.3}px ${shadowBlur * 0.5}px rgba(0,0,0,${shadowIntensity * 0.5}),
-          0 0 ${15 + emission * 8}px rgba(140,80,255,${0.4 + emission * 0.15}),
-          0 0 ${30 + emission * 15}px rgba(140,80,255,${0.25 + emission * 0.1})
-        `;
-        if (shadow !== lastShadowRef.current) {
-          ref.current.style.textShadow = shadow;
-          lastShadowRef.current = shadow;
+        // Skip the string rebuild entirely when nothing meaningfully moved —
+        // this loop previously reconstructed + reassigned textShadow every
+        // single frame even while the mouse was still.
+        const last = lastInputsRef.current;
+        const changed =
+          last.mx === null ||
+          Math.abs(last.mx - mx) > eps ||
+          Math.abs(last.my - my) > eps ||
+          Math.abs(last.emission - emission) > eps;
+
+        if (changed) {
+          last.mx = mx;
+          last.my = my;
+          last.emission = emission;
+
+          const shadowX = mx * shadowDistance;
+          const shadowY = my * shadowDistance;
+
+          const shadow = `
+            ${shadowX}px ${shadowY}px ${shadowBlur}px rgba(0,0,0,${shadowIntensity}),
+            ${shadowX * 0.3}px ${shadowY * 0.3}px ${shadowBlur * 0.5}px rgba(0,0,0,${shadowIntensity * 0.5}),
+            0 0 ${15 + emission * 8}px rgba(140,80,255,${0.4 + emission * 0.15}),
+            0 0 ${30 + emission * 15}px rgba(140,80,255,${0.25 + emission * 0.1})
+          `;
+          if (shadow !== lastShadowRef.current) {
+            ref.current.style.textShadow = shadow;
+            lastShadowRef.current = shadow;
+          }
         }
       }
       raf = requestAnimationFrame(loop);

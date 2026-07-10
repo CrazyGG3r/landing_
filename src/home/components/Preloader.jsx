@@ -44,7 +44,9 @@ export default function Preloader({
       try {
         const result = fn?.();
         if (result && typeof result.then === 'function') tasks.push(result);
-      } catch {}
+      } catch (err) {
+        console.warn('Preloader: a custom preloader threw synchronously and was skipped.', err);
+      }
     });
 
     Promise.allSettled(tasks).then(finish);

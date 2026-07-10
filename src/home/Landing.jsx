@@ -20,6 +20,7 @@ import TitleTarget from './components/TitleTarget';
 import Preloader from './components/Preloader';
 import ColorBendsGL from './three/ColorBendsGL';
 import FluidGlass from './three/FluidGlass';
+import WebGLErrorBoundary from './components/WebGLErrorBoundary';
 import Letterboxing from './components/Letterboxing';
 import TargetCursor from './components/TargetCursor';
 import Options from './Options';
@@ -490,20 +491,22 @@ export default function Landing({
           assets={preloaderAssets}
         />
 
-        <ColorBendsGL
-          ref={setCanvasRef}
-          colors={cbColors}
-          rotation={cbRotation}
-          autoRotate={cbAutoRotate}
-          speed={cbSpeed}
-          scale={cbScale}
-          frequency={cbFrequency}
-          warpStrength={cbWarpStrength}
-          mouseInfluence={cbMouseInfluence}
-          parallax={cbParallax}
-          noise={cbNoise}
-          transparent
-        />
+        <WebGLErrorBoundary>
+          <ColorBendsGL
+            ref={setCanvasRef}
+            colors={cbColors}
+            rotation={cbRotation}
+            autoRotate={cbAutoRotate}
+            speed={cbSpeed}
+            scale={cbScale}
+            frequency={cbFrequency}
+            warpStrength={cbWarpStrength}
+            mouseInfluence={cbMouseInfluence}
+            parallax={cbParallax}
+            noise={cbNoise}
+            transparent
+          />
+        </WebGLErrorBoundary>
 
         <img
           ref={logoRef}
@@ -529,7 +532,9 @@ export default function Landing({
 
         {isCanvasReady && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 2 }}>
-            <FluidGlass bgCanvasRef={bgCanvasRef} modelUrl={modelUrl} />
+            <WebGLErrorBoundary>
+              <FluidGlass bgCanvasRef={bgCanvasRef} modelUrl={modelUrl} />
+            </WebGLErrorBoundary>
           </div>
         )}
 

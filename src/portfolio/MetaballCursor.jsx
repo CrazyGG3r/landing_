@@ -858,12 +858,30 @@ function createProjector(stride = 3) {
 // BLOB RENDER PIPELINE
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// The ID buffer used to be rendered at a fixed square resolution (idRes x
+// idRes) using the scene's real (non-square-aspect) perspective camera, then
+// sampled with screen-aspect-correct UVs (uv / u_res). Whenever the canvas
+// wasn't itself square, that mismatch stretched the ID buffer's content
+// relative to the real screen — so every object's hover/mask footprint was
+// systematically shifted/distorted from its true on-screen shape (worse the
+// further an object sat from screen center). Sizing the ID target to match
+// the canvas's own aspect ratio (same total resolution budget, just
+// distributed correctly across width/height) keeps the mapping 1:1.
+function computeIdTargetSize(pixelWidth, pixelHeight, targetRes) {
+  const aspect = pixelHeight > 0 ? pixelWidth / pixelHeight : 1
+  if (aspect >= 1) {
+    return { width: Math.max(1, Math.round(targetRes * aspect)), height: targetRes }
+  }
+  return { width: targetRes, height: Math.max(1, Math.round(targetRes / aspect)) }
+}
+
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
 
   // ── Render targets ────────────────────────────────────────────────────────
-  const rtID = new THREE.WebGLRenderTarget(cfg.idRes, cfg.idRes, {
+  const idSize = computeIdTargetSize(rW, rH, cfg.idRes)
+  const rtID = new THREE.WebGLRenderTarget(idSize.width, idSize.height, {
     minFilter: THREE.NearestFilter,
     magFilter: THREE.NearestFilter,
     type:      THREE.UnsignedByteType,
@@ -1022,6 +1040,9 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         rtScene.setSize(rW2, rH2)
         rtMask.setSize(rW2, rH2)
         sharedUniforms.u_res.value.set(rW2, rH2)
+
+        const newIdSize = computeIdTargetSize(rW2, rH2, cfg.idRes)
+        rtID.setSize(newIdSize.width, newIdSize.height)
       }
 
       // ID pass
@@ -1036,8 +1057,8 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       renderer.clear()
       renderer.render(idScene, camera)
 
-      const sx = Math.max(0, Math.min(cfg.idRes - 1, Math.round((curPx.x / cW) * cfg.idRes)))
-      const sy = Math.max(0, Math.min(cfg.idRes - 1, Math.round((1 - curPx.y / cH) * cfg.idRes)))
+      const sx = Math.max(0, Math.min(rtID.width - 1, Math.round((curPx.x / cW) * rtID.width)))
+      const sy = Math.max(0, Math.min(rtID.height - 1, Math.round((1 - curPx.y / cH) * rtID.height)))
       renderer.readRenderTargetPixels(rtID, sx, sy, 1, 1, pixBuf)
       cs.setHoveredId(pixBuf[0])
 
@@ -1140,6 +1161,9 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       rtScene.setSize(w * d, h * d)
       rtMask.setSize(w * d, h * d)
       sharedUniforms.u_res.value.set(w * d, h * d)
+
+      const newIdSize = computeIdTargetSize(w * d, h * d, cfg.idRes)
+      rtID.setSize(newIdSize.width, newIdSize.height)
     },
 
     dispose() {
