@@ -12,7 +12,7 @@ import * as THREE from 'three'
 // gets its own dedicated primary/secondary tint (via mask-driven color blend on
 // the shared "VHS" material) and its own AnimationMixer driving four action
 // sets: VHS_Idle (rest pose), VHS_HoverClick (frame 1→30 hover, 30→100 click,
-// eased) and Reel_Play / VHS_Play, which each play once — linearly, no easing —
+// authored-time playback) and Reel_Play / VHS_Play, which each play once — linearly, no easing —
 // forward on hover-in and in reverse on hover-out, independently of the
 // hover/click frame scrub.
 //
@@ -28,6 +28,8 @@ const VHS_SECONDARY_MASK_PATH = 'models/vhs/masks/VHS_SecondaryMask.png'
 const TINT_MATERIAL_NAME = 'VHS'
 const REEL_SUPPORT_MATERIAL_NAME = 'ReelSupport'
 const GLASS_MATERIAL_NAME = 'Glass'
+const FRONT_OCCLUDER_NODE_NAMES = new Set(['VHS', 'VHSGlass'])
+const REEL_SUPPORT_NODE_NAMES = new Set(['ReelSupport_L', 'ReelSupport_R'])
 
 // The exported alpha-blended materials (VHS, ReelSupport, Glass) all default
 // to `depthWrite: false` once three.js marks them transparent — the standard
@@ -46,7 +48,16 @@ const TRANSPARENCY_ALPHA_TEST = 0.04
 function fixCutoutTransparency(material) {
   material.transparent = true
   material.depthWrite = true
+  material.depthTest = true
   material.alphaTest = TRANSPARENCY_ALPHA_TEST
+  material.needsUpdate = true
+}
+
+function forceDepthOccluder(material) {
+  fixCutoutTransparency(material)
+  material.transparent = false
+  material.premultipliedAlpha = false
+  material.forceSinglePass = true
   material.needsUpdate = true
 }
 
@@ -74,17 +85,7 @@ const FPS = 30
 const FRAME_1_TIME = 1 / FPS
 const FRAME_30_TIME = 30 / FPS
 const FRAME_100_TIME = 100 / FPS
-
-// Hover-in/out (frame 1→30) plays as a fixed-duration eased tween rather than
-// an exponential decay — the decay approach snapped almost all the way there
-// in the first couple of frames ("hyper fast") and only crawled for the
-// remaining fraction. A linear phase eased through easeInOutCubic gives a
-// smooth start and a smooth finish instead.
-const HOVER_TWEEN_DURATION_S = 0.5
-
-function easeInOutCubic(t) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
-}
+const ACTION_EPSILON = 1 / 1000
 
 // VHS_HoverClick rotates the whole rig ~60°+ between frame 1 and frame 30
 // (confirmed directly from the glTF keyframes), so a hit region that's frozen
@@ -216,6 +217,23 @@ function createStaticHitProxy(root, shellMesh) {
   return proxy
 }
 
+function beginClickAction(inst) {
+  if (!inst || inst.clicked || !inst.hoverClickAction) return false
+  inst.clicked = true
+  inst.clickQueued = false
+  inst.hoverClickAction.paused = false
+  inst.hoverClickAction.timeScale = 1
+  inst.hoverClickAction.time = FRAME_30_TIME
+  inst.hoverClickAction.weight = 1
+  return true
+}
+
+function resolveQueuedClick(inst) {
+  const resolve = inst.clickResolve
+  inst.clickResolve = null
+  if (resolve) resolve()
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -274,11 +292,6 @@ export default function VHSInstances({
     // fixes it for all 11 units.
     if (sourceReelSupportMaterial) fixCutoutTransparency(sourceReelSupportMaterial)
 
-    // The Glass replacement material is likewise shared across all
-    // instances — it isn't per-instance tinted, so one compiled material/
-    // program serves every unit's glass pane.
-    const vhsGlassMaterial = sourceVhsMaterial ? createVhsGlassMaterial(sourceVhsMaterial) : null
-
     const instances = emptyTransforms.map((transform, index) => {
       const root = gltf.scene.clone(true)
       root.name = transform.name
@@ -304,26 +317,46 @@ export default function VHSInstances({
           primaryColor: colors.primary,
           secondaryColor: colors.secondary,
         })
-        // The "VHS" material (the main cassette shell + ReelHolder_L/R + one
-        // Reel primitive) is meant to read as fully solid — its opacity map
-        // has no genuinely translucent regions the way ReelSupport/Glass do.
-        // Left at the default depthWrite:false for BLEND materials, it was
-        // the single biggest source of the see-through artifact, since it's
-        // the largest, most visible surface on the unit.
-        fixCutoutTransparency(tinted)
+        const tintedGlass = sourceGlassMaterial ? createVhsGlassMaterial(sourceVhsMaterial) : null
+        if (tintedGlass) {
+          applyDualMaskTint(tintedGlass, {
+            primaryMaskUniform: maskUniforms.primary,
+            secondaryMaskUniform: maskUniforms.secondary,
+            primaryColor: colors.primary,
+            secondaryColor: colors.secondary,
+          })
+          forceDepthOccluder(tintedGlass)
+        }
+        // The "VHS" material is a front occluder for the reel supports, so it
+        // writes depth and stays out of transparent sorting.
+        forceDepthOccluder(tinted)
 
         root.traverse((child) => {
           if (!child.isMesh) return
           if (Array.isArray(child.material)) {
             child.material = child.material.map((m) => {
               if (m === sourceVhsMaterial) return tinted
-              if (vhsGlassMaterial && m === sourceGlassMaterial) return vhsGlassMaterial
+              if (tintedGlass && m === sourceGlassMaterial) return tintedGlass
               return m
             })
           } else if (child.material === sourceVhsMaterial) {
             child.material = tinted
-          } else if (vhsGlassMaterial && child.material === sourceGlassMaterial) {
-            child.material = vhsGlassMaterial
+          } else if (tintedGlass && child.material === sourceGlassMaterial) {
+            child.material = tintedGlass
+          }
+          const authoredName = child.userData?.name ?? child.name
+          if (FRONT_OCCLUDER_NODE_NAMES.has(authoredName)) {
+            child.renderOrder = 20
+            const mats = Array.isArray(child.material) ? child.material : [child.material]
+            mats.forEach((material) => {
+              if (material) forceDepthOccluder(material)
+            })
+          } else if (REEL_SUPPORT_NODE_NAMES.has(authoredName)) {
+            child.renderOrder = 10
+            const mats = Array.isArray(child.material) ? child.material : [child.material]
+            mats.forEach((material) => {
+              if (material) fixCutoutTransparency(material)
+            })
           }
           // userData.name survives clone() and keeps the *original* glTF node
           // name even if GLTFLoader had to de-duplicate `.name` (two nodes in
@@ -349,12 +382,13 @@ export default function VHSInstances({
       }
 
       const mixer = new THREE.AnimationMixer(root)
-      const findClip = (name) => gltf.animations.find((c) => c.name === name)
+      const findClip = (...names) => names.map((name) => gltf.animations.find((c) => c.name === name)).find(Boolean)
 
       const idleAction = findClip('VHS_Idle') ? mixer.clipAction(findClip('VHS_Idle')) : null
       const hoverClickAction = findClip('VHS_HoverClick') ? mixer.clipAction(findClip('VHS_HoverClick')) : null
       const reelAction = findClip('Reel_Play') ? mixer.clipAction(findClip('Reel_Play')) : null
-      const vhsPlayAction = findClip('VHS_Play') ? mixer.clipAction(findClip('VHS_Play')) : null
+      const vhsPlayClip = findClip('VHS_Play', 'Play')
+      const vhsPlayAction = vhsPlayClip ? mixer.clipAction(vhsPlayClip) : null
 
       if (idleAction) {
         idleAction.play()
@@ -368,6 +402,7 @@ export default function VHSInstances({
         hoverClickAction.paused = true
         hoverClickAction.time = FRAME_1_TIME
         hoverClickAction.weight = 0
+        hoverClickAction.timeScale = 1
         hoverClickAction.clampWhenFinished = true
         hoverClickAction.setLoop(THREE.LoopOnce, 1)
       }
@@ -398,9 +433,10 @@ export default function VHSInstances({
         reelAction,
         vhsPlayAction,
         proxyMesh: proxyMesh ?? shellMesh,
-        hoverPhase: 0,
         crossfade: 0,
         clicked: false,
+        clickQueued: false,
+        clickResolve: null,
         hoverEngaged: false,
         hoverMissTimer: 0,
         prevHoverEngaged: false,
@@ -414,17 +450,27 @@ export default function VHSInstances({
     onControllerReady?.({
       playClick(index) {
         const inst = instancesRef.current[index]
-        if (!inst || inst.clicked || !inst.hoverClickAction) return
-        inst.clicked = true
-        inst.hoverClickAction.paused = false
-        inst.hoverClickAction.timeScale = 1
-        inst.hoverClickAction.time = FRAME_30_TIME
-        inst.hoverClickAction.weight = 1
+        if (!inst || inst.clicked || !inst.hoverClickAction) return Promise.resolve()
+
+        const alreadyHovered = inst.hoverClickAction.time >= FRAME_30_TIME - ACTION_EPSILON
+        if (alreadyHovered) {
+          beginClickAction(inst)
+          return Promise.resolve()
+        }
+
+        inst.clickQueued = true
+        inst.hoverEngaged = true
+        inst.hoverMissTimer = 0
+
+        return new Promise((resolve) => {
+          inst.clickResolve = resolve
+        })
       },
     })
 
     return () => {
       instances.forEach((inst) => {
+        resolveQueuedClick(inst)
         inst.mixer.stopAllAction()
         container.remove(inst.root)
       })
@@ -454,31 +500,34 @@ export default function VHSInstances({
           inst.hoverEngaged = false
         }
       }
-      const isHovered = inst.hoverEngaged
+      const isHovered = inst.hoverEngaged || inst.clickQueued
 
       if (inst.clicked) {
         // A click should read as instant — full hoverClick pose right away,
         // no fade-in wait.
         inst.crossfade = 1
       } else if (inst.hoverClickAction) {
-        // The idle↔hoverClick blend weight is driven by the *same* eased
-        // phase as the frame scrub below (not an independent, faster decay).
-        // They used to run on separate clocks: the blend used to snap back
-        // to idle in ~200ms while the frame position was still smoothly
-        // easing back over 500ms, so the reverse motion was already blended
-        // out — invisible — well before it finished. Tying them together
-        // guarantees hover-in and hover-out look equally smooth, since the
-        // visual blend and the frame position always arrive together.
-        const phaseTarget = isHovered ? 1 : 0
-        const phaseStep = delta / HOVER_TWEEN_DURATION_S
-        if (inst.hoverPhase < phaseTarget) {
-          inst.hoverPhase = Math.min(phaseTarget, inst.hoverPhase + phaseStep)
-        } else if (inst.hoverPhase > phaseTarget) {
-          inst.hoverPhase = Math.max(phaseTarget, inst.hoverPhase - phaseStep)
+        // Play the authored hover segment directly at normal clip speed:
+        // forward to frame 30 on hover-in, reverse to frame 1 on hover-out.
+        const hoverAction = inst.hoverClickAction
+        const atRest = hoverAction.time <= FRAME_1_TIME + ACTION_EPSILON
+        const atHover = hoverAction.time >= FRAME_30_TIME - ACTION_EPSILON
+
+        if (isHovered) {
+          if (!atHover || hoverAction.timeScale < 0) {
+            hoverAction.paused = false
+            hoverAction.timeScale = 1
+            hoverAction.weight = 1
+            if (hoverAction.time < FRAME_1_TIME) hoverAction.time = FRAME_1_TIME
+          }
+        } else if (!atRest) {
+          hoverAction.paused = false
+          hoverAction.timeScale = -1
+          hoverAction.weight = 1
+          if (hoverAction.time > FRAME_30_TIME) hoverAction.time = FRAME_30_TIME
         }
-        const easedProgress = easeInOutCubic(inst.hoverPhase)
-        inst.crossfade = easedProgress
-        inst.hoverClickAction.time = THREE.MathUtils.lerp(FRAME_1_TIME, FRAME_30_TIME, easedProgress)
+
+        inst.crossfade = atRest && !isHovered ? 0 : 1
       }
 
       if (inst.idleAction) inst.idleAction.weight = 1 - inst.crossfade
@@ -493,18 +542,44 @@ export default function VHSInstances({
           if (!action) return
           action.weight = 1
           action.timeScale = 1
+          if (action.paused && action.time >= action.getClip().duration - ACTION_EPSILON) {
+            action.time = 0
+          }
           action.paused = false
         })
       } else if (!isHovered && inst.prevHoverEngaged) {
         ;[inst.reelAction, inst.vhsPlayAction].forEach((action) => {
           if (!action) return
+          action.weight = 1
           action.timeScale = -1
+          if (action.paused && action.time <= ACTION_EPSILON) {
+            action.time = action.getClip().duration
+          }
           action.paused = false
         })
       }
       inst.prevHoverEngaged = isHovered
 
       inst.mixer.update(delta)
+
+      if (inst.hoverClickAction && !inst.clicked) {
+        const hoverAction = inst.hoverClickAction
+        if (hoverAction.timeScale > 0 && hoverAction.time >= FRAME_30_TIME - ACTION_EPSILON) {
+          hoverAction.time = FRAME_30_TIME
+          hoverAction.paused = true
+          inst.crossfade = 1
+          if (inst.clickQueued) {
+            beginClickAction(inst)
+            resolveQueuedClick(inst)
+          }
+        } else if (hoverAction.timeScale < 0 && hoverAction.time <= FRAME_1_TIME + ACTION_EPSILON) {
+          hoverAction.time = FRAME_1_TIME
+          hoverAction.paused = true
+          hoverAction.weight = 0
+          inst.crossfade = 0
+          if (inst.idleAction) inst.idleAction.weight = 1
+        }
+      }
 
       // Once a reverse playback has fully unwound back to the rest pose,
       // three.js auto-pauses it (LoopOnce + clampWhenFinished) — release its

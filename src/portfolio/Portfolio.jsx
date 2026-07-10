@@ -642,7 +642,7 @@ function InteractiveObjectFocusScroller({
       animationRef.current = requestAnimationFrame(tick)
     }
 
-    const handleClick = () => {
+    const handleClick = async () => {
       if (clickLockedRef.current) return
 
       const activeIndex = (stateRef.current?.cs?.activeId ?? 0) - 1
@@ -651,7 +651,7 @@ function InteractiveObjectFocusScroller({
       if (!target) return
 
       clickLockedRef.current = true
-      onFocusStart?.(activeIndex)
+      await onFocusStart?.(activeIndex)
       animateToOffset(target)
     }
 
@@ -1264,9 +1264,9 @@ export default function Portfolio() {
     vhsControllerRef.current = api
   }, [])
 
-  const handleInteractiveObjectFocusStart = useCallback((activeIndex) => {
+  const handleInteractiveObjectFocusStart = useCallback(async (activeIndex) => {
     if (typeof activeIndex === 'number' && activeIndex >= 0) {
-      vhsControllerRef.current?.playClick(activeIndex)
+      await vhsControllerRef.current?.playClick(activeIndex)
     }
 
     if (metaballCommitTimeoutRef.current) {
