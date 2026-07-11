@@ -2,6 +2,20 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, useLoader } from '@react-three/fiber'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import * as THREE from 'three'
+import {
+  DEFAULT_VHS_MODEL_PATH,
+  VHS_PRIMARY_MASK_PATH,
+  VHS_SECONDARY_MASK_PATH,
+  VHS_LABEL_DIR,
+  buildVhsPalette,
+  makeBlankMaskTexture,
+  loadMaskTextureInto,
+  makeBlankLabelTexture,
+  loadLabelTextureInto,
+  collectVhsSourceMaterials,
+  applyVhsMaterials,
+  fixCutoutTransparency,
+} from './vhsMaterials'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VHS INSTANCES
@@ -21,66 +35,6 @@ import * as THREE from 'three'
 // click-to-navigate pipeline can register them exactly like any other "I_" mesh.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_VHS_MODEL_PATH = 'models/vhs/VHSUnit.glb'
-const VHS_PRIMARY_MASK_PATH = 'models/vhs/masks/VHS_PrimaryMask.png'
-const VHS_SECONDARY_MASK_PATH = 'models/vhs/masks/VHS_SecondaryMask.png'
-
-const TINT_MATERIAL_NAME = 'VHS'
-const REEL_SUPPORT_MATERIAL_NAME = 'ReelSupport'
-const GLASS_MATERIAL_NAME = 'Glass'
-const FRONT_OCCLUDER_NODE_NAMES = new Set(['VHS', 'VHSGlass'])
-const REEL_SUPPORT_NODE_NAMES = new Set(['ReelSupport_L', 'ReelSupport_R'])
-
-// The exported alpha-blended materials (VHS, ReelSupport, Glass) all default
-// to `depthWrite: false` once three.js marks them transparent — the standard
-// behavior for blended materials, but wrong here: their opacity maps are
-// mostly *opaque* with only small genuinely-translucent regions (a window
-// cutout, a worn edge), so skipping depth writes made even the fully-opaque
-// areas fail to occlude what's behind them — the "see-through" artifact.
-// Fix: keep `depthWrite` on and use `alphaTest` to discard only the truly
-// transparent texels. Above the threshold (including fully-opaque texels)
-// the pixel still blends normally but *does* write depth, so it correctly
-// hides geometry behind it regardless of draw order; below the threshold it
-// never draws or writes depth at all, so whatever's behind shows through
-// exactly where the map says it should.
-const TRANSPARENCY_ALPHA_TEST = 0.04
-
-function fixCutoutTransparency(material) {
-  material.transparent = true
-  material.depthWrite = true
-  material.depthTest = true
-  material.alphaTest = TRANSPARENCY_ALPHA_TEST
-  material.needsUpdate = true
-}
-
-function forceDepthOccluder(material) {
-  fixCutoutTransparency(material)
-  material.transparent = false
-  material.premultipliedAlpha = false
-  material.forceSinglePass = true
-  material.needsUpdate = true
-}
-
-// Minimalistic stand-in for a full glass shader (the project's existing
-// Glass.jsx is a much heavier, bespoke effect not meant for a small prop like
-// this): a standard PBR material reusing the "VHS" material's own albedo /
-// normal / roughness+metalness maps — VHSGlass sits directly over the same
-// printed-label UVs — with the same alpha-tested, depth-writing transparency
-// fix applied so it composites correctly against ReelSupport/Reel behind it.
-function createVhsGlassMaterial(sourceVhsMaterial) {
-  const material = new THREE.MeshStandardMaterial({
-    map: sourceVhsMaterial.map ?? null,
-    normalMap: sourceVhsMaterial.normalMap ?? null,
-    roughnessMap: sourceVhsMaterial.roughnessMap ?? null,
-    metalnessMap: sourceVhsMaterial.metalnessMap ?? null,
-    roughness: sourceVhsMaterial.roughness ?? 0.3,
-    metalness: sourceVhsMaterial.metalness ?? 0,
-    side: THREE.DoubleSide,
-  })
-  fixCutoutTransparency(material)
-  return material
-}
-
 const FPS = 30
 const FRAME_1_TIME = 1 / FPS
 const FRAME_30_TIME = 30 / FPS
@@ -97,87 +51,6 @@ const ACTION_EPSILON = 1 / 1000
 // real mouse-away still reads as instant while animation-driven jitter
 // doesn't cause the hover to flicker.
 const HOVER_MISS_GRACE_S = 0.18
-
-// ─── DEDICATED COLOR PALETTE ─────────────────────────────────────────────────
-// Primary = extremely dark shade of the hue, Secondary = bright shade of the
-// (slightly offset) hue. One dedicated pair per VHS unit.
-
-function buildVhsPalette(count) {
-  const safeCount = Math.max(1, count)
-  const palette = []
-  for (let i = 0; i < safeCount; i += 1) {
-    const hue = i / safeCount
-    const primary = new THREE.Color().setHSL(hue, 0.55, 0.065)
-    const secondary = new THREE.Color().setHSL((hue + 0.045) % 1, 0.78, 0.62)
-    palette.push({ primary, secondary })
-  }
-  return palette
-}
-
-// ─── MASK TEXTURE LOADING (non-suspending, graceful when files are missing) ──
-
-function makeBlankMaskTexture() {
-  const tex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat)
-  tex.needsUpdate = true
-  return tex
-}
-
-function loadMaskTextureInto(uniformHolder, path) {
-  const loader = new THREE.TextureLoader()
-  loader.load(
-    path,
-    (tex) => {
-      tex.colorSpace = THREE.NoColorSpace
-      tex.wrapS = THREE.ClampToEdgeWrapping
-      tex.wrapT = THREE.ClampToEdgeWrapping
-      tex.needsUpdate = true
-      uniformHolder.value = tex
-    },
-    undefined,
-    () => {
-      // Mask PNG not present yet — keep the blank fallback so the base color
-      // texture renders untouched until the real file is dropped in at this path.
-    },
-  )
-}
-
-// ─── DUAL-MASK CONSTANT-COLOR TINT SHADER ────────────────────────────────────
-// Injected into the standard/physical material's fragment shader right after
-// the base color texture is sampled. Primary mask paints a dedicated dark
-// constant color, secondary mask paints a dedicated bright constant color —
-// both additive-over on top of the existing base color texture.
-
-function applyDualMaskTint(material, { primaryMaskUniform, secondaryMaskUniform, primaryColor, secondaryColor }) {
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.uVhsPrimaryMask = primaryMaskUniform
-    shader.uniforms.uVhsSecondaryMask = secondaryMaskUniform
-    shader.uniforms.uVhsPrimaryColor = { value: primaryColor }
-    shader.uniforms.uVhsSecondaryColor = { value: secondaryColor }
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <common>',
-      `#include <common>
-      uniform sampler2D uVhsPrimaryMask;
-      uniform sampler2D uVhsSecondaryMask;
-      uniform vec3 uVhsPrimaryColor;
-      uniform vec3 uVhsSecondaryColor;`,
-    )
-
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <map_fragment>',
-      `#include <map_fragment>
-      #ifdef USE_MAP
-      {
-        float vhsPrimaryMask = texture2D( uVhsPrimaryMask, vMapUv ).r;
-        float vhsSecondaryMask = texture2D( uVhsSecondaryMask, vMapUv ).r;
-        diffuseColor.rgb = mix( diffuseColor.rgb, uVhsPrimaryColor, vhsPrimaryMask );
-        diffuseColor.rgb = mix( diffuseColor.rgb, uVhsSecondaryColor, vhsSecondaryMask );
-      }
-      #endif`,
-    )
-  }
-  material.needsUpdate = true
-}
 
 // ─── STATIC HIT-REGION PROXY ─────────────────────────────────────────────────
 // Earlier attempts approximated the hit region with a synthetic box (sized
@@ -242,6 +115,7 @@ export default function VHSInstances({
   emptyTransforms,
   modelPath = DEFAULT_VHS_MODEL_PATH,
   scale = 1,
+  envMapIntensity = 1,
   stateRef,
   onInstancesReady,
   onControllerReady,
@@ -258,6 +132,19 @@ export default function VHSInstances({
     return { primary, secondary }
   }, [])
 
+  // One numbered label per VHS unit (1-based, matching the unit's position),
+  // loaded once and reused across re-renders/instance rebuilds.
+  const labelUniforms = useMemo(() => {
+    const count = emptyTransforms?.length ?? 0
+    const uniforms = []
+    for (let i = 0; i < count; i += 1) {
+      const holder = { value: makeBlankLabelTexture() }
+      loadLabelTextureInto(holder, `${VHS_LABEL_DIR}/${i + 1}.png`)
+      uniforms.push(holder)
+    }
+    return uniforms
+  }, [emptyTransforms?.length])
+
   const palette = useMemo(
     () => buildVhsPalette(emptyTransforms?.length ?? 0),
     [emptyTransforms?.length],
@@ -267,30 +154,23 @@ export default function VHSInstances({
     const container = groupRef.current
     if (!gltf?.scene || !emptyTransforms?.length || !container) return undefined
 
-    let sourceVhsMaterial = null
-    let sourceReelSupportMaterial = null
-    let sourceGlassMaterial = null
-    gltf.scene.traverse((child) => {
-      if (!child.isMesh) return
-      const mats = Array.isArray(child.material) ? child.material : [child.material]
-      if (!sourceVhsMaterial) {
-        const found = mats.find((m) => m?.name === TINT_MATERIAL_NAME)
-        if (found) sourceVhsMaterial = found
-      }
-      if (!sourceReelSupportMaterial) {
-        const found = mats.find((m) => m?.name === REEL_SUPPORT_MATERIAL_NAME)
-        if (found) sourceReelSupportMaterial = found
-      }
-      if (!sourceGlassMaterial) {
-        const found = mats.find((m) => m?.name === GLASS_MATERIAL_NAME)
-        if (found) sourceGlassMaterial = found
-      }
-    })
+    // GLTFLoader clones a glTF material per-mesh whenever that mesh's
+    // geometry needs different derivative-tangent / vertex-color / flat-
+    // shading handling than whichever mesh first claimed the material (see
+    // GLTFLoader's assignFinalMaterial) — so several *distinct* THREE.Material
+    // objects can end up sharing the authored name "VHS" (or "ReelSupport").
+    // collectVhsSourceMaterials walks the source scene once and gathers every
+    // distinct object sharing each name instead of assuming there's only one.
+    const { vhsSourceMaterials, reelSupportSourceMaterials, glassSourceMaterials, coverSourceMaterials } =
+      collectVhsSourceMaterials(gltf.scene)
 
     // ReelSupport is shared by reference across every clone (plain
-    // `.clone()` doesn't deep-clone materials), so fixing it once here
-    // fixes it for all 11 units.
-    if (sourceReelSupportMaterial) fixCutoutTransparency(sourceReelSupportMaterial)
+    // `.clone()` doesn't deep-clone materials), so fixing every distinct
+    // instance here fixes it for all 11 units.
+    reelSupportSourceMaterials.forEach((m) => {
+      fixCutoutTransparency(m)
+      m.envMapIntensity = envMapIntensity
+    })
 
     const instances = emptyTransforms.map((transform, index) => {
       const root = gltf.scene.clone(true)
@@ -307,71 +187,16 @@ export default function VHSInstances({
       container.add(root)
 
       const colors = palette[index % palette.length]
-      let shellMesh = null
-
-      if (sourceVhsMaterial) {
-        const tinted = sourceVhsMaterial.clone()
-        applyDualMaskTint(tinted, {
-          primaryMaskUniform: maskUniforms.primary,
-          secondaryMaskUniform: maskUniforms.secondary,
-          primaryColor: colors.primary,
-          secondaryColor: colors.secondary,
-        })
-        const tintedGlass = sourceGlassMaterial ? createVhsGlassMaterial(sourceVhsMaterial) : null
-        if (tintedGlass) {
-          applyDualMaskTint(tintedGlass, {
-            primaryMaskUniform: maskUniforms.primary,
-            secondaryMaskUniform: maskUniforms.secondary,
-            primaryColor: colors.primary,
-            secondaryColor: colors.secondary,
-          })
-          forceDepthOccluder(tintedGlass)
-        }
-        // The "VHS" material is a front occluder for the reel supports, so it
-        // writes depth and stays out of transparent sorting.
-        forceDepthOccluder(tinted)
-
-        root.traverse((child) => {
-          if (!child.isMesh) return
-          if (Array.isArray(child.material)) {
-            child.material = child.material.map((m) => {
-              if (m === sourceVhsMaterial) return tinted
-              if (tintedGlass && m === sourceGlassMaterial) return tintedGlass
-              return m
-            })
-          } else if (child.material === sourceVhsMaterial) {
-            child.material = tinted
-          } else if (tintedGlass && child.material === sourceGlassMaterial) {
-            child.material = tintedGlass
-          }
-          const authoredName = child.userData?.name ?? child.name
-          if (FRONT_OCCLUDER_NODE_NAMES.has(authoredName)) {
-            child.renderOrder = 20
-            const mats = Array.isArray(child.material) ? child.material : [child.material]
-            mats.forEach((material) => {
-              if (material) forceDepthOccluder(material)
-            })
-          } else if (REEL_SUPPORT_NODE_NAMES.has(authoredName)) {
-            child.renderOrder = 10
-            const mats = Array.isArray(child.material) ? child.material : [child.material]
-            mats.forEach((material) => {
-              if (material) fixCutoutTransparency(material)
-            })
-          }
-          // userData.name survives clone() and keeps the *original* glTF node
-          // name even if GLTFLoader had to de-duplicate `.name` (two nodes in
-          // this rig are both authored "VHS" — a group and the cassette mesh).
-          if (!shellMesh && child.userData?.name === TINT_MATERIAL_NAME) {
-            shellMesh = child
-          }
-        })
-      }
-
-      if (!shellMesh) {
-        root.traverse((child) => {
-          if (!shellMesh && child.isMesh) shellMesh = child
-        })
-      }
+      const labelUniform = labelUniforms[index] ?? { value: makeBlankLabelTexture() }
+      const shellMesh = applyVhsMaterials(root, {
+        vhsSourceMaterials,
+        glassSourceMaterials,
+        coverSourceMaterials,
+        maskUniforms,
+        colors,
+        labelUniform,
+        envMapIntensity,
+      })
 
       const proxyMesh = shellMesh ? createStaticHitProxy(root, shellMesh) : null
       if (proxyMesh) {
@@ -476,7 +301,7 @@ export default function VHSInstances({
       })
       instancesRef.current = []
     }
-  }, [gltf, emptyTransforms, palette, maskUniforms, scale, onInstancesReady, onControllerReady])
+  }, [gltf, emptyTransforms, palette, maskUniforms, labelUniforms, scale, envMapIntensity, onInstancesReady, onControllerReady])
 
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1)

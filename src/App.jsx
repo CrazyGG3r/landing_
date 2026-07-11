@@ -4,6 +4,7 @@ import Blur from "./blur";
 import Blur1 from "./blur1";
 import Home from "./home";
 import Portfolio from "./portfolio/Portfolio";
+import EntryScene from "./portfolio/EntryScene";
 import Glass from "./portfolio/Glass";
 import Research from "./assignment/research";
 import NotFound from "./NotFound";
@@ -16,6 +17,10 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/portfolio" element={<Portfolio />} />
+      <Route path="/entry" element={<EntryScene />} />
+      {/* Sandboxed embed target: the EntryScene CRT screen hosts this route in an
+          iframe and rasterizes it to a texture behind the VHS filter. */}
+      <Route path="/__vhs_screen" element={<NotFound />} />
       <Route path="/glass" element={<Glass />} />
       <Route path="/blur" element={<Blur />} />
       <Route path="/blur1" element={<Blur1 />} />

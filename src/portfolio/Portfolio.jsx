@@ -9,7 +9,7 @@ import React, {
 } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js'
-import { Environment, OrbitControls, ScrollControls, useScroll } from '@react-three/drei'
+import { Environment, OrbitControls, ScrollControls, useProgress, useScroll } from '@react-three/drei'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
@@ -35,11 +35,17 @@ const CONFIG = {
   enableOrbitControls: false,
   backgroundColor: '#111122',
   environmentPreset: null,           // disable preset
-  hdriPath: '/hdri/StudioHorror.exr', // your HDRI file
-  environmentIntensity: 1,         // optional, adjust brightness
+  hdriPath: '/hdri/vhs/Soft 2RingHighContrast.exr', // your HDRI file — lighting only, no skybox (Environment background stays false)
+  environmentIntensity: .15,      // optional, adjust brightness of the HDRI's contribution to lighting/reflections
+  vhsEnvMapIntensity: 1.1,         // per-material reflection strength applied to the VHS unit materials specifically (VHS/Reel/ReelHolder/Glass/VHSCover)
   ambientIntensity: 0.4,
   directionalLightIntensity: 0.8,
   directionalLightPosition: [10, 20, 5],
+  directionalLightColor: '#ffffff',
+  fillLightEnabled: true,           // soft opposite-side fill so the HDRI's key side isn't the only source of shape definition
+  fillLightIntensity: 0.35,
+  fillLightPosition: [-8, 6, -10],
+  fillLightColor: '#bcd7ff',
   cameraFOV: 60,
   cameraDefaultPosition: [0, 2, 5],
   pathLookAheadDistance: 2.5,
@@ -598,7 +604,7 @@ function InteractiveObjectFocusScroller({
       scroll.el.scrollTop = max * nextOffset
     }
 
-    const animateToOffset = (target) => {
+    const animateToOffset = (target, activeIndex) => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
@@ -612,7 +618,7 @@ function InteractiveObjectFocusScroller({
       if (Math.abs(delta) < 0.001) {
         setOffset(targetOffset)
         if (target.routePath) {
-          onPageTransition?.(target.routePath, fadeDurationMs)
+          onPageTransition?.(target.routePath, fadeDurationMs, activeIndex)
         }
         return
       }
@@ -626,7 +632,7 @@ function InteractiveObjectFocusScroller({
 
         if (!transitionStarted && target.routePath && t >= CONFIG.transitionFadeStartProgress) {
           transitionStarted = true
-          onPageTransition?.(target.routePath, fadeDurationMs)
+          onPageTransition?.(target.routePath, fadeDurationMs, activeIndex)
         }
 
         if (t < 1) {
@@ -634,7 +640,7 @@ function InteractiveObjectFocusScroller({
         } else {
           animationRef.current = null
           if (!transitionStarted && target.routePath) {
-            onPageTransition?.(target.routePath, fadeDurationMs)
+            onPageTransition?.(target.routePath, fadeDurationMs, activeIndex)
           }
         }
       }
@@ -652,7 +658,7 @@ function InteractiveObjectFocusScroller({
 
       clickLockedRef.current = true
       await onFocusStart?.(activeIndex)
-      animateToOffset(target)
+      animateToOffset(target, activeIndex)
     }
 
     const targetElement = eventTarget.current
@@ -670,30 +676,6 @@ function InteractiveObjectFocusScroller({
   return null
 }
 
-function LoadingIndicator() {
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        color: '#effff4',
-        background: 'rgba(2, 10, 9, 0.78)',
-        padding: '20px 32px',
-        borderRadius: 14,
-        fontFamily: 'monospace',
-        fontSize: 14,
-        zIndex: 3000,
-        letterSpacing: '0.08em',
-        border: '1px solid rgba(190, 255, 225, 0.25)',
-        boxShadow: '0 0 26px rgba(70, 255, 185, 0.12), inset 0 0 18px rgba(255, 255, 255, 0.05)',
-      }}
-    >
-      Loading scene...
-    </div>
-  )
-}
 
 function GradientSkybox({
   radius = 500,
@@ -1067,6 +1049,14 @@ function CursorCommitFlash({ point }) {
 
 export default function Portfolio() {
   const navigate = useNavigate()
+  // Efficient preloader: useProgress taps three.js's DefaultLoadingManager,
+  // which every loader in this scene already reports to (GLTFLoader via
+  // useLoader, EXRLoader, and the plain TextureLoader calls VHSInstances uses
+  // for its masks/labels) — no hand-rolled asset tracking needed. The canvas
+  // stays fully transparent until the camera has its first pose *and* every
+  // queued asset has actually finished decoding, then reveals with a single
+  // CSS opacity fade — no separate "Loading scene..." screen at all.
+  const { active: assetsLoading, progress: assetsProgress } = useProgress()
   const [pathPoints, setPathPoints] = useState([])
   const [markers, setMarkers] = useState({ start: null, end: null })
   const [trimInfo, setTrimInfo] = useState({ startT: 0, endT: 1 })
@@ -1287,7 +1277,7 @@ export default function Portfolio() {
     }, CONFIG.cursorCommitDurationMs)
   }, [])
 
-  const beginPageTransition = useCallback((routePath, durationMs) => {
+  const beginPageTransition = useCallback((routePath, durationMs, vhsIndex) => {
     if (!routePath) return
 
     if (pageTransitionFrameRef.current) {
@@ -1312,9 +1302,11 @@ export default function Portfolio() {
     })
 
     pageTransitionTimeoutRef.current = setTimeout(() => {
-      navigate(routePath)
+      navigate(routePath, {
+        state: { vhsIndex, vhsCount: metaballObjects.length },
+      })
     }, durationMs)
-  }, [navigate])
+  }, [navigate, metaballObjects.length])
 
   useEffect(() => () => {
     if (pageTransitionFrameRef.current) {
@@ -1329,6 +1321,7 @@ export default function Portfolio() {
   }, [])
 
   const effectiveProgress = CONFIG.reverseDirection ? 1 - progress : progress
+  const revealReady = cameraReady && !assetsLoading && assetsProgress >= 100
 
   return (
     <div
@@ -1371,8 +1364,6 @@ export default function Portfolio() {
           Error: {error}
         </div>
       )}
-
-      {(isLoading || !cameraReady) && <LoadingIndicator />}
 
       {CONFIG.showProgressHUD && (
         <div
@@ -1463,8 +1454,8 @@ export default function Portfolio() {
               background: CONFIG.useGradientSkybox ? 'transparent' : CONFIG.backgroundColor,
               width: '100%',
               height: '100%',
-              opacity: cameraReady ? 1 : 0,
-              transition: 'opacity 500ms ease',
+              opacity: revealReady ? 1 : 0,
+              transition: 'opacity 650ms ease',
               display: 'block',
             }}
             frameloop="always"
@@ -1520,9 +1511,17 @@ export default function Portfolio() {
               <directionalLight
                 position={CONFIG.directionalLightPosition}
                 intensity={CONFIG.directionalLightIntensity}
+                color={CONFIG.directionalLightColor}
                 castShadow
                 shadow-mapSize={[1024, 1024]}
               />
+              {CONFIG.fillLightEnabled && (
+                <directionalLight
+                  position={CONFIG.fillLightPosition}
+                  intensity={CONFIG.fillLightIntensity}
+                  color={CONFIG.fillLightColor}
+                />
+              )}
 
               <Suspense fallback={null}>
                 <SceneLoader
@@ -1539,6 +1538,7 @@ export default function Portfolio() {
                     emptyTransforms={vhsEmptyTransforms}
                     modelPath={CONFIG.vhsModelPath}
                     scale={CONFIG.vhsScale}
+                    envMapIntensity={CONFIG.vhsEnvMapIntensity}
                     stateRef={metaballStateRef}
                     onInstancesReady={handleVhsInstancesReady}
                     onControllerReady={handleVhsControllerReady}
@@ -1587,10 +1587,17 @@ export default function Portfolio() {
         </div>
 
         {CONFIG.usePostComposite && (
-          <PostCompositeOverlay
-            composite={CONFIG.postComposite}
-            progress={effectiveProgress}
-          />
+          <div
+            style={{
+              opacity: revealReady ? 1 : 0,
+              transition: 'opacity 650ms ease',
+            }}
+          >
+            <PostCompositeOverlay
+              composite={CONFIG.postComposite}
+              progress={effectiveProgress}
+            />
+          </div>
         )}
       </div>
 
