@@ -28,16 +28,17 @@ import {
 import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import ScreenSurface from './ScreenSurface'
 import CRTGlass from './CRTGlass'
+import ScrollPathCamera from './ScrollPathCamera'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SCENE
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// EntryScene.glb ships three simultaneous, play-once animations baked from the
-// same 0→2.33s timeline: "Entry_Camera" (Camera move + look), "Entry_VHS"
-// (the VHSPoint empty flying to rest) and "Entry_VHSPlayer" (the player tray
-// rotating open near the end). One AnimationMixer rooted at the loaded scene
-// resolves all three by node name and plays them together, once.
+// EntryScene.glb ships three simultaneous, play-once animations: "Entry_Camera"
+// (Camera move + look), "Entry_VHS" (the VHSPoint empty flying to rest) and
+// "Entry_VHSPlayer" (the player tray rotating open). One AnimationMixer rooted
+// at the loaded scene resolves all three by node name and plays them together
+// — all .play()'d in the same tick, so they start on the exact same frame.
 //
 // The VHS unit clicked in Portfolio.jsx is carried over via router state
 // (vhsIndex/vhsCount) and spawned as a child of the VHSPoint node, so it
@@ -88,7 +89,10 @@ function findNamedNode(root, name) {
 function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
   const gltf = useLoader(GLTFLoader, CONFIG.modelPath)
   const mixerRef = useRef(null)
+  const entryActionsRef = useRef(null)
+  const fireCompleteRef = useRef(null)
   const notifiedRef = useRef(false)
+  const entryDoneRef = useRef(false)
   const { size } = useThree()
   const setDefault = useThree((state) => state.set)
 
@@ -114,52 +118,65 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
 
   // Only "Entry_"-prefixed clips ever play in the entry scene — explicitly
   // scoped (not "whatever's in the glb") so a future re-export that adds an
-  // unrelated clip can't start auto-playing here. They share one 0→2.33s
-  // timeline authored to play together — LoopOnce + clampWhenFinished holds
-  // the final pose instead of resetting. The Screen is gated to power on only
-  // once every one of them has finished (fired via the mixer's 'finished'
-  // event, with a duration-based timeout as a belt-and-suspenders fallback in
-  // case an event is ever missed).
+  // unrelated clip can't start auto-playing here. All actions are created and
+  // .play()'d in this same synchronous pass, before the mixer's first update()
+  // — so they all begin advancing from the very first animation frame
+  // together, at their own natural authored speed/length. LoopOnce +
+  // clampWhenFinished holds each one's final pose instead of resetting, and
+  // (just as importantly) makes three.js auto-set that action's `.paused` the
+  // instant it truly reaches its own end.
+  //
+  // Completion — which gates both the Screen's power-on AND ScrollPathCamera
+  // taking over the camera — is detected by polling that `.paused` flag every
+  // frame in the useFrame below, NOT by a wall-clock setTimeout. A timeout
+  // guess is a race: the mixer's playback is driven by clamped, frame-by-frame
+  // delta accumulation (see the useFrame below), which can fall behind real
+  // wall-clock time under any slowdown — and ScrollPathCamera's own per-frame
+  // work (curve sampling, slerp, FOV lerp, wheel handling) is exactly the kind
+  // of extra cost that can cause that. A timeout firing before the mixer's
+  // simulated time actually caught up would cut the intro short and hand the
+  // camera to the scroll mechanism early. Polling the mixer's own state instead
+  // ties completion strictly to what has actually finished simulating/
+  // rendering, so entry animations are always allowed to finish playing in
+  // full before the scroll-tracking mechanism is ever allowed to engage.
   useEffect(() => {
     if (!gltf?.scene || !gltf.animations?.length) return undefined
 
     const entryClips = gltf.animations.filter((c) => c.name.startsWith('Entry_'))
     if (!entryClips.length) return undefined
 
+    entryDoneRef.current = false
+
     const mixer = new THREE.AnimationMixer(gltf.scene)
-    entryClips.forEach((clip) => {
+    entryActionsRef.current = entryClips.map((clip) => {
       const action = mixer.clipAction(clip)
       action.clampWhenFinished = true
       action.setLoop(THREE.LoopOnce, 1)
       action.play()
+      return action
     })
     mixerRef.current = mixer
 
     let firedComplete = false
-    const finished = new Set()
-
-    const fireComplete = () => {
+    fireCompleteRef.current = () => {
       if (firedComplete) return
       firedComplete = true
+      // Stop advancing the mixer once every Entry_ clip has finished — its
+      // last-applied camera pose stays exactly as-is (three.js doesn't revert
+      // values just because update() stops being called), and from here on
+      // ScrollPathCamera becomes the sole thing writing camera position/
+      // rotation. Without this, both would keep writing to the same camera
+      // every frame and whichever's useFrame happened to run last each frame
+      // would silently win, fighting/flickering against the other.
+      entryDoneRef.current = true
       onEntryAnimationsComplete?.()
     }
 
-    const handleFinished = (event) => {
-      const name = event.action?.getClip?.().name
-      if (!name || !name.startsWith('Entry_')) return
-      finished.add(name)
-      if (finished.size >= entryClips.length) fireComplete()
-    }
-    mixer.addEventListener('finished', handleFinished)
-
-    const maxDuration = entryClips.reduce((m, c) => Math.max(m, c.duration), 0)
-    const fallbackTimer = setTimeout(fireComplete, maxDuration * 1000 + 80)
-
     return () => {
-      clearTimeout(fallbackTimer)
-      mixer.removeEventListener('finished', handleFinished)
       mixer.stopAllAction()
       mixerRef.current = null
+      entryActionsRef.current = null
+      fireCompleteRef.current = null
     }
   }, [gltf, onEntryAnimationsComplete])
 
@@ -175,7 +192,13 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
   }, [vhsPointNode, screenNode, gltf, onReady])
 
   useFrame((_, rawDelta) => {
+    if (entryDoneRef.current) return
     mixerRef.current?.update(Math.min(rawDelta, 0.1))
+
+    const actions = entryActionsRef.current
+    if (actions?.length && actions.every((action) => action.paused)) {
+      fireCompleteRef.current?.()
+    }
   })
 
   if (!gltf?.scene) return null
@@ -268,6 +291,7 @@ export default function EntryScene() {
   const [sceneRoot, setSceneRoot] = useState(null)
   const [fadeVisible, setFadeVisible] = useState(true)
   const [screenActive, setScreenActive] = useState(false)
+  const [scrollTrackingActive, setScrollTrackingActive] = useState(false)
   const activationTimerRef = useRef(null)
 
   const embedSrc = useMemo(
@@ -284,6 +308,10 @@ export default function EntryScene() {
   }, [])
 
   const handleEntryAnimationsComplete = useCallback(() => {
+    // Scroll-path camera tracking picks up the instant the intro finishes —
+    // no extra delay. The Screen's power-on stays on its own separate delay.
+    setScrollTrackingActive(true)
+
     if (activationTimerRef.current) return
     activationTimerRef.current = setTimeout(() => {
       setScreenActive(true)
@@ -357,6 +385,10 @@ export default function EntryScene() {
         )}
 
         {sceneRoot && <CRTGlass sceneRoot={sceneRoot} />}
+
+        {sceneRoot && (
+          <ScrollPathCamera sceneRoot={sceneRoot} active={scrollTrackingActive} />
+        )}
       </Canvas>
 
       <div
