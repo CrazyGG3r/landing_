@@ -210,10 +210,28 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
 }
 
 // ─── SELECTED VHS UNIT: spawned as a child of VHSPoint ───────────────────────
+//
+// Beyond its static "Entry_VHS" pose, this unit's "Play" clip (aka "VHS_Play"
+// — the glb sometimes ships it under either name, same fallback lookup
+// VHSInstances.jsx already uses) and "Reel_Play" clip are driven live by
+// scroll, read from the shared `scrollStateRef` that ScrollPathCamera writes
+// every frame/wheel-event (see ScrollPathCamera.jsx) — no second wheel
+// listener here, just reading the one shared source of truth:
+//   • "Play"/"VHS_Play" loops continuously (LoopRepeat) once scrolling has
+//     happened at least once, forward while the most recent scroll was up,
+//     reverse while it was down (sticky — holds direction until it flips).
+//   • "Reel_Play" is scrubbed directly: its time is set to the scroll track's
+//     completion percentage × its own clip duration, every frame — so it
+//     always reflects exactly how far along the track you've scrolled, no
+//     looping or direction involved.
 
-function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount }) {
+function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount, scrollStateRef }) {
   const gltf = useLoader(GLTFLoader, CONFIG.vhsModelPath)
+  const { camera } = useThree()
   const attachedRef = useRef(null)
+  const mixerRef = useRef(null)
+  const vhsPlayActionRef = useRef(null)
+  const reelActionRef = useRef(null)
 
   const maskUniforms = useMemo(() => {
     const primary = { value: makeBlankMaskTexture() }
@@ -253,25 +271,87 @@ function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount }) {
       envMapIntensity: CONFIG.vhsEnvMapIntensity,
     })
 
+    const mixer = new THREE.AnimationMixer(root)
+    const findClip = (...names) => names.map((name) => gltf.animations.find((c) => c.name === name)).find(Boolean)
+
     // This is the one unit sitting in the player, not on the shelf — it must
     // stay in its "Entry_VHS" pose always (never the shelf "VHS_Idle" pose).
-    // It isn't hoverable/clickable here, so a one-shot pose bake is enough;
-    // no per-frame mixer update needed afterward.
-    const entryVhsClip = gltf.animations.find((c) => c.name === 'Entry_VHS')
-    if (entryVhsClip) {
-      const mixer = new THREE.AnimationMixer(root)
-      mixer.clipAction(entryVhsClip).play()
-      mixer.update(0)
+    // It isn't hoverable/clickable, so a one-shot pose bake is enough.
+    const entryVhsClip = findClip('Entry_VHS')
+    if (entryVhsClip) mixer.clipAction(entryVhsClip).play()
+
+    // "Play" ("VHS_Play"): starts inactive (weight 0) until the first scroll
+    // event ever records a direction — then loops forever, direction flipping
+    // live with whichever way was most recently scrolled.
+    const vhsPlayClip = findClip('VHS_Play', 'Play')
+    if (vhsPlayClip) {
+      const action = mixer.clipAction(vhsPlayClip)
+      action.setLoop(THREE.LoopRepeat, Infinity)
+      action.clampWhenFinished = false
+      action.weight = 0
+      action.paused = true
+      action.play()
+      vhsPlayActionRef.current = action
     }
+
+    // "Reel_Play": pure scrub target, never itself "played" — its time is set
+    // directly from scroll completion percentage every frame below.
+    const reelClip = findClip('Reel_Play')
+    if (reelClip) {
+      const action = mixer.clipAction(reelClip)
+      action.weight = 1
+      action.paused = true
+      action.time = 0
+      action.play()
+      reelActionRef.current = action
+    }
+
+    mixer.update(0)
+    mixerRef.current = mixer
 
     vhsPointNode.add(root)
     attachedRef.current = root
 
     return () => {
+      mixer.stopAllAction()
+      mixerRef.current = null
+      vhsPlayActionRef.current = null
+      reelActionRef.current = null
       vhsPointNode.remove(root)
       attachedRef.current = null
     }
   }, [gltf, vhsPointNode, vhsIndex, vhsCount, maskUniforms, labelUniform])
+
+  useFrame((_, rawDelta) => {
+    const mixer = mixerRef.current
+    if (!mixer) return
+
+    const scroll = scrollStateRef?.current
+    const reelAction = reelActionRef.current
+    if (reelAction && scroll) {
+      const completion = THREE.MathUtils.clamp(scroll.progress ?? 0, 0, 1)
+      reelAction.time = completion * reelAction.getClip().duration
+    }
+
+    const vhsPlayAction = vhsPlayActionRef.current
+    if (vhsPlayAction && scroll?.playDirection) {
+      vhsPlayAction.timeScale = scroll.playDirection
+      vhsPlayAction.weight = 1
+      vhsPlayAction.paused = false
+    }
+
+    mixer.update(Math.min(rawDelta, 0.1))
+
+    if (typeof window !== 'undefined') {
+      window.__vhsVisDebug = {
+        root: attachedRef.current,
+        camera,
+        vhsPlayAction: vhsPlayActionRef.current,
+        reelAction: reelActionRef.current,
+        scroll: scroll ? { ...scroll } : null,
+      }
+    }
+  })
 
   return null
 }
@@ -293,6 +373,10 @@ export default function EntryScene() {
   const [screenActive, setScreenActive] = useState(false)
   const [scrollTrackingActive, setScrollTrackingActive] = useState(false)
   const activationTimerRef = useRef(null)
+  // Single shared source of truth for scroll state: ScrollPathCamera is the
+  // only thing that ever writes to it (see its own file), other components
+  // (EntrySceneVhsUnit) just read from it — no second wheel listener anywhere.
+  const scrollStateRef = useRef({ progress: 0, playDirection: 0 })
 
   const embedSrc = useMemo(
     () => (typeof window !== 'undefined'
@@ -372,6 +456,7 @@ export default function EntryScene() {
               vhsPointNode={vhsPointNode}
               vhsIndex={vhsIndex}
               vhsCount={vhsCount}
+              scrollStateRef={scrollStateRef}
             />
           </Suspense>
         )}
@@ -387,7 +472,11 @@ export default function EntryScene() {
         {sceneRoot && <CRTGlass sceneRoot={sceneRoot} />}
 
         {sceneRoot && (
-          <ScrollPathCamera sceneRoot={sceneRoot} active={scrollTrackingActive} />
+          <ScrollPathCamera
+            sceneRoot={sceneRoot}
+            active={scrollTrackingActive}
+            scrollStateRef={scrollStateRef}
+          />
         )}
       </Canvas>
 
