@@ -207,7 +207,11 @@ export default function VHSInstances({
       }
 
       const mixer = new THREE.AnimationMixer(root)
-      const findClip = (...names) => names.map((name) => gltf.animations.find((c) => c.name === name)).find(Boolean)
+      // The shared VHSUnit.glb also ships "Entry_"-prefixed clips (used only by
+      // the EntryScene). They must never drive a unit on the portfolio page, so
+      // they are excluded from the pool the portfolio ever turns into actions.
+      const portfolioClips = gltf.animations.filter((c) => !c.name.startsWith('Entry_'))
+      const findClip = (...names) => names.map((name) => portfolioClips.find((c) => c.name === name)).find(Boolean)
 
       const idleAction = findClip('VHS_Idle') ? mixer.clipAction(findClip('VHS_Idle')) : null
       const hoverClickAction = findClip('VHS_HoverClick') ? mixer.clipAction(findClip('VHS_HoverClick')) : null

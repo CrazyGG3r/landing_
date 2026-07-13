@@ -105,6 +105,12 @@ export function loadMaskTextureInto(uniformHolder, path) {
       tex.colorSpace = THREE.NoColorSpace
       tex.wrapS = THREE.ClampToEdgeWrapping
       tex.wrapT = THREE.ClampToEdgeWrapping
+      // GLTFLoader loads the "VHS" base-color texture with flipY = false (the
+      // glTF UV convention), but TextureLoader defaults to flipY = true. Left
+      // mismatched, the masks are sampled vertically flipped relative to the
+      // albedo — the "offset" against the mesh UVs. Match the glTF convention so
+      // the masks track the VHS material's UVs exactly.
+      tex.flipY = false
       tex.needsUpdate = true
       uniformHolder.value = tex
     },

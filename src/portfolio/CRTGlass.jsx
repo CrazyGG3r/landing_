@@ -64,7 +64,7 @@ export default function CRTGlass({
       normalScale: source?.normalScale ? source.normalScale.clone() : new THREE.Vector2(1, 1),
       transmission: opts.transmission,
       ior: opts.ior,
-      opacity: 0.0,
+      opacity: 0.1,
       thickness: opts.thickness,
       clearcoat: opts.clearcoat,
       reflectivity: opts.reflectivity,

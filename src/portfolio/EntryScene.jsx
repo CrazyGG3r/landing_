@@ -112,17 +112,22 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
     setDefault({ camera: cameraNode })
   }, [cameraNode, setDefault, size.width, size.height])
 
-  // All three clips share one 0→2.33s timeline authored to play together —
-  // LoopOnce + clampWhenFinished holds the final pose instead of resetting.
-  // We watch specifically the "Entry_"-prefixed clips: the Screen is gated to
-  // power on only once every one of them has finished (fired via the mixer's
-  // 'finished' event, with a duration-based timeout as a belt-and-suspenders
-  // fallback in case an event is ever missed).
+  // Only "Entry_"-prefixed clips ever play in the entry scene — explicitly
+  // scoped (not "whatever's in the glb") so a future re-export that adds an
+  // unrelated clip can't start auto-playing here. They share one 0→2.33s
+  // timeline authored to play together — LoopOnce + clampWhenFinished holds
+  // the final pose instead of resetting. The Screen is gated to power on only
+  // once every one of them has finished (fired via the mixer's 'finished'
+  // event, with a duration-based timeout as a belt-and-suspenders fallback in
+  // case an event is ever missed).
   useEffect(() => {
     if (!gltf?.scene || !gltf.animations?.length) return undefined
 
+    const entryClips = gltf.animations.filter((c) => c.name.startsWith('Entry_'))
+    if (!entryClips.length) return undefined
+
     const mixer = new THREE.AnimationMixer(gltf.scene)
-    gltf.animations.forEach((clip) => {
+    entryClips.forEach((clip) => {
       const action = mixer.clipAction(clip)
       action.clampWhenFinished = true
       action.setLoop(THREE.LoopOnce, 1)
@@ -130,7 +135,6 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
     })
     mixerRef.current = mixer
 
-    const entryClips = gltf.animations.filter((c) => c.name.startsWith('Entry_'))
     let firedComplete = false
     const finished = new Set()
 
@@ -226,13 +230,14 @@ function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount }) {
       envMapIntensity: CONFIG.vhsEnvMapIntensity,
     })
 
-    // Static rest pose only — this unit sits in the player, it isn't
-    // hoverable/clickable here, so a one-shot pose bake is enough; no
-    // per-frame mixer update needed afterward.
-    const idleClip = gltf.animations.find((c) => c.name === 'VHS_Idle')
-    if (idleClip) {
+    // This is the one unit sitting in the player, not on the shelf — it must
+    // stay in its "Entry_VHS" pose always (never the shelf "VHS_Idle" pose).
+    // It isn't hoverable/clickable here, so a one-shot pose bake is enough;
+    // no per-frame mixer update needed afterward.
+    const entryVhsClip = gltf.animations.find((c) => c.name === 'Entry_VHS')
+    if (entryVhsClip) {
       const mixer = new THREE.AnimationMixer(root)
-      mixer.clipAction(idleClip).play()
+      mixer.clipAction(entryVhsClip).play()
       mixer.update(0)
     }
 
