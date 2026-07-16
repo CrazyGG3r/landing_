@@ -128,22 +128,36 @@ export default function ScreenSurface({
     }
   }, [screenNode, embedSrc, resolution, fps, config])
 
-  // ── pointer down/up forwarding (move is handled per-frame via raycast) ──
+  // ── pointer down/up + wheel forwarding (move is handled per-frame via raycast) ──
   useEffect(() => {
     const el = gl.domElement
-    const forward = (type) => () => {
+    const forward = (kind) => () => {
       if (!activeRef.current) return
       const h = hoverRef.current
       if (!h.hovering) return
-      domRef.current?.forwardPointer(type, h.u, h.v, { buttons: type === 'mousedown' ? 1 : 0 })
+      domRef.current?.forwardPointer(kind, h.u, h.v, { buttons: kind === 'down' ? 1 : 0 })
     }
-    const onDown = forward('mousedown')
-    const onUp = forward('mouseup')
+    const onDown = forward('down')
+    const onUp = forward('up')
+
+    // Wheel over the screen scrolls the hosted reader; anywhere else it falls
+    // through to the scene's own wheel-driven camera (ScrollPathCamera's window
+    // listener). gl.domElement is the wheel target, so this fires before that
+    // bubble-phase listener — stopPropagation there hands scroll to the reader.
+    const onWheel = (e) => {
+      if (!activeRef.current || !hoverRef.current.hovering) return
+      e.preventDefault()
+      e.stopPropagation()
+      domRef.current?.forwardWheel(e.deltaX, e.deltaY)
+    }
+
     el.addEventListener('pointerdown', onDown)
     window.addEventListener('pointerup', onUp)
+    el.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       el.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointerup', onUp)
+      el.removeEventListener('wheel', onWheel)
     }
   }, [gl])
 
@@ -171,10 +185,16 @@ export default function ScreenSurface({
         // Display U is mirrored (back-face view); mirror the forwarded U to match.
         const u = 1 - hit.uv.x
         hoverRef.current = { hovering: true, u, v: hit.uv.y }
-        dom.forwardPointer('mousemove', u, hit.uv.y)
-      } else {
+        dom.forwardPointer('move', u, hit.uv.y)
+      } else if (hoverRef.current.hovering) {
+        // Pointer left the screen — clear hover in the page (resume auto-rotate etc.).
         hoverRef.current.hovering = false
+        dom.forwardPointerLeave()
       }
+    } else if (hoverRef.current.hovering) {
+      // Deactivated while hovering — same cleanup.
+      hoverRef.current.hovering = false
+      dom.forwardPointerLeave()
     }
 
     // VHS pass → write FBO, ping-ponging the previous output as feedback.

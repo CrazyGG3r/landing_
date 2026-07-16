@@ -1,0 +1,110 @@
+{
+  "metadata": {
+    "id": "amproj-4",
+    "title": "AMProj4"
+  },
+  "presentation": {
+    "legacyMode": {
+      "enabled": true,
+      "pixelation": {
+        "blur": 22,
+        "disruption": 0.75,
+        "duration": 1200,
+        "enabled": true,
+        "trigger": "document-load"
+      }
+    }
+  },
+  "sections": [
+    {
+      "height": 1080,
+      "id": "amproj-4-section-1",
+      "name": "Section 1",
+      "nodes": [
+        {
+          "content": [
+            {
+              "kind": "paragraph",
+              "runs": [
+                {
+                  "text": "AMProj4"
+                }
+              ]
+            }
+          ],
+          "id": "amproj-4-title",
+          "layout": {
+            "mode": "absolute",
+            "position": {
+              "x": 80,
+              "y": 90
+            },
+            "size": {
+              "height": 140,
+              "width": 920
+            },
+            "zIndex": 0
+          },
+          "runtimeWrap": {
+            "alphaThreshold": 0.05,
+            "enabled": false,
+            "margin": 12,
+            "mode": "silhouette",
+            "side": "auto",
+            "targetNodeIds": [],
+            "updateFps": 12
+          },
+          "type": "text",
+          "typography": {
+            "color": "#111111",
+            "fontFamily": "Inter",
+            "fontSize": 96,
+            "justify": "left"
+          }
+        },
+        {
+          "content": [
+            {
+              "kind": "paragraph",
+              "runs": [
+                {
+                  "text": "Placeholder tape 4. Replace public/projects/AMProj4/document.json with this tape's Reader Engine export (authoring source: src/AMP/projects/AMProj4)."
+                }
+              ]
+            }
+          ],
+          "id": "amproj-4-body",
+          "layout": {
+            "mode": "absolute",
+            "position": {
+              "x": 80,
+              "y": 260
+            },
+            "size": {
+              "height": 420,
+              "width": 900
+            },
+            "zIndex": 0
+          },
+          "runtimeWrap": {
+            "alphaThreshold": 0.05,
+            "enabled": false,
+            "margin": 12,
+            "mode": "silhouette",
+            "side": "auto",
+            "targetNodeIds": [],
+            "updateFps": 12
+          },
+          "type": "text",
+          "typography": {
+            "color": "#333333",
+            "fontFamily": "Inter",
+            "fontSize": 34,
+            "justify": "left"
+          }
+        }
+      ]
+    }
+  ],
+  "version": "1.0.0"
+}

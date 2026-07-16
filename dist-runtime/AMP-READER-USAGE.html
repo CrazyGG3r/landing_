@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AMP Reader Embed Example</title>
+
+  <!-- AMP READER: keep this stylesheet beside amp-reader.js. -->
+  <link rel="stylesheet" href="./amp-reader.css">
+</head>
+<body style="margin:0">
+  <section id="amp-file-warning" hidden style="max-width:760px;margin:64px auto;padding:28px;border:1px solid #222;font:16px/1.55 system-ui,sans-serif">
+    <h1 style="margin-top:0">Serve AMP Reader over HTTP</h1>
+    <p>This example cannot run when opened directly with a <code>file://</code> URL because browsers block JavaScript module imports from local files.</p>
+    <p>From the AllMediaProcessor directory, run:</p>
+    <pre style="padding:12px;background:#eee;overflow:auto"><code>npm run preview:runtime</code></pre>
+    <p>Then open:</p>
+    <pre style="padding:12px;background:#eee;overflow:auto"><code>http://127.0.0.1:4178/dist-runtime/AMP-READER-USAGE.html</code></pre>
+    <p>Your deployed website already uses HTTP or HTTPS, so this restriction does not apply after deployment.</p>
+  </section>
+
+  <!-- AMP READER: the complete document is mounted inside this element. -->
+  <div id="amp-reader"></div>
+
+  <script>
+    (async () => {
+      if (location.protocol === "file:") {
+        document.getElementById("amp-file-warning").hidden = false;
+        return;
+      }
+
+      const { mountAMPReader } = await import("./amp-reader.js");
+
+      // AMP READER COMMAND: change this path to your deployed AMP document.json.
+      // This default points to the AMProj1 fixture in the current workspace.
+      mountAMPReader("#amp-reader", {
+        src: "../src/projects/AMProj1/document.json"
+      });
+    })().catch((error) => {
+      const warning = document.getElementById("amp-file-warning");
+      warning.hidden = false;
+      warning.querySelector("h1").textContent = "Unable to start AMP Reader";
+      warning.querySelector("p").textContent = error instanceof Error ? error.message : String(error);
+    });
+  </script>
+</body>
+</html>

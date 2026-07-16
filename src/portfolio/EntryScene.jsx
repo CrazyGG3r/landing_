@@ -29,6 +29,7 @@ import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import ScreenSurface from './ScreenSurface'
 import CRTGlass from './CRTGlass'
 import ScrollPathCamera from './ScrollPathCamera'
+import { resolveVhsProjectId } from './vhsProjects'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SCENE
@@ -69,7 +70,7 @@ const CONFIG = {
   fadeOverlayColor: '#ffffff',
   fadeOutDurationMs: 450,
   screenNodeName: 'Screen',
-  // The hosted placeholder page (NotFound), served on its own route so it runs
+  // The hosted AMP reader, served on its own route so its runtime remains
   // fully sandboxed inside the ScreenSurface iframe.
   screenEmbedPath: '/__vhs_screen',
   // The Screen only powers on this long after every "Entry_" animation finishes.
@@ -378,12 +379,14 @@ export default function EntryScene() {
   // (EntrySceneVhsUnit) just read from it — no second wheel listener anywhere.
   const scrollStateRef = useRef({ progress: 0, playDirection: 0 })
 
-  const embedSrc = useMemo(
-    () => (typeof window !== 'undefined'
-      ? `${window.location.origin}${CONFIG.screenEmbedPath}`
-      : CONFIG.screenEmbedPath),
-    [],
-  )
+  // The Screen's embed is per-tape: the selected VHS (vhsIndex) maps to an AMP
+  // project, passed to the reader iframe as `?p=<projectId>`. Changing tapes
+  // changes embedSrc, which re-mounts ScreenSurface's iframe with the new document.
+  const embedSrc = useMemo(() => {
+    const projectId = resolveVhsProjectId(vhsIndex)
+    const path = `${CONFIG.screenEmbedPath}?p=${encodeURIComponent(projectId)}`
+    return typeof window !== 'undefined' ? `${window.location.origin}${path}` : path
+  }, [vhsIndex])
 
   const handleRoomReady = useCallback(({ vhsPointNode: vp, screenNode: sn, sceneRoot: root }) => {
     setVhsPointNode(vp)

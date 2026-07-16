@@ -1,0 +1,139 @@
+{
+  "metadata": {
+    "id": "5a054cd2-211e-439b-8bb6-f0b5ac07ef59",
+    "title": "AMProj1"
+  },
+  "presentation": {
+    "legacyMode": {
+      "enabled": true,
+      "pixelation": {
+        "blur": 22,
+        "disruption": 0.75,
+        "duration": 1200,
+        "enabled": true,
+        "trigger": "document-load"
+      }
+    }
+  },
+  "sections": [
+    {
+      "height": 1080,
+      "id": "89edc7ff-f674-412b-b816-a1d4e3701450",
+      "name": "Section 1",
+      "nodes": [
+        {
+          "content": [
+            {
+              "kind": "paragraph",
+              "runs": [
+                {
+                  "text": "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A"
+                }
+              ]
+            }
+          ],
+          "id": "6c9c3b31-f9f1-4482-8554-cde7755c3389",
+          "layout": {
+            "mode": "absolute",
+            "position": {
+              "x": 40,
+              "y": 40
+            },
+            "size": {
+              "height": 456.390625,
+              "width": 762
+            },
+            "zIndex": 0
+          },
+          "runtimeWrap": {
+            "alphaThreshold": 0.05,
+            "enabled": true,
+            "margin": 12,
+            "mode": "silhouette",
+            "side": "auto",
+            "targetNodeIds": [],
+            "updateFps": 12
+          },
+          "type": "text",
+          "typography": {
+            "color": "#111111",
+            "fontFamily": "Inter",
+            "fontSize": 31,
+            "justify": "justify"
+          }
+        },
+        {
+          "backfaceCulling": true,
+          "behaviors": {
+            "autoRotate": true,
+            "pauseOnHover": true,
+            "resumeOnLeave": true,
+            "rotationOffset": {
+              "enabled": false,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotationSpeed": {
+              "x": 0,
+              "y": 28.65,
+              "z": 0
+            }
+          },
+          "camera": {
+            "fov": 45
+          },
+          "id": "e6ce66ab-1825-42b6-a9e9-9591af903efa",
+          "layout": {
+            "mode": "absolute",
+            "position": {
+              "x": -58,
+              "y": 7.390625
+            },
+            "size": {
+              "height": 489,
+              "width": 470
+            },
+            "zIndex": -1
+          },
+          "lightingIntensity": 1,
+          "materialOverride": {
+            "baseColor": "#ffffff",
+            "enabled": true,
+            "metalness": 0,
+            "roughness": 0
+          },
+          "src": "models/MaleBust.glb",
+          "toon": {
+            "ao": {
+              "enabled": true,
+              "intensity": 1
+            },
+            "bands": 5,
+            "enabled": true,
+            "metalnessMultiplier": 1,
+            "normalScale": 1,
+            "opacityMultiplier": 1,
+            "outline": {
+              "color": "#15171a",
+              "enabled": false,
+              "opacity": 1,
+              "thickness": 0.018
+            },
+            "roughnessMultiplier": 1,
+            "smoothness": 0.08,
+            "strength": 0.7
+          },
+          "transparentBackground": true,
+          "type": "model3d",
+          "wireframe": {
+            "color": "#22d3ee",
+            "enabled": false,
+            "thickness": 1.5
+          }
+        }
+      ]
+    }
+  ],
+  "version": "1.0.0"
+}

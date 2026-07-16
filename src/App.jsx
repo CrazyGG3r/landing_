@@ -8,6 +8,7 @@ import EntryScene from "./portfolio/EntryScene";
 import Glass from "./portfolio/Glass";
 import Research from "./assignment/research";
 import NotFound from "./NotFound";
+import AMPReaderScreen from "./AMPReaderScreen";
 import Kitchen from "./home copy/Landing"
 import Scribble from "./nextmodel/Landing"
 import Dashboard from "./iot_testing/Landing"
@@ -18,9 +19,9 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/entry" element={<EntryScene />} />
-      {/* Sandboxed embed target: the EntryScene CRT screen hosts this route in an
-          iframe and rasterizes it to a texture behind the VHS filter. */}
-      <Route path="/__vhs_screen" element={<NotFound />} />
+      {/* Sandboxed embed target: the EntryScene CRT screen hosts the AMP reader
+          here and rasterizes it to a texture behind the VHS filter. */}
+      <Route path="/__vhs_screen" element={<AMPReaderScreen />} />
       <Route path="/glass" element={<Glass />} />
       <Route path="/blur" element={<Blur />} />
       <Route path="/blur1" element={<Blur1 />} />
