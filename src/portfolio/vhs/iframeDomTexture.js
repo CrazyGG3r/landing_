@@ -55,6 +55,10 @@ export class IframeDomTexture {
     this._hoverTarget = null
     this._downTarget = null
 
+    // Cached inlined-CSS text for the snapshot ({ count, text }); rebuilt when the
+    // document's stylesheet count changes. See _cssTextFor.
+    this._cssCache = null
+
     // Host iframe. It must stay laid out at real size AND geometrically inside the
     // viewport — NOT parked at left:-99999px. The embedded reader lazy-loads its
     // 3D model via IntersectionObserver ("loads near viewport"), and IO clips a
@@ -167,6 +171,20 @@ export class IframeDomTexture {
     const liveRoot = doc.documentElement
     const clone = liveRoot.cloneNode(true)
 
+    // Inline the page's stylesheets. A rasterized SVG <foreignObject> runs in a
+    // restricted mode that can't load external resources, so <link rel=stylesheet>
+    // rules are simply absent from the snapshot. In dev Vite injects CSS as inline
+    // <style> (captured fine), but a production build serves it via <link> — the
+    // reader's class CSS then vanishes and, e.g., `.amp-runtime-stage`'s
+    // `transform-origin:0 0` reverts to the 50% 50% default, so its inline
+    // `transform: scale()` drifts the whole picture down-right. Consolidating all
+    // accessible rules into one inline <style> makes the snapshot faithful in both.
+    try {
+      this._inlineStylesheets(clone, doc)
+    } catch {
+      /* non-fatal — snapshot may be unstyled but is better than dropped */
+    }
+
     // Best-effort — if materialization throws we still serialize the raw clone
     // (canvases blank) rather than dropping the whole frame.
     try {
@@ -181,6 +199,44 @@ export class IframeDomTexture {
       markup = markup.replace(/^<html/i, `<html xmlns="${XHTML_NS}"`)
     }
     return markup
+  }
+
+  // Replace the clone's external <link>/<style> with ONE inline <style> holding
+  // every accessible rule, in document order, so the snapshot cascade matches the
+  // live page regardless of how CSS was delivered.
+  _inlineStylesheets(clone, doc) {
+    const cssText = this._cssTextFor(doc)
+    if (!cssText) return
+    // Drop link stylesheets (never load in the snapshot) and the original <style>
+    // tags (their rules are re-emitted below) for a clean, deterministic cascade.
+    clone.querySelectorAll('link[rel="stylesheet"], style').forEach((el) => el.remove())
+    const head = clone.querySelector('head') || clone
+    const style = (clone.ownerDocument || document).createElementNS(XHTML_NS, 'style')
+    style.textContent = cssText
+    head.appendChild(style)
+  }
+
+  // Concatenated cssText of every readable stylesheet, cached and rebuilt only when
+  // the sheet count changes (CSS is static per-frame; async chunks may add sheets).
+  _cssTextFor(doc) {
+    const sheets = doc.styleSheets
+    const adopted = doc.adoptedStyleSheets
+    const count = (sheets ? sheets.length : 0) + (adopted ? adopted.length : 0)
+    if (this._cssCache && this._cssCache.count === count) return this._cssCache.text
+
+    const parts = []
+    const read = (sheet) => {
+      let rules = null
+      try { rules = sheet.cssRules } catch { return } // cross-origin — unreadable
+      if (!rules) return
+      for (let i = 0; i < rules.length; i++) parts.push(rules[i].cssText)
+    }
+    if (sheets) for (let i = 0; i < sheets.length; i++) read(sheets[i])
+    if (adopted) for (let i = 0; i < adopted.length; i++) read(adopted[i])
+
+    const text = parts.join('\n')
+    this._cssCache = { count, text }
+    return text
   }
 
   // Walk the live and cloned canvas lists in lock-step (cloneNode preserves order
