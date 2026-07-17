@@ -35,6 +35,7 @@ export default function ScreenSurface({
   config = DEFAULT_VHS_CONFIG,
   resolution = 768,
   fps = 12,
+  shaderFps = 30,
   powerOnSpeed = 3.0,
 }) {
   const { gl, camera, raycaster, pointer } = useThree()
@@ -53,6 +54,8 @@ export default function ScreenSurface({
   const timeRef = useRef(0)
   const parityRef = useRef(0)
   const onLevelRef = useRef(0)
+  const hasRenderedRef = useRef(false)
+  const lastVhsRenderAtRef = useRef(-Infinity)
 
   useEffect(() => {
     activeRef.current = active
@@ -114,6 +117,8 @@ export default function ScreenSurface({
     displayMatRef.current = displayMat
     originalMatRef.current = screenNode.material
     screenNode.material = displayMat
+    hasRenderedRef.current = false
+    lastVhsRenderAtRef.current = -Infinity
 
     return () => {
       if (originalMatRef.current) screenNode.material = originalMatRef.current
@@ -125,6 +130,8 @@ export default function ScreenSurface({
       displayMat.dispose()
       domRef.current = null
       matRef.current = null
+      hasRenderedRef.current = false
+      lastVhsRenderAtRef.current = -Infinity
     }
   }, [screenNode, embedSrc, resolution, fps, config])
 
@@ -174,8 +181,13 @@ export default function ScreenSurface({
     const target = activeRef.current ? 1 : 0
     onLevelRef.current += (target - onLevelRef.current) * Math.min(1, delta * powerOnSpeed)
 
-    // Refresh the page raster (self-throttled to fps).
-    dom.update()
+    // Warm one frame before power-on, then keep the reader live whenever the
+    // screen is powered. Visibility is deliberately not inferred from mesh
+    // bounds here: the authored CRT plane can use unusual transforms/culling.
+    const screenPowered = activeRef.current || onLevelRef.current > 0.001
+    if (!dom.hasFrame || screenPowered) {
+      dom.update(timeRef.current * 1000)
+    }
 
     // Pointer: raycast the Screen mesh and forward hover position to the page.
     if (activeRef.current && screenNode) {
@@ -184,7 +196,9 @@ export default function ScreenSurface({
       if (hit && hit.uv) {
         // Display U is mirrored (back-face view); mirror the forwarded U to match.
         const u = 1 - hit.uv.x
-        hoverRef.current = { hovering: true, u, v: hit.uv.y }
+        hoverRef.current.hovering = true
+        hoverRef.current.u = u
+        hoverRef.current.v = hit.uv.y
         dom.forwardPointer('move', u, hit.uv.y)
       } else if (hoverRef.current.hovering) {
         // Pointer left the screen — clear hover in the page (resume auto-rotate etc.).
@@ -198,6 +212,14 @@ export default function ScreenSurface({
     }
 
     // VHS pass → write FBO, ping-ponging the previous output as feedback.
+    // Initialize the render targets once, then leave the expensive full-size
+    // shader dormant while its output cannot contribute to the visible frame.
+    if (!screenPowered && hasRenderedRef.current) return
+    const nowMs = timeRef.current * 1000
+    const shaderIntervalMs = 1000 / Math.max(1, shaderFps)
+    if (hasRenderedRef.current && nowMs - lastVhsRenderAtRef.current < shaderIntervalMs) return
+    lastVhsRenderAtRef.current = nowMs
+
     parityRef.current = parityRef.current > 0.5 ? 0 : 1
     mat.uniforms.uTime.value = timeRef.current
     mat.uniforms.uActive.value = onLevelRef.current
@@ -208,6 +230,7 @@ export default function ScreenSurface({
     gl.setRenderTarget(rt.write)
     gl.render(sceneRef.current, cameraRef.current)
     gl.setRenderTarget(prevTarget)
+    hasRenderedRef.current = true
 
     // Show what we just wrote; swap read/write for next frame's feedback.
     if (displayMatRef.current) displayMatRef.current.map = rt.write.texture

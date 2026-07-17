@@ -25,6 +25,7 @@ const DEFAULT_GLASS = {
   transmission: 1.0,     // fully transmissive glass
   ior: 1.5,              // typical glass
   thickness: 0.05,
+  opacity: 0.11,
   clearcoat: 1.0,
   reflectivity: 0.5,
   envMapIntensity: 1.0,
@@ -64,7 +65,6 @@ export default function CRTGlass({
       normalScale: source?.normalScale ? source.normalScale.clone() : new THREE.Vector2(1, 1),
       transmission: opts.transmission,
       ior: opts.ior,
-      opacity: 0.11,
       thickness: opts.thickness,
       clearcoat: opts.clearcoat,
       reflectivity: opts.reflectivity,

@@ -44,6 +44,9 @@ export class IframeDomTexture {
     this._lastCaptureAt = -Infinity
     this._capturing = false
     this._disposed = false
+    this.hasFrame = false
+    this._img = null
+    this._captureResolve = null
 
     // Per-canvas last-good PNG data-URL, keyed by the LIVE canvas element. Lets a
     // canvas that transiently taints or reports zero size reuse its prior frame
@@ -119,55 +122,78 @@ export class IframeDomTexture {
     const doc = this._safeDoc()
     if (!doc || !doc.body || doc.readyState === 'loading') return
     this._lastCaptureAt = now
+    this._capturing = true
     this._capture()
+      .catch(() => {
+        // Keep the previous good frame on transient serialization/decode errors.
+      })
+      .finally(() => {
+        this._capturing = false
+      })
   }
 
-  _capture() {
+  async _capture() {
     const doc = this._safeDoc()
     if (!doc || !doc.documentElement) return
 
-    let markup
-    try {
-      markup = this._serializeDocument(doc)
-    } catch {
-      return
-    }
-    if (!markup) return
+    const markup = await this._serializeDocument(doc)
+    if (!markup || this._disposed) return
 
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${this.width}" height="${this.height}">` +
       `<foreignObject x="0" y="0" width="100%" height="100%">${markup}</foreignObject>` +
       `</svg>`
 
-    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-    // A FRESH Image per capture — reusing one <img> across rapid data-URL
-    // reassignments proved unreliable (onload could be dropped, wedging the
-    // in-flight guard). One image per snapshot is cheap and robust.
+    // Keep the proven data-URL decoder path for SVG foreignObject snapshots,
+    // but create it asynchronously to avoid synchronous percent-encoding.
+    const url = await this._blobDataUrl(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
+    if (!url || this._disposed) return
     const img = new Image()
+    this._img = img
 
-    this._capturing = true
-    img.onload = () => {
-      if (this._disposed) return
-      try {
-        this.ctx.fillStyle = '#050505'
-        this.ctx.fillRect(0, 0, this.width, this.height)
-        this.ctx.drawImage(img, 0, 0, this.width, this.height)
-        this.texture.needsUpdate = true
-      } catch {
-        // Tainted / decode issue — keep the previous good frame silently.
+    return new Promise((resolve) => {
+      this._captureResolve = resolve
+      img.onload = () => {
+        if (this._disposed) {
+          this._captureResolve = null
+          resolve()
+          return
+        }
+        try {
+          this.ctx.fillStyle = '#050505'
+          this.ctx.fillRect(0, 0, this.width, this.height)
+          this.ctx.drawImage(img, 0, 0, this.width, this.height)
+          this.texture.needsUpdate = true
+          this.hasFrame = true
+        } catch {
+          // Tainted / decode issue — keep the previous good frame silently.
+        }
+        if (this._img === img) this._img = null
+        this._captureResolve = null
+        resolve()
       }
-      this._capturing = false
-    }
-    img.onerror = () => {
-      this._capturing = false
-    }
-    img.src = url
+      img.onerror = () => {
+        if (this._img === img) this._img = null
+        this._captureResolve = null
+        resolve()
+      }
+      img.src = url
+    })
+  }
+
+  _blobDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : null)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
   }
 
   // Clone the live document, materialize its visible canvases into <img> snapshots
   // on the clone, and serialize that. The live DOM is never mutated. Returns an
   // XHTML-namespaced string ready to drop inside <foreignObject>, or '' on failure.
-  _serializeDocument(doc) {
+  async _serializeDocument(doc) {
     const liveRoot = doc.documentElement
     const clone = liveRoot.cloneNode(true)
 
@@ -188,9 +214,21 @@ export class IframeDomTexture {
     // Best-effort — if materialization throws we still serialize the raw clone
     // (canvases blank) rather than dropping the whole frame.
     try {
-      this._materializeCanvases(liveRoot, clone)
+      await this._materializeCanvases(liveRoot, clone)
     } catch {
       /* fall through with un-materialized clone */
+    }
+
+    // cloneNode/XMLSerializer preserve markup, not the iframe's live viewport
+    // scroll position. Without mirroring that offset, the CRT snapshot keeps
+    // painting the top of the document even though the hosted reader has
+    // scrolled; viewport-aware model canvases then move independently and look
+    // clipped. Relatively offsetting the cloned body reproduces window scrolling
+    // while leaving position:fixed descendants anchored to the viewport.
+    try {
+      this._applyViewportScroll(clone, doc)
+    } catch {
+      /* non-fatal — an unscrolled snapshot is better than a dropped frame */
     }
 
     let markup = new XMLSerializer().serializeToString(clone)
@@ -199,6 +237,23 @@ export class IframeDomTexture {
       markup = markup.replace(/^<html/i, `<html xmlns="${XHTML_NS}"`)
     }
     return markup
+  }
+
+  _applyViewportScroll(clone, doc) {
+    const scrollingElement = doc.scrollingElement || doc.documentElement
+    const scrollX = scrollingElement?.scrollLeft || 0
+    const scrollY = scrollingElement?.scrollTop || 0
+    if (!scrollX && !scrollY) return
+
+    const body = clone.querySelector('body')
+    if (!body) return
+
+    const existingStyle = body.getAttribute('style') || ''
+    const separator = existingStyle && !existingStyle.trim().endsWith(';') ? ';' : ''
+    body.setAttribute(
+      'style',
+      `${existingStyle}${separator}position:relative;left:${-scrollX}px;top:${-scrollY}px;`,
+    )
   }
 
   // Replace the clone's external <link>/<style> with ONE inline <style> holding
@@ -242,7 +297,7 @@ export class IframeDomTexture {
   // Walk the live and cloned canvas lists in lock-step (cloneNode preserves order
   // exactly, so index i is the same element in both trees) and replace each
   // capturable cloned canvas with an <img> of the live canvas's current pixels.
-  _materializeCanvases(liveRoot, cloneRoot) {
+  async _materializeCanvases(liveRoot, cloneRoot) {
     const liveCanvases = liveRoot.querySelectorAll('canvas')
     if (!liveCanvases.length) return
     const cloneCanvases = cloneRoot.querySelectorAll('canvas')
@@ -255,13 +310,7 @@ export class IframeDomTexture {
       if (!cloned || !cloned.parentNode) continue
       if (!this._isCanvasCapturable(live, win)) continue
 
-      let dataUrl
-      try {
-        dataUrl = live.toDataURL('image/png')
-      } catch {
-        // Tainted (cross-origin drawImage / GL): reuse last good frame if any.
-        dataUrl = this._lastCanvasFrame.get(live)
-      }
+      const dataUrl = await this._canvasDataUrl(live)
       if (!dataUrl) continue
       this._lastCanvasFrame.set(live, dataUrl)
 
@@ -291,6 +340,36 @@ export class IframeDomTexture {
       img.setAttribute('src', dataUrl)
       cloned.parentNode.replaceChild(img, cloned)
     }
+  }
+
+  _canvasDataUrl(canvas) {
+    const fallback = this._lastCanvasFrame.get(canvas) || null
+    if (typeof canvas.toBlob !== 'function') {
+      try {
+        return Promise.resolve(canvas.toDataURL('image/png'))
+      } catch {
+        return Promise.resolve(fallback)
+      }
+    }
+
+    return new Promise((resolve) => {
+      try {
+        canvas.toBlob((blob) => {
+          if (!blob || this._disposed) {
+            resolve(fallback)
+            return
+          }
+
+          const reader = new FileReader()
+          reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : fallback)
+          reader.onerror = () => resolve(fallback)
+          reader.readAsDataURL(blob)
+        }, 'image/png')
+      } catch {
+        // Tainted (cross-origin drawImage / GL): reuse the last good frame.
+        resolve(fallback)
+      }
+    })
   }
 
   // A canvas is worth snapshotting only if it has a real drawing buffer AND is
@@ -446,6 +525,9 @@ export class IframeDomTexture {
       this._img.onerror = null
       this._img.src = ''
     }
+    this._captureResolve?.()
+    this._captureResolve = null
+    this._img = null
     this.texture?.dispose()
     if (this.iframe && this.iframe.parentNode) {
       this.iframe.parentNode.removeChild(this.iframe)

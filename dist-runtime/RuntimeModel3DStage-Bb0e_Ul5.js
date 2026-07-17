@@ -1,22 +1,22 @@
 import { n as e, o as t, r as n, t as r } from "./scheduler-CFRa_C8g.js";
 import { n as i } from "./model-activity-Ba1Jlnbi.js";
-import { C as a, _ as o, c as s, d as c, f as l, g as u, i as d, l as f, m as p, o as m, p as h, r as g, t as _, u as v, v as y } from "./View-00cs8gnA.js";
+import { E as a, _ as o, b as s, d as c, f as l, g as u, h as d, i as f, l as p, m, n as h, o as g, p as _, s as v, x as y, y as b } from "./model-render-resolution-QFnfxRkL.js";
 //#region node_modules/react-use-measure/dist/index.js
-var b = /* @__PURE__ */ t(n(), 1);
-function x(e, t) {
+var x = /* @__PURE__ */ t(n(), 1);
+function S(e, t) {
 	let n;
 	return (...r) => {
 		window.clearTimeout(n), n = window.setTimeout(() => e(...r), t);
 	};
 }
-function S({ debounce: e, scroll: t, polyfill: n, offsetSize: r } = {
+function C({ debounce: e, scroll: t, polyfill: n, offsetSize: r } = {
 	debounce: 0,
 	scroll: !1,
 	offsetSize: !1
 }) {
 	let i = n || (typeof window > "u" ? class {} : window.ResizeObserver);
 	if (!i) throw Error("This browser does not support ResizeObserver out of the box. See: https://github.com/react-spring/react-use-measure/#resize-observer-polyfills");
-	let [a, o] = (0, b.useState)({
+	let [a, o] = (0, x.useState)({
 		left: 0,
 		top: 0,
 		width: 0,
@@ -25,15 +25,15 @@ function S({ debounce: e, scroll: t, polyfill: n, offsetSize: r } = {
 		right: 0,
 		x: 0,
 		y: 0
-	}), s = (0, b.useRef)({
+	}), s = (0, x.useRef)({
 		element: null,
 		scrollContainers: null,
 		resizeObserver: null,
 		lastBounds: a,
 		orientationHandler: null
-	}), c = e ? typeof e == "number" ? e : e.scroll : null, l = e ? typeof e == "number" ? e : e.resize : null, u = (0, b.useRef)(!1);
-	(0, b.useEffect)(() => (u.current = !0, () => void (u.current = !1)));
-	let [d, f, p] = (0, b.useMemo)(() => {
+	}), c = e ? typeof e == "number" ? e : e.scroll : null, l = e ? typeof e == "number" ? e : e.resize : null, u = (0, x.useRef)(!1);
+	(0, x.useEffect)(() => (u.current = !0, () => void (u.current = !1)));
+	let [d, f, p] = (0, x.useMemo)(() => {
 		let e = () => {
 			if (!s.current.element) return;
 			let { left: e, top: t, width: n, height: i, bottom: a, right: c, x: l, y: d } = s.current.element.getBoundingClientRect(), f = {
@@ -46,12 +46,12 @@ function S({ debounce: e, scroll: t, polyfill: n, offsetSize: r } = {
 				x: l,
 				y: d
 			};
-			s.current.element instanceof HTMLElement && r && (f.height = s.current.element.offsetHeight, f.width = s.current.element.offsetWidth), Object.freeze(f), u.current && !D(s.current.lastBounds, f) && o(s.current.lastBounds = f);
+			s.current.element instanceof HTMLElement && r && (f.height = s.current.element.offsetHeight, f.width = s.current.element.offsetWidth), Object.freeze(f), u.current && !O(s.current.lastBounds, f) && o(s.current.lastBounds = f);
 		};
 		return [
 			e,
-			l ? x(e, l) : e,
-			c ? x(e, c) : e
+			l ? S(e, l) : e,
+			c ? S(e, c) : e
 		];
 	}, [
 		o,
@@ -70,28 +70,28 @@ function S({ debounce: e, scroll: t, polyfill: n, offsetSize: r } = {
 			p();
 		}, "orientation" in screen && "addEventListener" in screen.orientation ? screen.orientation.addEventListener("change", s.current.orientationHandler) : "onorientationchange" in window && window.addEventListener("orientationchange", s.current.orientationHandler));
 	}
-	return w(p, !!t), C(f), (0, b.useEffect)(() => {
+	return T(p, !!t), w(f), (0, x.useEffect)(() => {
 		m(), h();
 	}, [
 		t,
 		p,
 		f
-	]), (0, b.useEffect)(() => m, []), [
+	]), (0, x.useEffect)(() => m, []), [
 		(e) => {
-			!e || e === s.current.element || (m(), s.current.element = e, s.current.scrollContainers = T(e), h());
+			!e || e === s.current.element || (m(), s.current.element = e, s.current.scrollContainers = E(e), h());
 		},
 		a,
 		d
 	];
 }
-function C(e) {
-	(0, b.useEffect)(() => {
+function w(e) {
+	(0, x.useEffect)(() => {
 		let t = e;
 		return window.addEventListener("resize", t), () => void window.removeEventListener("resize", t);
 	}, [e]);
 }
-function w(e, t) {
-	(0, b.useEffect)(() => {
+function T(e, t) {
+	(0, x.useEffect)(() => {
 		if (t) {
 			let t = e;
 			return window.addEventListener("scroll", t, {
@@ -101,7 +101,7 @@ function w(e, t) {
 		}
 	}, [e, t]);
 }
-function T(e) {
+function E(e) {
 	let t = [];
 	if (!e || e === document.body) return t;
 	let { overflow: n, overflowX: r, overflowY: i } = window.getComputedStyle(e);
@@ -109,9 +109,9 @@ function T(e) {
 		n,
 		r,
 		i
-	].some((e) => e === "auto" || e === "scroll") && t.push(e), [...t, ...T(e.parentElement)];
+	].some((e) => e === "auto" || e === "scroll") && t.push(e), [...t, ...E(e.parentElement)];
 }
-var E = [
+var D = [
 	"x",
 	"y",
 	"top",
@@ -120,81 +120,81 @@ var E = [
 	"right",
 	"width",
 	"height"
-], D = (e, t) => E.every((n) => e[n] === t[n]), O = e();
+], O = (e, t) => D.every((n) => e[n] === t[n]), k = e();
 r();
-function k({ ref: e, children: t, fallback: n, resize: r, style: i, gl: o, events: h = m, eventSource: _, eventPrefix: y, shadows: x, linear: C, flat: w, legacy: T, orthographic: E, frameloop: D, dpr: k, performance: A, raycaster: j, camera: M, scene: N, onPointerMissed: P, onCreated: F, ...I }) {
-	b.useMemo(() => f(a), []);
-	let L = l(), [R, z] = S({
+function A({ ref: e, children: t, fallback: n, resize: r, style: i, gl: s, events: u = p, eventSource: f, eventPrefix: h, shadows: y, linear: S, flat: w, legacy: T, orthographic: E, frameloop: D, dpr: O, performance: A, raycaster: j, camera: M, scene: N, onPointerMissed: P, onCreated: F, ...I }) {
+	x.useMemo(() => l(a), []);
+	let L = d(), [R, z] = C({
 		scroll: !0,
 		debounce: {
 			scroll: 50,
 			resize: 0
 		},
 		...r
-	}), B = b.useRef(null), V = b.useRef(null);
-	b.useImperativeHandle(e, () => B.current);
-	let H = u(P), [U, W] = b.useState(!1), [G, K] = b.useState(!1);
+	}), B = x.useRef(null), V = x.useRef(null);
+	x.useImperativeHandle(e, () => B.current);
+	let H = b(P), [U, W] = x.useState(!1), [G, K] = x.useState(!1);
 	if (U) throw U;
 	if (G) throw G;
-	let q = b.useRef(null);
-	return p(() => {
+	let q = x.useRef(null);
+	return o(() => {
 		let e = B.current;
 		if (z.width > 0 && z.height > 0 && e) {
-			q.current ||= s(e);
+			q.current ||= c(e);
 			async function n() {
 				await q.current.configure({
-					gl: o,
+					gl: s,
 					scene: N,
-					events: h,
-					shadows: x,
-					linear: C,
+					events: u,
+					shadows: y,
+					linear: S,
 					flat: w,
 					legacy: T,
 					orthographic: E,
 					frameloop: D,
-					dpr: k,
+					dpr: O,
 					performance: A,
 					raycaster: j,
 					camera: M,
 					size: z,
 					onPointerMissed: (...e) => H.current == null ? void 0 : H.current(...e),
 					onCreated: (e) => {
-						e.events.connect == null || e.events.connect(_ ? v(_) ? _.current : _ : V.current), y && e.setEvents({ compute: (e, t) => {
-							let n = e[y + "X"], r = e[y + "Y"];
+						e.events.connect == null || e.events.connect(f ? _(f) ? f.current : f : V.current), h && e.setEvents({ compute: (e, t) => {
+							let n = e[h + "X"], r = e[h + "Y"];
 							t.pointer.set(n / t.size.width * 2 - 1, -(r / t.size.height) * 2 + 1), t.raycaster.setFromCamera(t.pointer, t.camera);
 						} }), F?.(e);
 					}
-				}), q.current.render(/*#__PURE__*/ (0, O.jsx)(L, { children: /*#__PURE__*/ (0, O.jsx)(d, {
+				}), q.current.render(/*#__PURE__*/ (0, k.jsx)(L, { children: /*#__PURE__*/ (0, k.jsx)(v, {
 					set: K,
-					children: /*#__PURE__*/ (0, O.jsx)(b.Suspense, {
-						fallback: /*#__PURE__*/ (0, O.jsx)(g, { set: W }),
+					children: /*#__PURE__*/ (0, k.jsx)(x.Suspense, {
+						fallback: /*#__PURE__*/ (0, k.jsx)(g, { set: W }),
 						children: t ?? null
 					})
 				}) }));
 			}
 			n();
 		}
-	}), b.useEffect(() => {
+	}), x.useEffect(() => {
 		let e = B.current;
-		if (e) return () => c(e);
-	}, []), /*#__PURE__*/ (0, O.jsx)("div", {
+		if (e) return () => m(e);
+	}, []), /*#__PURE__*/ (0, k.jsx)("div", {
 		ref: V,
 		style: {
 			position: "relative",
 			width: "100%",
 			height: "100%",
 			overflow: "hidden",
-			pointerEvents: _ ? "none" : "auto",
+			pointerEvents: f ? "none" : "auto",
 			...i
 		},
 		...I,
-		children: /*#__PURE__*/ (0, O.jsx)("div", {
+		children: /*#__PURE__*/ (0, k.jsx)("div", {
 			ref: R,
 			style: {
 				width: "100%",
 				height: "100%"
 			},
-			children: /*#__PURE__*/ (0, O.jsx)("canvas", {
+			children: /*#__PURE__*/ (0, k.jsx)("canvas", {
 				ref: B,
 				style: { display: "block" },
 				children: n
@@ -202,20 +202,22 @@ function k({ ref: e, children: t, fallback: n, resize: r, style: i, gl: o, event
 		})
 	});
 }
-function A(e) {
-	return /*#__PURE__*/ (0, O.jsx)(y, { children: /*#__PURE__*/ (0, O.jsx)(k, { ...e }) });
+function j(e) {
+	return /*#__PURE__*/ (0, k.jsx)(y, { children: /*#__PURE__*/ (0, k.jsx)(A, { ...e }) });
 }
 //#endregion
 //#region src/runtime/model3d/RuntimeModel3DStage.tsx
-var j = 30;
-function M() {
-	let e = i();
-	return /* @__PURE__ */ (0, O.jsx)("div", {
+var M = 30;
+function N() {
+	let e = i(), t = h();
+	return /* @__PURE__ */ (0, k.jsx)("div", {
 		className: "amp-runtime-model-stage",
+		"data-amp-model-pixel-ratio": t,
+		"data-amp-model-stage-animate": String(e),
 		"aria-hidden": !0,
-		children: /* @__PURE__ */ (0, O.jsxs)(A, {
+		children: /* @__PURE__ */ (0, k.jsxs)(j, {
 			frameloop: "demand",
-			dpr: 1,
+			dpr: t,
 			gl: {
 				alpha: !0,
 				antialias: !1,
@@ -226,39 +228,39 @@ function M() {
 			fallback: null,
 			onCreated: ({ gl: e }) => e.setClearColor(0, 0),
 			children: [
-				/* @__PURE__ */ (0, O.jsx)(P, {}),
-				/* @__PURE__ */ (0, O.jsx)(N, {}),
-				/* @__PURE__ */ (0, O.jsx)(F, { animate: e }),
-				/* @__PURE__ */ (0, O.jsx)(_.Port, {})
+				/* @__PURE__ */ (0, k.jsx)(F, {}),
+				/* @__PURE__ */ (0, k.jsx)(P, {}),
+				/* @__PURE__ */ (0, k.jsx)(I, { animate: e }),
+				/* @__PURE__ */ (0, k.jsx)(f.Port, {})
 			]
 		})
 	});
 }
-function N() {
-	return h(({ gl: e }) => {
+function P() {
+	return u(({ gl: e }) => {
 		e.setScissorTest(!1), e.setClearColor(0, 0), e.clear(!0, !0, !0);
 	}, -1e5), null;
 }
-function P() {
-	let e = o((e) => e.gl), t = o((e) => e.invalidate);
-	return (0, b.useEffect)(() => {
+function F() {
+	let e = s((e) => e.gl), t = s((e) => e.invalidate);
+	return (0, x.useEffect)(() => {
 		let n = e.domElement, r = (e) => e.preventDefault(), i = () => t();
 		return n.addEventListener("webglcontextlost", r), n.addEventListener("webglcontextrestored", i), () => {
 			n.removeEventListener("webglcontextlost", r), n.removeEventListener("webglcontextrestored", i);
 		};
 	}, [e, t]), null;
 }
-function F({ animate: e }) {
-	let t = o((e) => e.invalidate);
-	return (0, b.useEffect)(() => {
+function I({ animate: e }) {
+	let t = s((e) => e.invalidate);
+	return (0, x.useEffect)(() => {
 		if (t(), !e) return;
-		let n = 0, r = 0, i = 1e3 / j, a = (e) => {
+		let n = 0, r = 0, i = 1e3 / M, a = (e) => {
 			e - r >= i && (r = e, t()), n = requestAnimationFrame(a);
 		};
 		return n = requestAnimationFrame(a), () => cancelAnimationFrame(n);
 	}, [e, t]), null;
 }
 //#endregion
-export { M as default };
+export { N as default };
 
-//# sourceMappingURL=RuntimeModel3DStage-ClJr1Pfz.js.map
+//# sourceMappingURL=RuntimeModel3DStage-Bb0e_Ul5.js.map

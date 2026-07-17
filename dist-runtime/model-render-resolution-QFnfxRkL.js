@@ -31496,8 +31496,53 @@ var ty = /* @__PURE__ */ o.forwardRef(({ track: e, visible: t = !0, index: n = 1
 }), ry = /* @__PURE__ */ (() => {
 	let e = /*#__PURE__*/ o.forwardRef((e, t) => o.useContext(f_) ? /*#__PURE__*/ o.createElement(ty, Fv({ ref: t }, e)) : /*#__PURE__*/ o.createElement(ny, Fv({ ref: t }, e)));
 	return e.Port = () => /*#__PURE__*/ o.createElement(Yv.Out, null), e;
-})();
+})(), iy = .25, ay = /* @__PURE__ */ new Map(), oy = /* @__PURE__ */ new Set(), sy = 1;
+function cy({ targetWidth: e, targetHeight: t, proxyWidth: n, proxyHeight: r, devicePixelRatio: i }) {
+	let a = _y(i), o = _y(e) / _y(n), s = _y(t) / _y(r), c = a * Math.max(1, o, s);
+	return Math.min(2, Math.ceil(c / iy) * iy);
+}
+function ly(e, t) {
+	let n = (0, o.useId)();
+	(0, o.useEffect)(() => {
+		if (!t) {
+			fy(n);
+			return;
+		}
+		return dy(n, e), () => fy(n);
+	}, [
+		n,
+		e,
+		t
+	]);
+}
+function uy() {
+	return (0, o.useSyncExternalStore)(my, hy, gy);
+}
+function dy(e, t) {
+	let n = Math.min(2, Math.max(1, _y(t)));
+	ay.get(e) !== n && (ay.set(e, n), py());
+}
+function fy(e) {
+	ay.delete(e) && py();
+}
+function py() {
+	let e = 1;
+	for (let t of ay.values()) e = Math.max(e, t);
+	e !== sy && (sy = e, oy.forEach((e) => e()));
+}
+function my(e) {
+	return oy.add(e), () => oy.delete(e);
+}
+function hy() {
+	return sy;
+}
+function gy() {
+	return 1;
+}
+function _y(e) {
+	return Number.isFinite(e) && e > 0 ? e : 1;
+}
 //#endregion
-export { $e as $, R as $t, f as A, Vc as At, ee as B, ft as Bt, Lf as C, m as Ct, vi as D, Cr as Dt, Yr as E, Nl as Et, mi as F, Dn as Ft, Ka as G, Ba as Gt, te as H, ol as Ht, os as I, Fl as It, $a as J, Wn as Jt, Au as K, Ai as Kt, Su as L, le as Lt, $l as M, Yo as Mt, Ha as N, Wo as Nt, G as O, bu as Ot, eu as P, Cd as Pt, Tl as Q, k as Qt, Jl as R, de as Rt, Zh as S, p as St, Va as T, h as Tt, Rc as U, E as Ut, wr as V, Pr as Vt, Ru as W, Ga as Wt, Ri as X, rl as Xt, O as Y, tu as Yt, Bi as Z, w as Zt, h_ as _, Oa as _t, n_ as a, Ho as at, X as b, ll as bt, fv as c, S as ct, mv as d, Gl as dt, z as en, et, Fg as f, ku as ft, Pg as g, V as gt, b_ as h, En as ht, Lg as i, Yc as in, Uo as it, U as j, yu as jt, T as k, hu as kt, W_ as l, b as lt, Ng as m, Hi as mt, Fv as n, Ll as nn, Zd as nt, Pv as o, y as ot, g_ as p, Ul as pt, Md as q, _u as qt, Ig as r, qn as rn, Ao as rt, hv as s, C as st, ry as t, Gn as tn, Ro as tt, jg as u, pt as ut, Cg as v, ga as vt, Rl as w, _ as wt, mp as x, cl as xt, Vf as y, ml as yt, W as z, d as zt };
+export { Ri as $, rl as $t, vi as A, Cr as At, Su as B, le as Bt, X as C, ll as Ct, Rl as D, _ as Dt, Lf as E, m as Et, $l as F, Yo as Ft, te as G, ol as Gt, W as H, d as Ht, Ha as I, Wo as It, Ka as J, Ba as Jt, Rc as K, E as Kt, eu as L, Cd as Lt, T as M, hu as Mt, f as N, Vc as Nt, Va as O, h as Ot, U as P, yu as Pt, O as Q, tu as Qt, mi as R, Dn as Rt, Vf as S, ml as St, Zh as T, p as Tt, ee as U, ft as Ut, Jl as V, de as Vt, wr as W, Pr as Wt, Md as X, _u as Xt, Au as Y, Ai as Yt, $a as Z, Wn as Zt, Ng as _, Hi as _t, Fv as a, Ll as an, Zd as at, h_ as b, Oa as bt, n_ as c, Ho as ct, fv as d, S as dt, w as en, Bi as et, W_ as f, b as ft, g_ as g, Ul as gt, Fg as h, ku as ht, ry as i, Gn as in, Ro as it, G as j, bu as jt, Yr as k, Nl as kt, Pv as l, y as lt, mv as m, Gl as mt, uy as n, R as nn, $e as nt, Ig as o, qn as on, Ao as ot, jg as p, pt, Ru as q, Ga as qt, ly as r, z as rn, et as rt, Lg as s, Yc as sn, Uo as st, cy as t, k as tn, Tl as tt, hv as u, C as ut, b_ as v, En as vt, mp as w, cl as wt, Cg as x, ga as xt, Pg as y, V as yt, os as z, Fl as zt };
 
-//# sourceMappingURL=View-00cs8gnA.js.map
+//# sourceMappingURL=model-render-resolution-QFnfxRkL.js.map
