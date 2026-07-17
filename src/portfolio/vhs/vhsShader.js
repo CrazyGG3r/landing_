@@ -72,6 +72,7 @@ const fragmentShader = /* glsl */ `
   uniform float uTime;
   uniform float uFrameParity;   // 0/1 alternating field for interlacing
   uniform float uActive;        // 0..1 CRT power-on level
+  uniform float uCompositionIntensity; // 0 = clean signal, 1 = full VHS treatment (not opacity)
   uniform float uGlobalOpacity;
   uniform float uSeedGlobal;
 
@@ -157,6 +158,14 @@ const fragmentShader = /* glsl */ `
     float line = vUv.y;                 // scan line (0 bottom .. 1 top in uv)
     float t = uTime;
     vec2 uv = vUv;
+    float compositionIntensity = clamp(uCompositionIntensity, 0.0, 1.0);
+
+    // A zero mix is a true clean-signal bypass, not a transparent Screen.
+    if (compositionIntensity <= 0.0001) {
+      vec3 clean = sampleSrc(vUv) * clamp(uActive, 0.0, 1.0);
+      gl_FragColor = vec4(clean, uGlobalOpacity);
+      return;
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // 1. SCAN-GEOMETRY DISTORTIONS  (perturb the sampling coordinate)
@@ -421,7 +430,7 @@ const fragmentShader = /* glsl */ `
     col = mix(col, vec3(bandNoise), clamp(headBand * uStrength[E_HEAD], 0.0, 0.85));
     col = mix(col, vec3(bandNoise * 0.8 + 0.1), trackBand * 0.25);
 
-    col = clamp(col, 0.0, 1.0);
+    col = mix(sampleSrc(vUv), clamp(col, 0.0, 1.0), compositionIntensity);
     col *= clamp(uActive, 0.0, 1.0);
 
     gl_FragColor = vec4(col, uGlobalOpacity);
@@ -438,6 +447,7 @@ export function createVHSMaterial(config = DEFAULT_VHS_CONFIG, { resolution = [1
     uTime: { value: 0 },
     uFrameParity: { value: 0 },
     uActive: { value: 0 },
+    uCompositionIntensity: { value: 1 },
     uGlobalOpacity: { value: 1 },
     uSeedGlobal: { value: Math.random() * 1000 },
   }

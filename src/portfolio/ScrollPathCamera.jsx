@@ -112,12 +112,19 @@ function buildSmoothCurve(points, tension, sampleMultiplier) {
   return new THREE.CatmullRomCurve3(spaced, false, 'catmullrom', tension)
 }
 
-export default function ScrollPathCamera({ sceneRoot, active, config, scrollStateRef }) {
+export default function ScrollPathCamera({
+  sceneRoot,
+  active,
+  config,
+  initialProgress = 0,
+  scrollStateRef,
+}) {
   const cfg = useMemo(() => ({ ...DEFAULT_CONFIG, ...(config || {}) }), [config])
+  const startProgress = THREE.MathUtils.clamp(Number(initialProgress) || 0, 0, 1)
   const { camera } = useThree()
 
-  const progressRef = useRef(0)
-  const currentTRef = useRef(0)
+  const progressRef = useRef(startProgress)
+  const currentTRef = useRef(startProgress)
   const initializedRef = useRef(false)
   const defaultFovRef = useRef(null)
 
@@ -148,12 +155,31 @@ export default function ScrollPathCamera({ sceneRoot, active, config, scrollStat
 
     if (!initializedRef.current) {
       initializedRef.current = true
-      progressRef.current = 0
-      currentTRef.current = 0
+      progressRef.current = startProgress
+      currentTRef.current = startProgress
       // Captured once, right as tracking begins — whatever FOV the baked
       // "Entry_Camera" animation left the camera at becomes the fixed
       // start-of-track value scroll progress eases away from and back to.
       if (typeof camera.fov === 'number') defaultFovRef.current = camera.fov
+
+      // Reload/direct entry starts at t=1 and must already be there when the
+      // loading fade clears, so seed the complete camera pose synchronously
+      // instead of easing across the path from the intro's final pose.
+      const position = curve.getPointAt(startProgress, positionRef.current)
+      const tangent = curve.getTangentAt(startProgress, tangentRef.current)
+      camera.position.copy(position)
+      if (tangent.lengthSq() > 1e-10) {
+        lookAheadRef.current.copy(position).add(tangent)
+        matrixRef.current.lookAt(position, lookAheadRef.current, upRef.current)
+        targetQuatRef.current.setFromRotationMatrix(matrixRef.current)
+        camera.quaternion.copy(targetQuatRef.current)
+      }
+      if (defaultFovRef.current !== null) {
+        const narrowTarget = Math.min(defaultFovRef.current, cfg.minFov)
+        camera.fov = THREE.MathUtils.lerp(defaultFovRef.current, narrowTarget, startProgress)
+        camera.updateProjectionMatrix()
+      }
+      if (scrollStateRef) scrollStateRef.current.progress = startProgress
     }
 
     const handleWheel = (event) => {
@@ -173,7 +199,15 @@ export default function ScrollPathCamera({ sceneRoot, active, config, scrollStat
     }
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => window.removeEventListener('wheel', handleWheel)
-  }, [active, curve, cfg.scrollSensitivity, camera, scrollStateRef])
+  }, [
+    active,
+    curve,
+    startProgress,
+    cfg.scrollSensitivity,
+    cfg.minFov,
+    camera,
+    scrollStateRef,
+  ])
 
   useFrame((_, rawDelta) => {
     if (!active || !curve) return

@@ -13,6 +13,12 @@
         "enabled": true,
         "trigger": "document-load"
       }
+    },
+    "performance": {
+      "frameRateLimit": {
+        "enabled": true,
+        "maxFps": 8
+      }
     }
   },
   "sections": [

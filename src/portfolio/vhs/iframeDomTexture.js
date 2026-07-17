@@ -35,16 +35,35 @@ import * as THREE from 'three'
 const XHTML_NS = 'http://www.w3.org/1999/xhtml'
 
 export class IframeDomTexture {
-  constructor({ src, width = 1024, height = 640, fps = 12, flipY = true } = {}) {
+  constructor({
+    src,
+    width = 1024,
+    height = 640,
+    fps = 30,
+    idleFps = 8,
+    activityBurstMs = 240,
+    flipY = true,
+  } = {}) {
     this.width = width
     this.height = height
     this.captureIntervalMs = 1000 / Math.max(1, fps)
+    this.idleCaptureIntervalMs = 1000 / Math.max(1, Math.min(idleFps, fps))
+    this.activityBurstMs = Math.max(0, activityBurstMs)
     this.flipY = flipY
 
     this._lastCaptureAt = -Infinity
+    this._highRateUntil = -Infinity
+    this._activityPending = false
+    this._activityWindow = null
+    this.highRateActive = false
+    this._viewportVersion = 0
+    this._pendingVisualShiftX = 0
+    this._pendingVisualShiftY = 0
+    this._visualShiftRaf = null
     this._capturing = false
     this._disposed = false
     this.hasFrame = false
+    this.hasCompleteFrame = false
     this._img = null
     this._captureResolve = null
 
@@ -57,6 +76,10 @@ export class IframeDomTexture {
     // and the element that received the last pointer-down (for click synthesis).
     this._hoverTarget = null
     this._downTarget = null
+    this._markActivity = () => {
+      this._activityPending = true
+      this._viewportVersion += 1
+    }
 
     // Cached inlined-CSS text for the snapshot ({ count, text }); rebuilt when the
     // document's stylesheet count changes. See _cssTextFor.
@@ -102,6 +125,12 @@ export class IframeDomTexture {
     this.canvas = canvas
     this.ctx = ctx
 
+    const scrollScratch = document.createElement('canvas')
+    scrollScratch.width = width
+    scrollScratch.height = height
+    this.scrollScratch = scrollScratch
+    this.scrollScratchCtx = scrollScratch.getContext('2d')
+
     const texture = new THREE.CanvasTexture(canvas)
     texture.colorSpace = THREE.SRGBColorSpace
     texture.minFilter = THREE.LinearFilter
@@ -117,10 +146,19 @@ export class IframeDomTexture {
   update(nowMs) {
     if (this._disposed) return
     const now = typeof nowMs === 'number' ? nowMs : performance.now()
-    if (now - this._lastCaptureAt < this.captureIntervalMs) return
+    if (this._activityPending) {
+      this._activityPending = false
+      this._highRateUntil = now + this.activityBurstMs
+    }
+    this.highRateActive = now < this._highRateUntil
+    const intervalMs = this.highRateActive
+      ? this.captureIntervalMs
+      : this.idleCaptureIntervalMs
+    if (now - this._lastCaptureAt < intervalMs) return
     if (this._capturing) return
     const doc = this._safeDoc()
     if (!doc || !doc.body || doc.readyState === 'loading') return
+    this._bindActivityListeners()
     this._lastCaptureAt = now
     this._capturing = true
     this._capture()
@@ -135,8 +173,10 @@ export class IframeDomTexture {
   async _capture() {
     const doc = this._safeDoc()
     if (!doc || !doc.documentElement) return
+    const captureVersion = this._viewportVersion
+    const includeCanvases = this.hasFrame
 
-    const markup = await this._serializeDocument(doc)
+    const markup = await this._serializeDocument(doc, { includeCanvases })
     if (!markup || this._disposed) return
 
     const svg =
@@ -154,7 +194,8 @@ export class IframeDomTexture {
     return new Promise((resolve) => {
       this._captureResolve = resolve
       img.onload = () => {
-        if (this._disposed) {
+        if (this._disposed || captureVersion !== this._viewportVersion) {
+          if (this._img === img) this._img = null
           this._captureResolve = null
           resolve()
           return
@@ -165,6 +206,15 @@ export class IframeDomTexture {
           this.ctx.drawImage(img, 0, 0, this.width, this.height)
           this.texture.needsUpdate = true
           this.hasFrame = true
+          if (includeCanvases) {
+            this.hasCompleteFrame = true
+          } else {
+            // Let the lightweight layout frame appear immediately, then start
+            // the lossless live-canvas capture on the very next animation frame.
+            this._lastCaptureAt = -Infinity
+          }
+          this._pendingVisualShiftX = 0
+          this._pendingVisualShiftY = 0
         } catch {
           // Tainted / decode issue — keep the previous good frame silently.
         }
@@ -193,7 +243,7 @@ export class IframeDomTexture {
   // Clone the live document, materialize its visible canvases into <img> snapshots
   // on the clone, and serialize that. The live DOM is never mutated. Returns an
   // XHTML-namespaced string ready to drop inside <foreignObject>, or '' on failure.
-  async _serializeDocument(doc) {
+  async _serializeDocument(doc, { includeCanvases = true } = {}) {
     const liveRoot = doc.documentElement
     const clone = liveRoot.cloneNode(true)
 
@@ -213,10 +263,12 @@ export class IframeDomTexture {
 
     // Best-effort — if materialization throws we still serialize the raw clone
     // (canvases blank) rather than dropping the whole frame.
-    try {
-      await this._materializeCanvases(liveRoot, clone)
-    } catch {
-      /* fall through with un-materialized clone */
+    if (includeCanvases) {
+      try {
+        await this._materializeCanvases(liveRoot, clone)
+      } catch {
+        /* fall through with un-materialized clone */
+      }
     }
 
     // cloneNode/XMLSerializer preserve markup, not the iframe's live viewport
@@ -507,7 +559,51 @@ export class IframeDomTexture {
     if (this._disposed) return
     const win = this._safeWin()
     if (!win) return
+    this._markActivity()
+    this._queueVisualScroll(deltaX, deltaY)
     try { win.scrollBy(deltaX, deltaY) } catch { /* noop */ }
+  }
+
+  _queueVisualScroll(deltaX, deltaY) {
+    if (!this.hasFrame) return
+    this._pendingVisualShiftX += Number.isFinite(deltaX) ? deltaX : 0
+    this._pendingVisualShiftY += Number.isFinite(deltaY) ? deltaY : 0
+    if (this._visualShiftRaf !== null) return
+    this._visualShiftRaf = requestAnimationFrame(() => this._applyVisualScroll())
+  }
+
+  _applyVisualScroll() {
+    this._visualShiftRaf = null
+    if (this._disposed || !this.hasFrame) return
+
+    const shiftX = Math.trunc(this._pendingVisualShiftX)
+    const shiftY = Math.trunc(this._pendingVisualShiftY)
+    this._pendingVisualShiftX -= shiftX
+    this._pendingVisualShiftY -= shiftY
+    if (!shiftX && !shiftY) return
+
+    const scratch = this.scrollScratch
+    const scratchCtx = this.scrollScratchCtx
+    scratchCtx.fillStyle = '#fff'
+    scratchCtx.fillRect(0, 0, this.width, this.height)
+    if (Math.abs(shiftX) < this.width && Math.abs(shiftY) < this.height) {
+      scratchCtx.drawImage(this.canvas, -shiftX, -shiftY)
+    }
+    this.ctx.clearRect(0, 0, this.width, this.height)
+    this.ctx.drawImage(scratch, 0, 0)
+    this.texture.needsUpdate = true
+  }
+
+  _bindActivityListeners() {
+    const win = this._safeWin()
+    if (!win || win === this._activityWindow) return
+    if (this._activityWindow) {
+      this._activityWindow.removeEventListener('scroll', this._markActivity)
+      this._activityWindow.removeEventListener('resize', this._markActivity)
+    }
+    win.addEventListener('scroll', this._markActivity, { passive: true })
+    win.addEventListener('resize', this._markActivity, { passive: true })
+    this._activityWindow = win
   }
 
   _safeWin() {
@@ -520,6 +616,15 @@ export class IframeDomTexture {
 
   dispose() {
     this._disposed = true
+    if (this._visualShiftRaf !== null) {
+      cancelAnimationFrame(this._visualShiftRaf)
+      this._visualShiftRaf = null
+    }
+    if (this._activityWindow) {
+      this._activityWindow.removeEventListener('scroll', this._markActivity)
+      this._activityWindow.removeEventListener('resize', this._markActivity)
+      this._activityWindow = null
+    }
     if (this._img) {
       this._img.onload = null
       this._img.onerror = null
@@ -528,6 +633,8 @@ export class IframeDomTexture {
     this._captureResolve?.()
     this._captureResolve = null
     this._img = null
+    this.scrollScratch = null
+    this.scrollScratchCtx = null
     this.texture?.dispose()
     if (this.iframe && this.iframe.parentNode) {
       this.iframe.parentNode.removeChild(this.iframe)

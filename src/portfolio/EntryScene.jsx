@@ -9,7 +9,7 @@ import React, {
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
 import { Environment, useProgress } from '@react-three/drei'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigationType } from 'react-router-dom'
 import * as THREE from 'three'
 import {
   DEFAULT_VHS_MODEL_PATH,
@@ -70,6 +70,11 @@ const CONFIG = {
   fadeOverlayColor: '#ffffff',
   fadeOutDurationMs: 450,
   screenNodeName: 'Screen',
+  // Overall VHS post-composite intensity (0 = clean AMP signal, 1 = full VHS).
+  // This blends the treatment itself; it does not change the Screen's opacity.
+  vhsIntensity: .3,
+  // Curved CRTGlass edge refraction strength, clamped to the 0..1 range.
+  crtRefraction: 0.65,
   // The hosted AMP reader, served on its own route so its runtime remains
   // fully sandboxed inside the ScreenSurface iframe.
   screenEmbedPath: '/__vhs_screen',
@@ -87,7 +92,7 @@ function findNamedNode(root, name) {
 
 // ─── ROOM: camera + all three baked animations ───────────────────────────────
 
-function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
+function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete }) {
   const gltf = useLoader(GLTFLoader, CONFIG.modelPath)
   const mixerRef = useRef(null)
   const entryActionsRef = useRef(null)
@@ -173,13 +178,21 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
       onEntryAnimationsComplete?.()
     }
 
+    if (!playEntryAnimation) {
+      // Direct/reload/history entry: apply every authored Entry_ clip at its
+      // clamped final pose in one mixer update, without visibly playing it.
+      const finalTime = Math.max(...entryClips.map((clip) => clip.duration))
+      mixer.update(finalTime)
+      fireCompleteRef.current()
+    }
+
     return () => {
       mixer.stopAllAction()
       mixerRef.current = null
       entryActionsRef.current = null
       fireCompleteRef.current = null
     }
-  }, [gltf, onEntryAnimationsComplete])
+  }, [gltf, playEntryAnimation, onEntryAnimationsComplete])
 
   // Ready as soon as the scene graph is available — do NOT require a Camera
   // node (the glb may not include one). vhsPointNode gates the reveal; if it is
@@ -226,7 +239,13 @@ function EntrySceneRoom({ onReady, onEntryAnimationsComplete }) {
 //     always reflects exactly how far along the track you've scrolled, no
 //     looping or direction involved.
 
-function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount, scrollStateRef }) {
+function EntrySceneVhsUnit({
+  vhsPointNode,
+  vhsIndex,
+  vhsCount,
+  playEntryAnimation,
+  scrollStateRef,
+}) {
   const gltf = useLoader(GLTFLoader, CONFIG.vhsModelPath)
   const { camera } = useThree()
   const attachedRef = useRef(null)
@@ -279,7 +298,13 @@ function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount, scrollStateRef })
     // stay in its "Entry_VHS" pose always (never the shelf "VHS_Idle" pose).
     // It isn't hoverable/clickable, so a one-shot pose bake is enough.
     const entryVhsClip = findClip('Entry_VHS')
-    if (entryVhsClip) mixer.clipAction(entryVhsClip).play()
+    if (entryVhsClip) {
+      const action = mixer.clipAction(entryVhsClip)
+      action.clampWhenFinished = true
+      action.setLoop(THREE.LoopOnce, 1)
+      action.play()
+      if (!playEntryAnimation) action.time = entryVhsClip.duration
+    }
 
     // "Play" ("VHS_Play"): starts inactive (weight 0) until the first scroll
     // event ever records a direction — then loops forever, direction flipping
@@ -321,7 +346,15 @@ function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount, scrollStateRef })
       vhsPointNode.remove(root)
       attachedRef.current = null
     }
-  }, [gltf, vhsPointNode, vhsIndex, vhsCount, maskUniforms, labelUniform])
+  }, [
+    gltf,
+    vhsPointNode,
+    vhsIndex,
+    vhsCount,
+    playEntryAnimation,
+    maskUniforms,
+    labelUniform,
+  ])
 
   useFrame((_, rawDelta) => {
     const mixer = mixerRef.current
@@ -361,6 +394,12 @@ function EntrySceneVhsUnit({ vhsPointNode, vhsIndex, vhsCount, scrollStateRef })
 
 export default function EntryScene() {
   const location = useLocation()
+  const navigationType = useNavigationType()
+  // Only an explicit Portfolio -> Entry PUSH owns the cinematic intro.
+  // Reloads, direct URLs, and browser-history visits are POP navigations.
+  const playEntryAnimation =
+    navigationType === 'PUSH' && location.state?.fromPortfolio === true
+  const initialTrackProgress = playEntryAnimation ? 0 : 1
   const vhsIndex = typeof location.state?.vhsIndex === 'number' ? location.state.vhsIndex : 0
   const vhsCount = location.state?.vhsCount > 0
     ? location.state.vhsCount
@@ -377,7 +416,7 @@ export default function EntryScene() {
   // Single shared source of truth for scroll state: ScrollPathCamera is the
   // only thing that ever writes to it (see its own file), other components
   // (EntrySceneVhsUnit) just read from it — no second wheel listener anywhere.
-  const scrollStateRef = useRef({ progress: 0, playDirection: 0 })
+  const scrollStateRef = useRef({ progress: initialTrackProgress, playDirection: 0 })
 
   // The Screen's embed is per-tape: the selected VHS (vhsIndex) maps to an AMP
   // project, passed to the reader iframe as `?p=<projectId>`. Changing tapes
@@ -448,6 +487,7 @@ export default function EntryScene() {
 
         <Suspense fallback={null}>
           <EntrySceneRoom
+            playEntryAnimation={playEntryAnimation}
             onReady={handleRoomReady}
             onEntryAnimationsComplete={handleEntryAnimationsComplete}
           />
@@ -459,6 +499,7 @@ export default function EntryScene() {
               vhsPointNode={vhsPointNode}
               vhsIndex={vhsIndex}
               vhsCount={vhsCount}
+              playEntryAnimation={playEntryAnimation}
               scrollStateRef={scrollStateRef}
             />
           </Suspense>
@@ -469,15 +510,22 @@ export default function EntryScene() {
             screenNode={screenNode}
             embedSrc={embedSrc}
             active={screenActive}
+            vhsIntensity={CONFIG.vhsIntensity}
           />
         )}
 
-        {sceneRoot && <CRTGlass sceneRoot={sceneRoot} />}
+        {sceneRoot && (
+          <CRTGlass
+            sceneRoot={sceneRoot}
+            refraction={CONFIG.crtRefraction}
+          />
+        )}
 
         {sceneRoot && (
           <ScrollPathCamera
             sceneRoot={sceneRoot}
             active={scrollTrackingActive}
+            initialProgress={initialTrackProgress}
             scrollStateRef={scrollStateRef}
           />
         )}

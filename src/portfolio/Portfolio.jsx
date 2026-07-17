@@ -1303,7 +1303,13 @@ export default function Portfolio() {
 
     pageTransitionTimeoutRef.current = setTimeout(() => {
       navigate(routePath, {
-        state: { vhsIndex, vhsCount: metaballObjects.length },
+        state: {
+          vhsIndex,
+          vhsCount: metaballObjects.length,
+          // EntryScene uses this together with a PUSH navigation to distinguish
+          // a deliberate Portfolio handoff from a reload/direct/history visit.
+          fromPortfolio: true,
+        },
       })
     }, durationMs)
   }, [navigate, metaballObjects.length])

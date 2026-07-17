@@ -5,6 +5,11 @@ import { IframeDomTexture } from './vhs/iframeDomTexture'
 import { createVHSMaterial } from './vhs/vhsShader'
 import { DEFAULT_VHS_CONFIG } from './vhs/vhsEffects'
 
+function clampVhsIntensity(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? THREE.MathUtils.clamp(number, 0, 1) : 1
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SCREEN SURFACE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -34,8 +39,12 @@ export default function ScreenSurface({
   active = false,
   config = DEFAULT_VHS_CONFIG,
   resolution = 768,
-  fps = 12,
+  fps = 30,
+  idleFps = 8,
   shaderFps = 30,
+  interactionShaderFps = 60,
+  // Overall post-composite mix, not Screen opacity: 0 = clean AMP, 1 = full VHS.
+  vhsIntensity = 1,
   powerOnSpeed = 3.0,
 }) {
   const { gl, camera, raycaster, pointer } = useThree()
@@ -50,6 +59,7 @@ export default function ScreenSurface({
   const originalMatRef = useRef(null)
 
   const activeRef = useRef(active)
+  const vhsIntensityRef = useRef(clampVhsIntensity(vhsIntensity))
   const hoverRef = useRef({ hovering: false, u: 0.5, v: 0.5 })
   const timeRef = useRef(0)
   const parityRef = useRef(0)
@@ -61,6 +71,14 @@ export default function ScreenSurface({
     activeRef.current = active
   }, [active])
 
+  useEffect(() => {
+    const intensity = clampVhsIntensity(vhsIntensity)
+    vhsIntensityRef.current = intensity
+    if (matRef.current?.uniforms.uCompositionIntensity) {
+      matRef.current.uniforms.uCompositionIntensity.value = intensity
+    }
+  }, [vhsIntensity])
+
   // ── one-time setup for a given Screen mesh + embed source ──
   useEffect(() => {
     if (!screenNode || !embedSrc) return undefined
@@ -70,12 +88,14 @@ export default function ScreenSurface({
       width: resolution,
       height: resolution,
       fps,
+      idleFps,
       flipY: true,
     })
     domRef.current = domTexture
 
     const material = createVHSMaterial(config, { resolution: [resolution, resolution] })
     material.uniforms.uSource.value = domTexture.texture
+    material.uniforms.uCompositionIntensity.value = vhsIntensityRef.current
     matRef.current = material
 
     // Off-screen full-screen-quad scene for the VHS pass.
@@ -133,7 +153,7 @@ export default function ScreenSurface({
       hasRenderedRef.current = false
       lastVhsRenderAtRef.current = -Infinity
     }
-  }, [screenNode, embedSrc, resolution, fps, config])
+  }, [screenNode, embedSrc, resolution, fps, idleFps, config])
 
   // ── pointer down/up + wheel forwarding (move is handled per-frame via raycast) ──
   useEffect(() => {
@@ -185,7 +205,7 @@ export default function ScreenSurface({
     // screen is powered. Visibility is deliberately not inferred from mesh
     // bounds here: the authored CRT plane can use unusual transforms/culling.
     const screenPowered = activeRef.current || onLevelRef.current > 0.001
-    if (!dom.hasFrame || screenPowered) {
+    if (!dom.hasCompleteFrame || screenPowered) {
       dom.update(timeRef.current * 1000)
     }
 
@@ -216,7 +236,8 @@ export default function ScreenSurface({
     // shader dormant while its output cannot contribute to the visible frame.
     if (!screenPowered && hasRenderedRef.current) return
     const nowMs = timeRef.current * 1000
-    const shaderIntervalMs = 1000 / Math.max(1, shaderFps)
+    const currentShaderFps = dom.highRateActive ? interactionShaderFps : shaderFps
+    const shaderIntervalMs = 1000 / Math.max(1, currentShaderFps)
     if (hasRenderedRef.current && nowMs - lastVhsRenderAtRef.current < shaderIntervalMs) return
     lastVhsRenderAtRef.current = nowMs
 

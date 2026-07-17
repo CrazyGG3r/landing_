@@ -42,6 +42,8 @@ function findNamedMesh(root, name) {
 export default function CRTGlass({
   sceneRoot,
   nodeName = 'CRTTVScreen',
+  // Edge refraction strength only: 0 = none, 1 = full configured glass bend.
+  refraction = 0.35,
   settings,
 }) {
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function CRTGlass({
     if (!mesh) return undefined // mesh not present yet — clean no-op
 
     const opts = { ...DEFAULT_GLASS, ...(settings || {}) }
+    const refractionStrength = THREE.MathUtils.clamp(Number(refraction) || 0, 0, 1)
     const source = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
 
     // Preserve authored normal/roughness maps if the source material has them,
@@ -73,6 +76,27 @@ export default function CRTGlass({
       side: THREE.FrontSide,
     })
 
+    // MeshPhysicalMaterial already owns the transmission buffer. Modulate only
+    // its IOR/thickness near grazing angles for a realistic curved CRT edge bend,
+    // avoiding another scene capture or post-processing pass.
+    glass.onBeforeCompile = (shader) => {
+      shader.uniforms.uCrtRefraction = { value: refractionStrength }
+      shader.fragmentShader = `uniform float uCrtRefraction;\n${shader.fragmentShader}`
+        .replace(
+          'vec3 n = inverseTransformDirection( normal, viewMatrix );',
+          `vec3 n = inverseTransformDirection( normal, viewMatrix );
+          float crtFresnel = pow( 1.0 - clamp( abs( dot( normalize( n ), normalize( v ) ) ), 0.0, 1.0 ), 2.0 );
+          float crtEdgeRefraction = smoothstep( 0.02, 0.72, crtFresnel ) * uCrtRefraction;
+          float crtIor = mix( 1.0, material.ior, crtEdgeRefraction );
+          float crtThickness = material.thickness * crtEdgeRefraction;`,
+        )
+        .replace(
+          'material.dispersion, material.ior, material.thickness,',
+          'material.dispersion, crtIor, crtThickness,',
+        )
+    }
+    glass.customProgramCacheKey = () => 'crt-edge-refraction-v1'
+
     const previous = mesh.material
     mesh.material = glass
 
@@ -80,7 +104,7 @@ export default function CRTGlass({
       mesh.material = previous
       glass.dispose()
     }
-  }, [sceneRoot, nodeName, settings])
+  }, [sceneRoot, nodeName, refraction, settings])
 
   return null
 }
