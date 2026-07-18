@@ -34,6 +34,16 @@ const Options = memo(function Options({
   active,
   prepared = active,
   onTerminalReady,
+  effectsIntensity = 1,
+  emissionFlickerIntensity = 0.6,
+  emissionFlickerFrequency = 1,
+  cornerBloomIntensity = 0.65,
+  cornerBloomEmission = 0.55,
+  cornerBloomColor = '#d8eeff',
+  lensBlurIntensity = 1,
+  lensBlurRange = 0.24,
+  lensChromaticIntensity = 1,
+  lensChromaticRange = 0.24,
 }) {
   const containerRef = useRef(null)
   const portfolioRef = useRef(null)
@@ -104,6 +114,16 @@ const Options = memo(function Options({
             pause={!active}
             mouseReact={active}
             onReady={onTerminalReady}
+            effectsIntensity={effectsIntensity}
+            emissionFlickerIntensity={emissionFlickerIntensity}
+            emissionFlickerFrequency={emissionFlickerFrequency}
+            cornerBloomIntensity={cornerBloomIntensity}
+            cornerBloomEmission={cornerBloomEmission}
+            cornerBloomColor={cornerBloomColor}
+            lensBlurIntensity={lensBlurIntensity}
+            lensBlurRange={lensBlurRange}
+            lensChromaticIntensity={lensChromaticIntensity}
+            lensChromaticRange={lensChromaticRange}
             deadZones={deadZones}
             style={{
               position: 'absolute',

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion as Motion } from 'framer-motion';
 import { useResizeObserver } from '../core/hooks';
 import { FONT_LETTERBOX_SUBTITLE } from '../core/constants';
 
@@ -112,7 +112,7 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
         </defs>
         {layout && (
           <>
-            <motion.path
+            <Motion.path
               key={`callout-path-${layout.x}-${layout.y}`}
               d={layout.path}
               fill="none"
@@ -125,7 +125,7 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
               animate={{ pathLength: 1, opacity: 1 }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             />
-            <motion.circle
+            <Motion.circle
               cx={layout.anchorX}
               cy={layout.anchorY}
               r="3"
@@ -134,7 +134,7 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.35, delay: 0.06 }}
             />
-            <motion.circle
+            <Motion.circle
               cx={layout.endX}
               cy={layout.endY}
               r="2.4"
@@ -146,7 +146,7 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
           </>
         )}
       </svg>
-      <motion.div
+      <Motion.div
         ref={calloutRef}
         style={{
           position: 'fixed',
@@ -192,7 +192,7 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
           boxShadow: '0 4px 10px rgba(0,0,0,0.35)',
         }} />
         <span style={{ position: 'relative', zIndex: 1 }}>{text}</span>
-      </motion.div>
+      </Motion.div>
     </>
   );
 });

@@ -151,9 +151,13 @@ const ColorBendsGL = memo(forwardRef(function ColorBendsGL({
     const { gl, uniforms } = stateRef.current;
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
+    if (w <= 0 || h <= 0) return
     const dpr = Math.min(window.devicePixelRatio || 1, renderProfile.maxDpr);
-    canvas.width = Math.floor(w * dpr);
-    canvas.height = Math.floor(h * dpr);
+    const targetWidth = Math.max(1, Math.floor(w * dpr))
+    const targetHeight = Math.max(1, Math.floor(h * dpr))
+    if (canvas.width === targetWidth && canvas.height === targetHeight) return
+    canvas.width = targetWidth
+    canvas.height = targetHeight
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.uniform2f(uniforms.uCanvas, canvas.width, canvas.height);
   });

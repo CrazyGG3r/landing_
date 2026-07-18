@@ -57,6 +57,21 @@ export default function Landing({
   cbParallax = 1,
   cbNoise = 0.08,
   preloaderDuration = 3,
+  // Shared control for phosphor emission, halo, highlight knee, and crossfade.
+  // Supported range: 0 (restrained baseline) to 2 (maximum enhancement).
+  terminalEffectsIntensity = 1,
+  // Active-phosphor shimmer controls. Intensity: 0..2, frequency: 0..4.
+  terminalEmissionFlickerIntensity = 0.6,
+  terminalEmissionFlickerFrequency = 1,
+  // Active-pixel corner bloom controls. Intensity/emission: 0..2.
+  terminalCornerBloomIntensity = 0.65,
+  terminalCornerBloomEmission = 0.55,
+  terminalCornerBloomColor = '#d8eeff',
+  // Lens controls. Intensities: 0..2, ranges: 0.04..0.5.
+  terminalLensBlurIntensity = 1,
+  terminalLensBlurRange = 0.24,
+  terminalLensChromaticIntensity = 1,
+  terminalLensChromaticRange = 0.24,
 }) {
   const readableTextPreset = {
     mixBlendMode: 'normal',
@@ -956,6 +971,16 @@ export default function Landing({
           active={scene === 'options'}
           prepared={optionsPrepared || scene === 'options'}
           onTerminalReady={handleTerminalReady}
+          effectsIntensity={terminalEffectsIntensity}
+          emissionFlickerIntensity={terminalEmissionFlickerIntensity}
+          emissionFlickerFrequency={terminalEmissionFlickerFrequency}
+          cornerBloomIntensity={terminalCornerBloomIntensity}
+          cornerBloomEmission={terminalCornerBloomEmission}
+          cornerBloomColor={terminalCornerBloomColor}
+          lensBlurIntensity={terminalLensBlurIntensity}
+          lensBlurRange={terminalLensBlurRange}
+          lensChromaticIntensity={terminalLensChromaticIntensity}
+          lensChromaticRange={terminalLensChromaticRange}
         />
 
         <Suspense fallback={null}>

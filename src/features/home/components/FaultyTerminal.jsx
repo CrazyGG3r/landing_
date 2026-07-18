@@ -3,6 +3,9 @@ import { getCachedImage, preloadImages } from '../core/assetCache';
 import { subscribeFrame } from '../core/frameScheduler';
 import { getRenderProfile } from '../core/renderProfile';
 
+const DEFAULT_GRID_MUL = Object.freeze([2, 1]);
+const EMPTY_LIST = Object.freeze([]);
+
 // Shaders
 const vert = `
 attribute vec2 position;
@@ -37,10 +40,20 @@ uniform float uUseMouse;
 uniform float uPageLoadProgress;
 uniform float uUsePageLoadAnimation;
 uniform float uBrightness;
+uniform float uEffectsIntensity;
+uniform float uEmissionFlickerIntensity;
+uniform float uEmissionFlickerFrequency;
+uniform float uCornerBloomIntensity;
+uniform float uCornerBloomEmission;
+uniform vec3  uCornerBloomColor;
+uniform float uEncodeBloomMask;
 uniform sampler2D uImage;
+uniform sampler2D uPreviousImage;
 uniform float     uUseImage;
 uniform float     uImageOpacity;
+uniform float     uImageMix;
 uniform vec2      uImageSize;
+uniform vec2      uPreviousImageSize;
 uniform vec2  uClickPos;
 uniform float uClickTime;
 uniform float uHasClick;
@@ -89,12 +102,8 @@ bool isDeadCell(vec2 s){
   return texture2D(uDeadMask, uv).r > 0.5;
 }
 
-float cellBrightness(vec2 p, float intensity){
-  p = fract(p)*uDigitSize;
-  float px5=p.x*5.0, py5=(1.0-p.y)*5.0;
-  float x=fract(px5), y=fract(py5);
-  float i=floor(py5)-2.0, j=floor(px5)-2.0;
-
+float pixelActivity(vec2 index, float intensity){
+  float i=index.x, j=index.y;
   float nC=i*i+j*j;
   float nD=(abs(i)+abs(j)); nD*=nD;
   float nS=max(abs(i),abs(j)); nS*=nS;
@@ -105,7 +114,21 @@ float cellBrightness(vec2 p, float intensity){
   else if(sc < 2.0) n = t01 < 0.15 || t01 > 0.85 ? (t01<0.5?nD:nS) : mix(nD,nS,smoothstep(0.0,1.0,t01));
   else              n = t01 < 0.15 || t01 > 0.85 ? (t01<0.5?nS:nC) : mix(nS,nC,smoothstep(0.0,1.0,t01));
 
-  float b = step(0.1, intensity-n*0.0625)*(0.2+y*0.8)*(0.75+x*0.25);
+  float inBounds =
+    step(-2.0,i)*step(i,2.0)*
+    step(-2.0,j)*step(j,2.0);
+  return step(0.1, intensity-n*0.0625)*inBounds;
+}
+
+float cellBrightness(vec2 p, float intensity){
+  p = fract(p)*uDigitSize;
+  float px5=p.x*5.0, py5=(1.0-p.y)*5.0;
+  float x=fract(px5), y=fract(py5);
+  float i=floor(py5)-2.0, j=floor(px5)-2.0;
+  float b =
+    pixelActivity(vec2(i,j),intensity)*
+    (0.2+y*0.8)*
+    (0.75+x*0.25);
   return step(0.0,p.x)*step(p.x,1.0)*step(0.0,p.y)*step(p.y,1.0)*b;
 }
 
@@ -124,7 +147,13 @@ float displace(vec2 l){
   return sin(l.y*20.0+iTime)*0.0125*onOff(4.0,2.0,0.8)*(1.0+cos(iTime*60.0))/(1.0+50.0*y*y);
 }
 
-vec3 getColor(vec2 wp, out float emission){
+vec3 getColor(
+  vec2 wp,
+  out float emission,
+  out float imageInfluence,
+  out float activeGlareMask,
+  out float cornerBloomMask
+){
   float bar=(step(mod(wp.y/uAspect+time*20.0,1.0),0.2)*0.4+1.0)*uScanlineIntensity;
   float d=displace(wp);
   wp.x += d + (uGlitchAmount!=1.0 ? d*(uGlitchAmount-1.0) : 0.0);
@@ -167,22 +196,104 @@ vec3 getColor(vec2 wp, out float emission){
     cellBrightness(p+vec2( 0.0,  off)*grid, intensity)+
     cellBrightness(p+vec2( off,  off)*grid, intensity);
 
-  float active = step(0.15, mid);
-  float emit = mix(0.3, 1.0, active);
-  emission = mix(emit, 0.05, dead);
-  return vec3(bgGrid(wp)) + vec3(0.9)*mid + sum*0.1*bar;
+  float fx = clamp(uEffectsIntensity, 0.0, 2.0);
+  float backgroundPixel = bgGrid(wp);
+  float activeMask = smoothstep(0.08, 0.32, mid)*(1.0-dead);
+  float neighborAverage = max((sum-mid)/8.0, 0.0);
+  float haloMask =
+    smoothstep(0.025, 0.42, neighborAverage)*
+    (1.0-activeMask*0.5)*
+    (1.0-dead);
+  float inactivePixelMask =
+    clamp(backgroundPixel*5.0, 0.0, 1.0)*
+    (1.0-activeMask)*
+    (1.0-dead);
+  float inactiveEmission = mix(0.045, 0.075, clamp(fx*0.5, 0.0, 1.0));
+
+  float legacyActive = step(0.15, mid);
+  float legacyEmission = mix(0.06, 1.0, legacyActive)*(1.0-dead);
+  float preciseEmission = clamp(
+    activeMask+
+    inactivePixelMask*inactiveEmission+
+    haloMask*0.24*fx,
+    0.0,
+    1.0
+  );
+  emission = mix(legacyEmission, preciseEmission, clamp(fx, 0.0, 1.0));
+  float inactiveImageInfluence =
+    mix(0.12, 0.20, clamp(fx*0.5, 0.0, 1.0));
+  imageInfluence = clamp(
+    activeMask+
+    inactivePixelMask*inactiveImageInfluence+
+    haloMask*0.08*fx,
+    0.0,
+    1.0
+  )*(1.0-dead);
+  // Reuse the active core and its already-computed phosphor neighbourhood for
+  // a single-pass post-composite glare. Inactive pixels never seed this mask.
+  activeGlareMask = clamp(
+    activeMask+haloMask*0.42*step(0.08, activeMask+neighborAverage),
+    0.0,
+    1.0
+  )*(1.0-dead);
+
+  // Tight active-corner seed. The final composite spreads this mask outside
+  // the source pixel, keeping the procedural stage inexpensive.
+  vec2 digitUv = fract(p)*uDigitSize;
+  vec2 pixelUv = fract(vec2(
+    digitUv.x*5.0,
+    (1.0-digitUv.y)*5.0
+  ));
+  vec2 nearestCorner = min(pixelUv,1.0-pixelUv);
+  float cornerShape =
+    1.0-smoothstep(0.02,0.30,length(nearestCorner));
+  float activePixelSeed = step(0.001,mid)*(1.0-dead);
+  cornerBloomMask = mix(
+    activePixelSeed,
+    cornerShape*activePixelSeed,
+    0.14
+  );
+
+  // A restrained base softening removes digital harshness before overlays are
+  // composited. The existing neighbourhood makes this effectively free.
+  float softenedMid = mix(mid, neighborAverage, 0.075);
+  vec3 col =
+    vec3(backgroundPixel)+vec3(0.9)*softenedMid+sum*0.1*bar;
+
+  // Approximate the original RGB separation from the already-computed cell
+  // state instead of evaluating the entire procedural field two more times.
+  if(uChromaticAberration!=0.0){
+    vec2 caWorld = vec2(
+      uChromaticAberration/iResolution.x*uScale*uAspect,
+      0.0
+    );
+    vec2 caCell = caWorld*grid;
+    float shiftedR = cellBrightness(p+caCell, intensity);
+    float shiftedB = cellBrightness(p-caCell, intensity);
+    col *= 1.35;
+    col.r += (shiftedR-mid)*0.315;
+    col.b += (shiftedB-mid)*0.315;
+  }
+
+  // Analytic phosphor core and halo: no extra render target or blur pass.
+  col += vec3(
+    activeMask*0.28+
+    inactivePixelMask*inactiveEmission*0.35+
+    haloMask*0.18
+  )*fx;
+  return col;
 }
 
 vec2 barrel(vec2 uv){ vec2 c=uv*2.0-1.0; c*=1.0+uCurvature*dot(c,c); return c*0.5+0.5; }
 
-vec2 fitUv(vec2 uv, out float mask){
-  if (uImageSize.x <= 0.0 || uImageSize.y <= 0.0) {
+vec2 fitUv(vec2 uv, vec2 imageSize, out float mask){
+  if (imageSize.x <= 0.0 || imageSize.y <= 0.0) {
     mask = 0.0;
     return uv;
   }
 
   float canvasAspect = iResolution.x / iResolution.y;
-  float imgAspect = uImageSize.x / uImageSize.y;
+  float imgAspect = imageSize.x / imageSize.y;
 
   // Scale factors for cover: we want the image to be at least as wide AND tall as canvas
   float scaleX, scaleY;
@@ -216,32 +327,276 @@ vec2 fitUv(vec2 uv, out float mask){
 
 void main(){
   time = iTime*0.333333;
-  vec2 uv = vUv;
+  float lensFx = clamp(uEffectsIntensity, 0.0, 2.0);
+  vec2 windowUv = vUv;
+  vec2 edgeDistance = min(windowUv, 1.0-windowUv);
+  float edgeX = 1.0-smoothstep(0.0, 0.24, edgeDistance.x);
+  float edgeY = 1.0-smoothstep(0.0, 0.24, edgeDistance.y);
+  float edgeInfluence = max(edgeX, edgeY);
+  float cornerInfluence = edgeX*edgeY;
+  float glassInfluence =
+    edgeInfluence*edgeInfluence*clamp(lensFx*0.5, 0.0, 1.0);
+  // Refraction happens in the final composite so every base-scene contribution
+  // (including corner bloom) is optically bent before chromatic dispersion.
+  vec2 uv = windowUv;
   if(uCurvature!=0.0) uv=barrel(uv);
   vec2 wp = worldPos(uv);
 
   float emission;
-  vec3 col = getColor(wp, emission);
-
-  if(uChromaticAberration!=0.0){
-    float caX = uChromaticAberration/iResolution.x*uScale*uAspect;
-    float e0;
-    vec3 colR = getColor(wp+vec2(caX, 0.0), e0);
-    vec3 colB = getColor(wp-vec2(caX, 0.0), e0);
-    col += (colR*vec3(1,0,0) + col*vec3(0,1,0) + colB*vec3(0,0,1))*0.35;
-  }
+  float imageInfluence;
+  float activeGlareMask;
+  float cornerBloomMask;
+  vec3 col = getColor(
+    wp,
+    emission,
+    imageInfluence,
+    activeGlareMask,
+    cornerBloomMask
+  );
+  float cornerBloomBase =
+    cornerBloomMask*uCornerBloomIntensity;
+  float cornerBloomEnergy =
+    cornerBloomBase*uCornerBloomEmission;
+  float overlayAmount = clamp(
+    uUseImage*uImageOpacity,
+    0.0,
+    1.0
+  );
+  // Keep the image multiplier on its original active/inactive emission values.
+  // The visible bloom remains untouched without an overlay and eases to a
+  // restrained remainder as a preview becomes fully opaque.
+  float imageSafeBloom = 1.0-overlayAmount;
+  float visibleBloom = mix(1.0,0.12,overlayAmount);
+  float isolatedCornerEnergy =
+    cornerBloomEnergy*imageSafeBloom;
+  emission = clamp(
+    emission+isolatedCornerEnergy*0.26,
+    0.0,
+    1.0
+  );
+  activeGlareMask = clamp(
+    activeGlareMask+isolatedCornerEnergy*0.30,
+    0.0,
+    1.0
+  );
 
   if(uUseImage>0.5){
     float imgMask;
-    vec2 imgUv = fitUv(uv, imgMask);
+    vec2 imgUv = fitUv(uv, uImageSize, imgMask);
     vec3 imgCol = texture2D(uImage, imgUv).rgb * imgMask;
-    vec3 factor = max(col, vec3(emission));
+    if(uImageMix<0.999){
+      float previousMask;
+      vec2 previousUv = fitUv(uv, uPreviousImageSize, previousMask);
+      vec3 previousCol =
+        texture2D(uPreviousImage, previousUv).rgb*previousMask;
+      imgCol = mix(previousCol, imgCol, smoothstep(0.0,1.0,uImageMix));
+    }
+    float preciseMix = clamp(uEffectsIntensity, 0.0, 1.0);
+    vec3 factor =
+      mix(max(col,vec3(emission)),vec3(imageInfluence),preciseMix);
+    factor *= step(0.0001, emission+imageInfluence);
     vec3 mult = imgCol * factor;
     col = mix(col, mult, uImageOpacity);
   }
   col *= uTint*uBrightness;
+  // Base fuzz remains adjustable independently; emission adds the hotter,
+  // brighter component in the selected bloom colour.
+  col += uCornerBloomColor*(
+    cornerBloomBase*visibleBloom*0.01+
+    cornerBloomEnergy*visibleBloom*0.02
+  );
+  float peak = max(col.r, max(col.g, col.b));
+  float glareLevel =
+    activeGlareMask*
+    smoothstep(0.16, 0.92, peak)*
+    clamp(uEffectsIntensity, 0.0, 2.0);
+  float flickerPhase =
+    hash21(floor(wp*uGridMul*15.0)+vec2(17.0, 41.0))*6.2831853;
+  float emissionFlicker = max(
+    0.0,
+    1.0+
+    sin(iTime*uEmissionFlickerFrequency*6.2831853+flickerPhase)*
+    0.18*uEmissionFlickerIntensity
+  );
+  glareLevel *= emissionFlicker;
+  vec3 glareHue = mix(uTint, col/max(peak, 0.001), 0.58);
+  col += glareHue*glareLevel*0.11;
+  peak = max(col.r, max(col.g, col.b));
+  float knee = smoothstep(0.72, 1.25, peak)*clamp(uEffectsIntensity,0.0,1.0);
+  vec3 mapped = 1.0-exp(-max(col,vec3(0.0))*1.65);
+  col = mix(col, mapped, knee*0.72);
+  // Soft transmission scatter and a restrained Fresnel lift make the rim read
+  // as glass rather than as a geometric screen distortion.
+  float lensFresnel = glassInfluence*glassInfluence;
+  float edgeLuma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+  vec3 scattered = mix(col, vec3(edgeLuma)*uTint, 0.18);
+  col = mix(col, scattered, lensFresnel*0.62);
+  col *= 1.0-lensFresnel*0.018;
+  col += mix(uTint,vec3(1.0),0.35)*
+    lensFresnel*(0.004+cornerInfluence*0.004);
   if(uDither>0.0) col+=(hash21(gl_FragCoord.xy)-0.5)*(uDither*0.003922);
-  gl_FragColor=vec4(col,1.0);
+  float outputAlpha = mix(
+    1.0,
+    cornerBloomMask*visibleBloom,
+    step(0.5,uEncodeBloomMask)
+  );
+  gl_FragColor=vec4(col,outputAlpha);
+}`;
+
+const postFrag = `
+precision mediump float;
+varying vec2 vUv;
+
+uniform sampler2D uScene;
+uniform vec2 uResolution;
+uniform float uEffectsIntensity;
+uniform float uLensBlurIntensity;
+uniform float uLensBlurRange;
+uniform float uLensChromaticIntensity;
+uniform float uLensChromaticRange;
+uniform float uCornerBloomIntensity;
+uniform float uCornerBloomEmission;
+uniform vec3 uCornerBloomColor;
+
+void main(){
+  vec2 uv = clamp(vUv, 0.0, 1.0);
+  vec2 radial = uv-0.5;
+  vec2 edgeDistance = min(uv, 1.0-uv);
+
+  // Soft bevel refraction samples the already-composited terminal scene. The
+  // chromatic split below therefore remains the final optical operation.
+  float bevelEdgeX =
+    1.0-smoothstep(0.0, 0.24, edgeDistance.x);
+  float bevelEdgeY =
+    1.0-smoothstep(0.0, 0.24, edgeDistance.y);
+  float bevelField = max(bevelEdgeX, bevelEdgeY);
+  float bevelSlope = 4.0*bevelField*(1.0-bevelField);
+  vec2 bevelNormal = vec2(
+    (radial.x<0.0?-1.0:1.0)*bevelEdgeX,
+    (radial.y<0.0?-1.0:1.0)*bevelEdgeY
+  );
+  bevelNormal /= max(length(bevelNormal), 0.0001);
+
+  float blurEdgeX =
+    1.0-smoothstep(0.0, uLensBlurRange, edgeDistance.x);
+  float blurEdgeY =
+    1.0-smoothstep(0.0, uLensBlurRange, edgeDistance.y);
+  float cornerField = blurEdgeX*blurEdgeY;
+  float blurAmount = clamp(
+    cornerField*cornerField*
+    uLensBlurIntensity*
+    uEffectsIntensity,
+    0.0,
+    1.0
+  );
+
+  float chromaticEdgeX =
+    1.0-smoothstep(0.0, uLensChromaticRange, edgeDistance.x);
+  float chromaticEdgeY =
+    1.0-smoothstep(0.0, uLensChromaticRange, edgeDistance.y);
+  float chromaticField = max(chromaticEdgeX, chromaticEdgeY);
+  float chromaticAmount = clamp(
+    chromaticField*chromaticField*
+    uLensChromaticIntensity*
+    uEffectsIntensity*0.75,
+    0.0,
+    1.0
+  );
+
+  vec2 opticalNormal = vec2(
+    (radial.x<0.0?-1.0:1.0)*max(blurEdgeX,chromaticEdgeX),
+    (radial.y<0.0?-1.0:1.0)*max(blurEdgeY,chromaticEdgeY)
+  );
+  opticalNormal /= max(length(opticalNormal), 0.0001);
+
+  vec2 texel = 1.0/max(uResolution, vec2(1.0));
+  float refractionStrength = clamp(uEffectsIntensity,0.0,1.5);
+  vec2 refractionOffset =
+    bevelNormal*
+    texel*
+    (2.0+2.5*refractionStrength)*
+    bevelSlope*
+    refractionStrength;
+  vec2 sampleUv = clamp(uv+refractionOffset,0.0,1.0);
+  float blurPixels = 1.0+6.0*clamp(uLensBlurIntensity,0.0,2.0);
+  float chromaticPixels =
+    1.0+5.0*clamp(uLensChromaticIntensity,0.0,2.0);
+  vec2 blurOffset = opticalNormal*texel*blurPixels*blurAmount;
+  vec2 chromaticOffset =
+    opticalNormal*texel*chromaticPixels*chromaticAmount;
+
+  vec4 centerSample = texture2D(uScene,sampleUv);
+  float bloomControl = clamp(uCornerBloomIntensity,0.0,2.0);
+  vec2 nearRadius = texel*(1.0+0.75*bloomControl);
+  vec2 farRadius = texel*(3.0+1.5*bloomControl);
+  float nearBloom =
+    texture2D(uScene,clamp(sampleUv+nearRadius,0.0,1.0)).a+
+    texture2D(uScene,clamp(sampleUv-nearRadius,0.0,1.0)).a+
+    texture2D(
+      uScene,
+      clamp(sampleUv+vec2(nearRadius.x,-nearRadius.y),0.0,1.0)
+    ).a+
+    texture2D(
+      uScene,
+      clamp(sampleUv+vec2(-nearRadius.x,nearRadius.y),0.0,1.0)
+    ).a;
+  float farBloom =
+    texture2D(
+      uScene,
+      clamp(sampleUv+vec2(farRadius.x,0.0),0.0,1.0)
+    ).a+
+    texture2D(
+      uScene,
+      clamp(sampleUv-vec2(farRadius.x,0.0),0.0,1.0)
+    ).a+
+    texture2D(
+      uScene,
+      clamp(sampleUv+vec2(0.0,farRadius.y),0.0,1.0)
+    ).a+
+    texture2D(
+      uScene,
+      clamp(sampleUv-vec2(0.0,farRadius.y),0.0,1.0)
+    ).a;
+  float exteriorBloom = max(
+    nearBloom*0.20+
+    farBloom*0.11-
+    centerSample.a*0.62,
+    0.0
+  );
+  float fuzzyBloom = clamp(
+    exteriorBloom+centerSample.a*0.10,
+    0.0,
+    1.0
+  );
+  float bloomEmission = clamp(uCornerBloomEmission,0.0,2.0);
+  vec3 cornerGlow =
+    uCornerBloomColor*
+    fuzzyBloom*
+    bloomControl*
+    (0.22+0.50*bloomEmission);
+  vec3 center = centerSample.rgb+cornerGlow;
+  if(
+    blurAmount<0.001&&
+    chromaticAmount<0.001&&
+    bloomControl<0.001
+  ){
+    gl_FragColor = vec4(center,1.0);
+    return;
+  }
+  vec3 outer = texture2D(
+    uScene,
+    clamp(sampleUv+blurOffset+chromaticOffset*0.62,0.0,1.0)
+  ).rgb+cornerGlow*0.78;
+  vec3 inner = texture2D(
+    uScene,
+    clamp(sampleUv-blurOffset-chromaticOffset,0.0,1.0)
+  ).rgb+cornerGlow*0.78;
+
+  vec3 blurred = center*0.5+(outer+inner)*0.25;
+  vec3 col = mix(center, blurred, blurAmount);
+  vec3 dispersed = vec3(outer.r, col.g, inner.b);
+  col = mix(col, dispersed, chromaticAmount);
+  gl_FragColor = vec4(col,1.0);
 }`;
 
 // GL helpers
@@ -252,7 +607,15 @@ function hexToRgb(hex){
   return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255];
 }
 function mkShader(gl,t,src){ const s=gl.createShader(t); gl.shaderSource(s,src); gl.compileShader(s); return s; }
-function mkProg(gl,v,f){ const p=gl.createProgram(); gl.attachShader(p,mkShader(gl,gl.VERTEX_SHADER,v)); gl.attachShader(p,mkShader(gl,gl.FRAGMENT_SHADER,f)); gl.linkProgram(p); return p; }
+function mkProg(gl,v,f){
+  const p=gl.createProgram();
+  gl.attachShader(p,mkShader(gl,gl.VERTEX_SHADER,v));
+  gl.attachShader(p,mkShader(gl,gl.FRAGMENT_SHADER,f));
+  gl.bindAttribLocation(p,0,'position');
+  gl.bindAttribLocation(p,1,'uv');
+  gl.linkProgram(p);
+  return p;
+}
 
 function loadImgTex(gl,url, isRemote, cachedImg, onReady){
   const tex=gl.createTexture();
@@ -317,15 +680,25 @@ function buildDeadMask(gl, deadZones, gridMul, scale, aspect){
 }
 
 export default function FaultyTerminal({
-  scale=2, gridMul=[2,1], digitSize=1.1, timeScale=0.5, pause=false,
+  scale=2, gridMul=DEFAULT_GRID_MUL, digitSize=1.1, timeScale=0.5, pause=false,
   scanlineIntensity=0.5, glitchAmount=1, flickerAmount=1, noiseAmp=1,
   chromaticAberration=1.5, dither=0, curvature=0.1, tint='#eef0f2',
   mouseReact=true, mouseStrength=0.5,
   dpr=Math.min(typeof window!=='undefined'?window.devicePixelRatio||1:1,2),
   pageLoadAnimation=true, brightness=0.6,
+  effectsIntensity=1,
+  emissionFlickerIntensity=0.6,
+  emissionFlickerFrequency=1,
+  cornerBloomIntensity=0.65,
+  cornerBloomEmission=0.55,
+  cornerBloomColor='#d8eeff',
+  lensBlurIntensity=1,
+  lensBlurRange=0.24,
+  lensChromaticIntensity=1,
+  lensChromaticRange=0.24,
   imageUrl=null, imageOpacity=1,
-  preloadUrls=[],
-  deadZones=[],
+  preloadUrls=EMPTY_LIST,
+  deadZones=EMPTY_LIST,
   onReady,
   style,
 }){
@@ -335,8 +708,11 @@ export default function FaultyTerminal({
   const uniRef=useRef({});
   const deadRef=useRef(null);
   const deadDirtyRef=useRef(true);
+  const staticDirtyRef=useRef(true);
   const deadZonesRef=useRef(deadZones);
   const imgTexRef=useRef(null);
+  const previousImgTexRef=useRef(null);
+  const imageMixRef=useRef(1);
   const texCacheRef=useRef(new Map());
   const imageUrlRef=useRef(imageUrl);
   const mouseRef=useRef({x:0.5,y:0.5});
@@ -362,6 +738,16 @@ export default function FaultyTerminal({
   const mouseReactRef = useRef(mouseReact);
   const pageLoadAnimationRef = useRef(pageLoadAnimation);
   const brightnessRef = useRef(brightness);
+  const effectsIntensityRef = useRef(effectsIntensity);
+  const emissionFlickerIntensityRef = useRef(emissionFlickerIntensity);
+  const emissionFlickerFrequencyRef = useRef(emissionFlickerFrequency);
+  const cornerBloomIntensityRef = useRef(cornerBloomIntensity);
+  const cornerBloomEmissionRef = useRef(cornerBloomEmission);
+  const cornerBloomColorRef = useRef(hexToRgb(cornerBloomColor));
+  const lensBlurIntensityRef = useRef(lensBlurIntensity);
+  const lensBlurRangeRef = useRef(lensBlurRange);
+  const lensChromaticIntensityRef = useRef(lensChromaticIntensity);
+  const lensChromaticRangeRef = useRef(lensChromaticRange);
   const mouseStrengthRef = useRef(mouseStrength);
   const scanlineIntensityRef = useRef(scanlineIntensity);
   const glitchAmountRef = useRef(glitchAmount);
@@ -377,6 +763,10 @@ export default function FaultyTerminal({
   const timeScaleRef = useRef(timeScale);
 
   const tintVec=useMemo(()=>hexToRgb(tint),[tint]);
+  const cornerBloomColorVec=useMemo(
+    ()=>hexToRgb(cornerBloomColor),
+    [cornerBloomColor],
+  );
   const ditherVal=useMemo(()=>typeof dither==='boolean'?(dither?1:0):dither,[dither]);
   const notifyReady=useCallback(()=>{
     const ready=readyStateRef.current;
@@ -392,21 +782,78 @@ export default function FaultyTerminal({
   useEffect(()=>{ opacityTargetRef.current = imageOpacity; },[imageOpacity]);
   useEffect(()=>{ onReadyRef.current = onReady; },[onReady]);
   useEffect(()=>{ pauseRef.current = pause; },[pause]);
-  useEffect(()=>{ mouseReactRef.current = mouseReact; },[mouseReact]);
-  useEffect(()=>{ pageLoadAnimationRef.current = pageLoadAnimation; },[pageLoadAnimation]);
-  useEffect(()=>{ brightnessRef.current = brightness; },[brightness]);
-  useEffect(()=>{ mouseStrengthRef.current = mouseStrength; },[mouseStrength]);
-  useEffect(()=>{ scanlineIntensityRef.current = scanlineIntensity; },[scanlineIntensity]);
-  useEffect(()=>{ glitchAmountRef.current = glitchAmount; },[glitchAmount]);
-  useEffect(()=>{ flickerAmountRef.current = flickerAmount; },[flickerAmount]);
-  useEffect(()=>{ noiseAmpRef.current = noiseAmp; },[noiseAmp]);
-  useEffect(()=>{ chromaticAberrationRef.current = chromaticAberration; },[chromaticAberration]);
-  useEffect(()=>{ ditherValRef.current = ditherVal; },[ditherVal]);
-  useEffect(()=>{ curvatureRef.current = curvature; },[curvature]);
-  useEffect(()=>{ tintVecRef.current = tintVec; },[tintVec]);
-  useEffect(()=>{ scaleRef.current = scale; },[scale]);
-  useEffect(()=>{ gridMulRef.current = gridMul; },[gridMul]);
-  useEffect(()=>{ digitSizeRef.current = digitSize; },[digitSize]);
+  useEffect(()=>{ mouseReactRef.current = mouseReact; staticDirtyRef.current = true; },[mouseReact]);
+  useEffect(()=>{ pageLoadAnimationRef.current = pageLoadAnimation; staticDirtyRef.current = true; },[pageLoadAnimation]);
+  useEffect(()=>{ brightnessRef.current = brightness; staticDirtyRef.current = true; },[brightness]);
+  useEffect(()=>{
+    const value=Number(effectsIntensity);
+    effectsIntensityRef.current=Number.isFinite(value)?Math.min(2,Math.max(0,value)):1;
+    staticDirtyRef.current=true;
+  },[effectsIntensity]);
+  useEffect(()=>{
+    const value=Number(emissionFlickerIntensity);
+    emissionFlickerIntensityRef.current=
+      Number.isFinite(value)?Math.min(2,Math.max(0,value)):0.6;
+    staticDirtyRef.current=true;
+  },[emissionFlickerIntensity]);
+  useEffect(()=>{
+    const value=Number(emissionFlickerFrequency);
+    emissionFlickerFrequencyRef.current=
+      Number.isFinite(value)?Math.min(4,Math.max(0,value)):1;
+    staticDirtyRef.current=true;
+  },[emissionFlickerFrequency]);
+  useEffect(()=>{
+    const value=Number(cornerBloomIntensity);
+    cornerBloomIntensityRef.current=
+      Number.isFinite(value)?Math.min(2,Math.max(0,value)):0.65;
+    staticDirtyRef.current=true;
+  },[cornerBloomIntensity]);
+  useEffect(()=>{
+    const value=Number(cornerBloomEmission);
+    cornerBloomEmissionRef.current=
+      Number.isFinite(value)?Math.min(2,Math.max(0,value)):0.55;
+    staticDirtyRef.current=true;
+  },[cornerBloomEmission]);
+  useEffect(()=>{
+    cornerBloomColorRef.current=cornerBloomColorVec;
+    staticDirtyRef.current=true;
+  },[cornerBloomColorVec]);
+  useEffect(()=>{
+    const value=Number(lensBlurIntensity);
+    lensBlurIntensityRef.current=
+      Number.isFinite(value)?Math.min(2,Math.max(0,value)):1;
+    staticDirtyRef.current=true;
+  },[lensBlurIntensity]);
+  useEffect(()=>{
+    const value=Number(lensBlurRange);
+    lensBlurRangeRef.current=
+      Number.isFinite(value)?Math.min(0.5,Math.max(0.04,value)):0.24;
+    staticDirtyRef.current=true;
+  },[lensBlurRange]);
+  useEffect(()=>{
+    const value=Number(lensChromaticIntensity);
+    lensChromaticIntensityRef.current=
+      Number.isFinite(value)?Math.min(2,Math.max(0,value)):1;
+    staticDirtyRef.current=true;
+  },[lensChromaticIntensity]);
+  useEffect(()=>{
+    const value=Number(lensChromaticRange);
+    lensChromaticRangeRef.current=
+      Number.isFinite(value)?Math.min(0.5,Math.max(0.04,value)):0.24;
+    staticDirtyRef.current=true;
+  },[lensChromaticRange]);
+  useEffect(()=>{ mouseStrengthRef.current = mouseStrength; staticDirtyRef.current = true; },[mouseStrength]);
+  useEffect(()=>{ scanlineIntensityRef.current = scanlineIntensity; staticDirtyRef.current = true; },[scanlineIntensity]);
+  useEffect(()=>{ glitchAmountRef.current = glitchAmount; staticDirtyRef.current = true; },[glitchAmount]);
+  useEffect(()=>{ flickerAmountRef.current = flickerAmount; staticDirtyRef.current = true; },[flickerAmount]);
+  useEffect(()=>{ noiseAmpRef.current = noiseAmp; staticDirtyRef.current = true; },[noiseAmp]);
+  useEffect(()=>{ chromaticAberrationRef.current = chromaticAberration; staticDirtyRef.current = true; },[chromaticAberration]);
+  useEffect(()=>{ ditherValRef.current = ditherVal; staticDirtyRef.current = true; },[ditherVal]);
+  useEffect(()=>{ curvatureRef.current = curvature; staticDirtyRef.current = true; },[curvature]);
+  useEffect(()=>{ tintVecRef.current = tintVec; staticDirtyRef.current = true; },[tintVec]);
+  useEffect(()=>{ scaleRef.current = scale; staticDirtyRef.current = true; deadDirtyRef.current = true; },[scale]);
+  useEffect(()=>{ gridMulRef.current = gridMul; staticDirtyRef.current = true; deadDirtyRef.current = true; },[gridMul]);
+  useEffect(()=>{ digitSizeRef.current = digitSize; staticDirtyRef.current = true; },[digitSize]);
   useEffect(()=>{ timeScaleRef.current = timeScale; },[timeScale]);
 
   const loadImageTexture = useCallback((url) => {
@@ -414,12 +861,17 @@ export default function FaultyTerminal({
     if (!gl) return;
     const resolved = resolveImageUrl(url);
     if (!resolved.url) {
+      previousImgTexRef.current = imgTexRef.current;
       imgTexRef.current = null;
+      imageMixRef.current = 1;
       return;
     }
     const cached = texCacheRef.current.get(resolved.url);
     if (cached) {
+      if (imgTexRef.current === cached) return;
+      previousImgTexRef.current = imgTexRef.current;
       imgTexRef.current = cached;
+      imageMixRef.current = previousImgTexRef.current?.ready ? 0 : 1;
       return;
     }
     const cachedImg = getCachedImage(resolved.url);
@@ -434,7 +886,9 @@ export default function FaultyTerminal({
       entry.size = { w: cachedImg.naturalWidth, h: cachedImg.naturalHeight };
     }
     texCacheRef.current.set(resolved.url, entry);
+    previousImgTexRef.current = imgTexRef.current;
     imgTexRef.current = entry;
+    imageMixRef.current = previousImgTexRef.current?.ready ? 0 : 1;
   }, []);
 
   useEffect(() => {
@@ -503,6 +957,7 @@ export default function FaultyTerminal({
     if (!mouseReactRef.current) return;
     const ctn=ctnRef.current; if(!ctn) return;
     const r=ctn.getBoundingClientRect();
+    if(r.width<=0||r.height<=0) return;
     mouseRef.current={x:(e.clientX-r.left)/r.width, y:1-(e.clientY-r.top)/r.height};
     mouseDirtyRef.current=true;
   },[]);
@@ -510,12 +965,13 @@ export default function FaultyTerminal({
   const onClick=useCallback(e=>{
     const ctn=ctnRef.current; if(!ctn) return;
     const r=ctn.getBoundingClientRect();
+    if(r.width<=0||r.height<=0) return;
     clickRef.current={
-      x:(e.clientX-r.left)/r.width*scale*aspectRef.current,
-      y:(1-(e.clientY-r.top)/r.height)*scale,
+      x:(e.clientX-r.left)/r.width*scaleRef.current*aspectRef.current,
+      y:(1-(e.clientY-r.top)/r.height)*scaleRef.current,
       startT:performance.now(), active:true,
     };
-  },[scale]);
+  },[]);
 
   useEffect(()=>{
     const ctn=ctnRef.current; if(!ctn) return undefined;
@@ -530,6 +986,10 @@ export default function FaultyTerminal({
     gl.clearColor(0,0,0,1);
 
     const prog=mkProg(gl,vert,frag);
+    const postProg=mkProg(gl,vert,postFrag);
+    const postProgramReady=Boolean(
+      gl.getProgramParameter(postProg,gl.LINK_STATUS),
+    );
     progRef.current=prog;
     gl.useProgram(prog);
 
@@ -544,18 +1004,46 @@ export default function FaultyTerminal({
     const uL=gl.getAttribLocation(prog,'uv');
     gl.enableVertexAttribArray(uL); gl.vertexAttribPointer(uL,2,gl.FLOAT,false,0,0);
 
+    const sceneTexture=gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D,sceneTexture);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    const sceneFramebuffer=gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER,sceneFramebuffer);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      sceneTexture,
+      0,
+    );
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+
     const uni={};
     [
       'iTime','iResolution','uScale','uAspect','uGridMul','uDigitSize',
       'uScanlineIntensity','uGlitchAmount','uFlickerAmount','uNoiseAmp',
       'uChromaticAberration','uDither','uCurvature','uTint','uMouse',
       'uMouseStrength','uUseMouse','uPageLoadProgress','uUsePageLoadAnimation',
-      'uBrightness','uImage','uUseImage','uImageOpacity','uImageSize',
-      'uClickPos','uClickTime','uHasClick','uDeadMask','uDeadMaskSize',
+      'uBrightness','uEffectsIntensity','uEmissionFlickerIntensity',
+      'uEmissionFlickerFrequency','uCornerBloomIntensity',
+      'uCornerBloomEmission','uCornerBloomColor','uEncodeBloomMask',
+      'uImage','uPreviousImage','uUseImage',
+      'uImageOpacity','uImageMix','uImageSize','uPreviousImageSize','uClickPos',
+      'uClickTime','uHasClick','uDeadMask','uDeadMaskSize',
     ].forEach(n=>{ uni[n]=gl.getUniformLocation(prog,n); });
     uniRef.current=uni;
+    const postUni={};
+    [
+      'uScene','uResolution','uEffectsIntensity','uLensBlurIntensity',
+      'uLensBlurRange','uLensChromaticIntensity','uLensChromaticRange',
+      'uCornerBloomIntensity','uCornerBloomEmission','uCornerBloomColor',
+    ].forEach(n=>{ postUni[n]=gl.getUniformLocation(postProg,n); });
 
     function uploadStatics(){
+      gl.useProgram(prog);
       gl.uniform1f(uni.uScale,scaleRef.current);
       gl.uniform2fv(uni.uGridMul,gridMulRef.current);
       gl.uniform1f(uni.uDigitSize,digitSizeRef.current);
@@ -571,36 +1059,165 @@ export default function FaultyTerminal({
       gl.uniform1f(uni.uUseMouse,mouseReactRef.current?1:0);
       gl.uniform1f(uni.uUsePageLoadAnimation,pageLoadAnimationRef.current?1:0);
       gl.uniform1f(uni.uBrightness,brightnessRef.current);
+      gl.uniform1f(uni.uEffectsIntensity,effectsIntensityRef.current);
+      gl.uniform1f(
+        uni.uEmissionFlickerIntensity,
+        emissionFlickerIntensityRef.current,
+      );
+      gl.uniform1f(
+        uni.uEmissionFlickerFrequency,
+        emissionFlickerFrequencyRef.current,
+      );
+      gl.uniform1f(
+        uni.uCornerBloomIntensity,
+        cornerBloomIntensityRef.current,
+      );
+      gl.uniform1f(
+        uni.uCornerBloomEmission,
+        cornerBloomEmissionRef.current,
+      );
+      gl.uniform3f(
+        uni.uCornerBloomColor,
+        cornerBloomColorRef.current[0],
+        cornerBloomColorRef.current[1],
+        cornerBloomColorRef.current[2],
+      );
       gl.uniform1i(uni.uImage,0);
-      gl.uniform1i(uni.uDeadMask,1);
+      gl.uniform1i(uni.uPreviousImage,1);
+      gl.uniform1i(uni.uDeadMask,2);
+      if(postProgramReady){
+        gl.useProgram(postProg);
+        gl.uniform1i(postUni.uScene,0);
+        gl.uniform1f(
+          postUni.uEffectsIntensity,
+          effectsIntensityRef.current,
+        );
+        gl.uniform1f(
+          postUni.uLensBlurIntensity,
+          lensBlurIntensityRef.current,
+        );
+        gl.uniform1f(postUni.uLensBlurRange,lensBlurRangeRef.current);
+        gl.uniform1f(
+          postUni.uLensChromaticIntensity,
+          lensChromaticIntensityRef.current,
+        );
+        gl.uniform1f(
+          postUni.uLensChromaticRange,
+          lensChromaticRangeRef.current,
+        );
+        gl.uniform1f(
+          postUni.uCornerBloomIntensity,
+          cornerBloomIntensityRef.current,
+        );
+        gl.uniform1f(
+          postUni.uCornerBloomEmission,
+          cornerBloomEmissionRef.current,
+        );
+        gl.uniform3f(
+          postUni.uCornerBloomColor,
+          cornerBloomColorRef.current[0],
+          cornerBloomColorRef.current[1],
+          cornerBloomColorRef.current[2],
+        );
+      }
+      gl.useProgram(prog);
+      staticDirtyRef.current=false;
     }
     uploadStatics();
     loadImageTexture(imageUrlRef.current);
 
+    let postReady=false;
     function resize(){
-      const w=ctn.offsetWidth, h=ctn.offsetHeight;
-      canvas.width=Math.max(1,Math.floor(w*renderDpr));
-      canvas.height=Math.max(1,Math.floor(h*renderDpr));
+      const w=Math.max(1,ctn.offsetWidth);
+      const h=Math.max(1,ctn.offsetHeight);
+      const targetWidth=Math.max(1,Math.floor(w*renderDpr));
+      const targetHeight=Math.max(1,Math.floor(h*renderDpr));
+      const nextAspect=w/h;
+      if(
+        canvas.width===targetWidth&&
+        canvas.height===targetHeight&&
+        Math.abs(aspectRef.current-nextAspect)<0.0001
+      ) return;
+      canvas.width=targetWidth;
+      canvas.height=targetHeight;
       gl.viewport(0,0,canvas.width,canvas.height);
-      aspectRef.current=w/h;
+      gl.bindTexture(gl.TEXTURE_2D,sceneTexture);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        canvas.width,
+        canvas.height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        null,
+      );
+      gl.bindFramebuffer(gl.FRAMEBUFFER,sceneFramebuffer);
+      postReady =
+        postProgramReady&&
+        gl.checkFramebufferStatus(gl.FRAMEBUFFER)===
+        gl.FRAMEBUFFER_COMPLETE;
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      aspectRef.current=nextAspect;
       gl.useProgram(prog);
       gl.uniform2f(uni.iResolution,canvas.width,canvas.height);
       gl.uniform1f(uni.uAspect,aspectRef.current);
+      gl.uniform2f(
+        uni.uMouse,
+        smoothRef.current.x*scaleRef.current*aspectRef.current,
+        smoothRef.current.y*scaleRef.current,
+      );
+      if(postProgramReady){
+        gl.useProgram(postProg);
+        gl.uniform2f(
+          postUni.uResolution,
+          canvas.width,
+          canvas.height,
+        );
+      }
+      gl.useProgram(prog);
       deadDirtyRef.current=true;
     }
-    const ro=new ResizeObserver(()=>resize()); ro.observe(ctn); resize();
+    let resizeFrame=0;
+    const ro=new ResizeObserver(()=>{
+      if(resizeFrame) cancelAnimationFrame(resizeFrame);
+      resizeFrame=requestAnimationFrame(()=>{
+        resizeFrame=0;
+        resize();
+      });
+    });
+    ro.observe(ctn);
+    resize();
 
     let contextLost=false;
     let readyNotified=false;
     const onContextLost=e=>{ e.preventDefault(); contextLost=true; };
-    const onContextRestored=()=>{ contextLost=false; deadDirtyRef.current=true; };
+    const onContextRestored=()=>{
+      contextLost=false;
+      deadDirtyRef.current=true;
+      staticDirtyRef.current=true;
+    };
     canvas.addEventListener('webglcontextlost',onContextLost);
     canvas.addEventListener('webglcontextrestored',onContextRestored);
 
     const update=t=>{
       if(contextLost||(pauseRef.current&&readyNotified)) return;
       if(pageLoadAnimationRef.current&&loadStartRef.current===0) loadStartRef.current=t;
+      const usePost =
+        postReady&&
+        (
+          effectsIntensityRef.current>0.0001||
+          lensBlurIntensityRef.current>0.0001||
+          lensChromaticIntensityRef.current>0.0001
+        );
+      gl.bindFramebuffer(
+        gl.FRAMEBUFFER,
+        usePost?sceneFramebuffer:null,
+      );
+      gl.viewport(0,0,canvas.width,canvas.height);
       gl.useProgram(prog);
+      gl.uniform1f(uni.uEncodeBloomMask,usePost?1:0);
 
       const e=(t*0.001+timeOffRef.current)*timeScaleRef.current;
       gl.uniform1f(uni.iTime,e); frozenRef.current=e;
@@ -631,26 +1248,65 @@ export default function FaultyTerminal({
         deadDirtyRef.current=false;
       }
 
-      uploadStatics();
+      if(staticDirtyRef.current) uploadStatics();
 
       const imgEntry=imgTexRef.current;
-      if(imgEntry?.tex){ gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,imgEntry.tex); }
+      const previousEntry=previousImgTexRef.current||imgEntry;
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D,imgEntry?.tex||null);
+      if(previousEntry?.tex){
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D,previousEntry.tex);
+      }else{
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D,null);
+      }
       const targetOpacity = opacityTargetRef.current;
       const currentOpacity = opacityRef.current;
       const nextOpacity = currentOpacity + (targetOpacity - currentOpacity) * 0.08;
       opacityRef.current = nextOpacity;
       const useImage = imgEntry && imgEntry.ready && nextOpacity > 0.001;
+      if(imgEntry?.ready){
+        const effectAmount=effectsIntensityRef.current;
+        if(effectAmount<=0){
+          imageMixRef.current=1;
+        }else if(imageMixRef.current<0.999){
+          imageMixRef.current +=
+            (1-imageMixRef.current)*(0.1+Math.min(effectAmount,2)*0.035);
+        }else{
+          imageMixRef.current=1;
+          previousImgTexRef.current=imgEntry;
+        }
+      }
       gl.uniform1f(uni.uUseImage, useImage ? 1 : 0);
       gl.uniform1f(uni.uImageOpacity,nextOpacity);
+      gl.uniform1f(uni.uImageMix,imageMixRef.current);
       if (imgEntry?.size) {
         gl.uniform2f(uni.uImageSize, imgEntry.size.w, imgEntry.size.h);
       } else {
         gl.uniform2f(uni.uImageSize, 1, 1);
       }
-      gl.activeTexture(gl.TEXTURE1);
+      if(previousEntry?.size){
+        gl.uniform2f(
+          uni.uPreviousImageSize,
+          previousEntry.size.w,
+          previousEntry.size.h,
+        );
+      }else{
+        gl.uniform2f(uni.uPreviousImageSize,1,1);
+      }
+      gl.activeTexture(gl.TEXTURE2);
       gl.bindTexture(gl.TEXTURE_2D,deadRef.current.tex);
 
       gl.drawArrays(gl.TRIANGLES,0,3);
+      if(usePost){
+        gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+        gl.viewport(0,0,canvas.width,canvas.height);
+        gl.useProgram(postProg);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D,sceneTexture);
+        gl.drawArrays(gl.TRIANGLES,0,3);
+      }
       if(!readyNotified){
         // Force the driver's deferred shader work to complete while the
         // transition shutter is closed, never during the visible reveal.
@@ -673,6 +1329,7 @@ export default function FaultyTerminal({
 
     return()=>{
       unsubscribeFrame(); ro.disconnect();
+      if(resizeFrame) cancelAnimationFrame(resizeFrame);
       ctn.removeEventListener('mousemove',onMouseMove);
       ctn.removeEventListener('click',onClick);
       canvas.removeEventListener('webglcontextlost',onContextLost);
@@ -681,6 +1338,12 @@ export default function FaultyTerminal({
       if(deadRef.current?.tex) gl.deleteTexture(deadRef.current.tex);
       textureCache.forEach((entry) => gl.deleteTexture(entry.tex));
       textureCache.clear();
+      gl.deleteFramebuffer(sceneFramebuffer);
+      gl.deleteTexture(sceneTexture);
+      gl.deleteBuffer(posBuf);
+      gl.deleteBuffer(uvBuf);
+      gl.deleteProgram(postProg);
+      gl.deleteProgram(prog);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
       loadStartRef.current=0; timeOffRef.current=Math.random()*100;
     };

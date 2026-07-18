@@ -13,6 +13,7 @@ export function useDeadZonesFromRefs(
     if (!container) return
 
     const containerRect = container.getBoundingClientRect()
+    if (containerRect.width <= 0 || containerRect.height <= 0) return
     const zones = []
     elementRefs.forEach((ref) => {
       const element = ref?.current
@@ -26,12 +27,28 @@ export function useDeadZonesFromRefs(
         y2: 1 - (rect.top - containerRect.top) / containerRect.height,
       })
     })
-    setDeadZones(zones)
+    setDeadZones((current) => {
+      const unchanged =
+        current.length === zones.length &&
+        current.every((zone, index) => {
+          const next = zones[index]
+          return (
+            Math.abs(zone.x1 - next.x1) < 0.0005 &&
+            Math.abs(zone.x2 - next.x2) < 0.0005 &&
+            Math.abs(zone.y1 - next.y1) < 0.0005 &&
+            Math.abs(zone.y2 - next.y2) < 0.0005
+          )
+        })
+      return unchanged ? current : zones
+    })
   }, [containerRef, elementRefs])
 
   const scheduleCompute = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(compute, 100)
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      compute()
+    }, 100)
   }, [compute])
 
   useEffect(() => {
@@ -57,7 +74,7 @@ export function useDeadZonesFromRefs(
     window.addEventListener('resize', scheduleCompute)
     window.addEventListener('orientationchange', scheduleCompute)
     return () => {
-      clearTimeout(timerRef.current)
+      if (timerRef.current) clearTimeout(timerRef.current)
       resizeObserver.disconnect()
       mutationObserver.disconnect()
       window.removeEventListener('resize', scheduleCompute)

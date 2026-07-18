@@ -24,7 +24,23 @@ export default function App() {
   return (
     <Suspense fallback={null}>
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route
+          path="/"
+          element={(
+            <Home
+              terminalEffectsIntensity={1.3}
+              terminalEmissionFlickerIntensity={0.8}
+              terminalEmissionFlickerFrequency={1}
+              terminalCornerBloomIntensity={1.4}
+              terminalCornerBloomEmission={1.2}
+              terminalCornerBloomColor="#8cd8eb"
+              terminalLensBlurIntensity={1}
+              terminalLensBlurRange={0.24}
+              terminalLensChromaticIntensity={1}
+              terminalLensChromaticRange={0.24}
+            />
+          )}
+        />
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/entry" element={<EntryScene />} />
         {/* Sandboxed embed target: the EntryScene CRT screen hosts the AMP reader
