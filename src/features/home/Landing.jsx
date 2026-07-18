@@ -83,11 +83,15 @@ export default function Landing({
   const shimmerRef = useRef(null);
   const transitionTimelineRef = useRef(null);
   const transitionLockRef = useRef(false);
+  const terminalReadySignalRef = useRef(null);
+  const centerHoldMinTimerRef = useRef(0);
+  const centerHoldMaxTimerRef = useRef(0);
   const canvasReadyFrameRef = useRef(0);
   const mountedRef = useRef(true);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [scene, setScene] = useState('landing');
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [optionsPrepared, setOptionsPrepared] = useState(false);
   const [showMobileShutter, setShowMobileShutter] = useState(false);
   const [logoSize, setLogoSize] = useState(140);
   const isMobile = useCoarsePointer();
@@ -463,6 +467,9 @@ export default function Landing({
       transitionTimelineRef.current?.kill();
       transitionTimelineRef.current = null;
       transitionLockRef.current = false;
+      terminalReadySignalRef.current = null;
+      window.clearTimeout(centerHoldMinTimerRef.current);
+      window.clearTimeout(centerHoldMaxTimerRef.current);
       shimmerRef.current?.kill();
       shimmerRef.current = null;
     };
@@ -536,6 +543,10 @@ export default function Landing({
     preloaders: [],
   }), []);
 
+  const handleTerminalReady = useCallback(() => {
+    terminalReadySignalRef.current?.();
+  }, []);
+
   const handleTitleClick = useCallback(async () => {
     if (transitionLockRef.current || isTransitioning || scene !== 'landing') return;
     transitionLockRef.current = true;
@@ -543,6 +554,10 @@ export default function Landing({
     // click can never leave the logo, shutter, or options cursor concealed.
     setSceneLoaded(true);
     setIsTransitioning(true);
+    setOptionsPrepared(false);
+    terminalReadySignalRef.current = null;
+    window.clearTimeout(centerHoldMinTimerRef.current);
+    window.clearTimeout(centerHoldMaxTimerRef.current);
     if (isMobile) setShowMobileShutter(true);
 
     let gsap;
@@ -606,6 +621,9 @@ export default function Landing({
       onComplete: () => {
         transitionTimelineRef.current = null;
         transitionLockRef.current = false;
+        terminalReadySignalRef.current = null;
+        window.clearTimeout(centerHoldMinTimerRef.current);
+        window.clearTimeout(centerHoldMaxTimerRef.current);
         if (!mountedRef.current) return;
         lockedLogoSizeRef.current = null;
         setIsTransitioning(false);
@@ -640,13 +658,48 @@ export default function Landing({
         repeat: -1,
         ease: 'sine.inOut',
       });
+
+      let minimumHoldElapsed = false;
+      let terminalReady = false;
+      let resumed = false;
+      const resumeFromCenter = (force = false) => {
+        if (
+          resumed ||
+          (!force && (
+            !minimumHoldElapsed ||
+            !terminalReady
+          ))
+        ) {
+          return;
+        }
+        resumed = true;
+        terminalReadySignalRef.current = null;
+        window.clearTimeout(centerHoldMinTimerRef.current);
+        window.clearTimeout(centerHoldMaxTimerRef.current);
+        tl.resume();
+      };
+
+      terminalReadySignalRef.current = () => {
+        terminalReady = true;
+        resumeFromCenter();
+      };
+      centerHoldMinTimerRef.current = window.setTimeout(() => {
+        minimumHoldElapsed = true;
+        resumeFromCenter();
+      }, 900);
+      centerHoldMaxTimerRef.current = window.setTimeout(() => {
+        resumeFromCenter(true);
+      }, 2800);
+
+      // Commit the expensive operations behind the fully closed shutter:
+      // tear down landing WebGL and compile/draw the terminal once.
+      setOptionsPrepared(true);
+      setScene('options');
     }, '+=0.05');
 
-    tl.to({}, { duration: 1.0 });
+    tl.addPause();
 
     tl.add(() => {
-      if (!mountedRef.current) return;
-      setScene('options');
       if (shimmerRef.current) {
         shimmerRef.current.kill();
         shimmerRef.current = null;
@@ -901,7 +954,8 @@ export default function Landing({
           rootRef={optionsRef}
           logoSlotRef={optionsLogoSlotRef}
           active={scene === 'options'}
-          prepared={isTransitioning || scene === 'options'}
+          prepared={optionsPrepared || scene === 'options'}
+          onTerminalReady={handleTerminalReady}
         />
 
         <Suspense fallback={null}>

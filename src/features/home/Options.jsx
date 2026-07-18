@@ -4,10 +4,7 @@ import { FONT_LETTERBOX_TITLE } from './core/constants'
 import FaultyTerminal from './components/FaultyTerminal'
 import WebGLErrorBoundary from './components/WebGLErrorBoundary'
 import { useDeadZonesFromRefs } from './core/useDeadZonesFromRefs'
-import {
-  scheduleRouteWarmup,
-  warmRoute,
-} from '../../shared/performance/routePreloader'
+import { warmRoute } from '../../shared/performance/routePreloader'
 import './Options.css'
 
 const IMAGE_FOR_LABEL = Object.freeze({
@@ -16,6 +13,8 @@ const IMAGE_FOR_LABEL = Object.freeze({
   News: '/images/banners/options/news.jpg',
   Contact: '/images/banners/options/contact.jpg',
 })
+const OPTION_IMAGE_URLS = Object.freeze(Object.values(IMAGE_FOR_LABEL))
+const EMPTY_IMAGE_URLS = Object.freeze([])
 
 const LINKS = Object.freeze([
   { label: 'Portfolio', path: '/portfolio' },
@@ -34,6 +33,7 @@ const Options = memo(function Options({
   rootRef,
   active,
   prepared = active,
+  onTerminalReady,
 }) {
   const containerRef = useRef(null)
   const portfolioRef = useRef(null)
@@ -72,17 +72,7 @@ const Options = memo(function Options({
     if (!active) setImageOpacity(0)
   }, [active])
 
-  useEffect(() => {
-    if (!active) return undefined
-
-    return scheduleRouteWarmup('/portfolio', {
-      includeAssets: true,
-      timeoutMs: 1000,
-    })
-  }, [active])
-
-  const showPreview = useCallback((label, path) => {
-    warmLink(path)
+  const showPreview = useCallback((label) => {
     const nextImage = IMAGE_FOR_LABEL[label]
     setActiveImage((previous) =>
       previous === nextImage ? previous : nextImage,
@@ -94,10 +84,7 @@ const Options = memo(function Options({
     setImageOpacity(0)
   }, [])
 
-  const preloadUrls = useMemo(
-    () => (prepared ? [IMAGE_FOR_LABEL.Portfolio] : []),
-    [prepared],
-  )
+  const preloadUrls = prepared ? OPTION_IMAGE_URLS : EMPTY_IMAGE_URLS
 
   return (
     <div
@@ -116,6 +103,7 @@ const Options = memo(function Options({
           <FaultyTerminal
             pause={!active}
             mouseReact={active}
+            onReady={onTerminalReady}
             deadZones={deadZones}
             style={{
               position: 'absolute',
@@ -142,9 +130,9 @@ const Options = memo(function Options({
               data-cursor-label={label}
               tabIndex={active ? 0 : -1}
               style={{ fontFamily: FONT_LETTERBOX_TITLE }}
-              onPointerEnter={() => showPreview(label, path)}
+              onPointerEnter={() => showPreview(label)}
               onPointerLeave={hidePreview}
-              onFocus={() => showPreview(label, path)}
+              onFocus={() => showPreview(label)}
               onBlur={hidePreview}
               onPointerDown={() => warmLink(path)}
             >

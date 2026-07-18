@@ -326,6 +326,7 @@ export default function FaultyTerminal({
   imageUrl=null, imageOpacity=1,
   preloadUrls=[],
   deadZones=[],
+  onReady,
   style,
 }){
   const ctnRef=useRef(null);
@@ -348,6 +349,12 @@ export default function FaultyTerminal({
   const aspectRef=useRef(1);
   const opacityRef=useRef(imageOpacity);
   const opacityTargetRef=useRef(imageOpacity);
+  const onReadyRef=useRef(onReady);
+  const readyStateRef=useRef({
+    shader: false,
+    assets: preloadUrls.length === 0,
+    notified: false,
+  });
   const renderProfile=useMemo(getRenderProfile,[]);
   const renderDpr=Math.min(dpr,renderProfile.maxDpr);
 
@@ -371,12 +378,19 @@ export default function FaultyTerminal({
 
   const tintVec=useMemo(()=>hexToRgb(tint),[tint]);
   const ditherVal=useMemo(()=>typeof dither==='boolean'?(dither?1:0):dither,[dither]);
+  const notifyReady=useCallback(()=>{
+    const ready=readyStateRef.current;
+    if(ready.notified||!ready.shader||!ready.assets) return;
+    ready.notified=true;
+    onReadyRef.current?.();
+  },[]);
 
   useEffect(()=>{
     deadZonesRef.current = deadZones;
     deadDirtyRef.current = true;
   },[deadZones]);
   useEffect(()=>{ opacityTargetRef.current = imageOpacity; },[imageOpacity]);
+  useEffect(()=>{ onReadyRef.current = onReady; },[onReady]);
   useEffect(()=>{ pauseRef.current = pause; },[pause]);
   useEffect(()=>{ mouseReactRef.current = mouseReact; },[mouseReact]);
   useEffect(()=>{ pageLoadAnimationRef.current = pageLoadAnimation; },[pageLoadAnimation]);
@@ -429,30 +443,61 @@ export default function FaultyTerminal({
   }, [imageUrl, loadImageTexture]);
 
   useEffect(() => {
-    const gl = glRef.current;
-    if (!gl) return;
     const urls = Array.from(new Set((preloadUrls || []).filter(Boolean)));
-    if (urls.length === 0) return;
+    if (urls.length === 0) {
+      readyStateRef.current.assets = true;
+      notifyReady();
+      return undefined;
+    }
+    readyStateRef.current.assets = false;
     const resolvedUrls = urls.map((url) => resolveImageUrl(url)).filter((r) => r.url);
     const preloadList = resolvedUrls.map((r) => r.url);
-    preloadImages(preloadList).finally(() => {
-      resolvedUrls.forEach((r) => {
-        if (texCacheRef.current.has(r.url)) return;
-        const cachedImg = getCachedImage(r.url);
-        const entry = { tex: null, ready: false, size: null };
-        const tex = loadImgTex(gl, r.url, r.isRemote, cachedImg, (imgEl) => {
-          entry.ready = true;
-          entry.size = { w: imgEl.naturalWidth || imgEl.width, h: imgEl.naturalHeight || imgEl.height };
+    let cancelled = false;
+    let frameId = 0;
+    let attempts = 0;
+
+    const prepareTextures = () => {
+      const gl = glRef.current;
+      if (!gl) {
+        attempts += 1;
+        if (attempts >= 4) return;
+        frameId = requestAnimationFrame(prepareTextures);
+        return;
+      }
+
+      preloadImages(preloadList).finally(() => {
+        if (cancelled || glRef.current !== gl) return;
+        resolvedUrls.forEach((r) => {
+          if (texCacheRef.current.has(r.url)) return;
+          const cachedImg = getCachedImage(r.url);
+          const entry = { tex: null, ready: false, size: null };
+          const tex = loadImgTex(gl, r.url, r.isRemote, cachedImg, (imgEl) => {
+            entry.ready = true;
+            entry.size = { w: imgEl.naturalWidth || imgEl.width, h: imgEl.naturalHeight || imgEl.height };
+          });
+          entry.tex = tex;
+          if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
+            entry.ready = true;
+            entry.size = { w: cachedImg.naturalWidth, h: cachedImg.naturalHeight };
+          }
+          texCacheRef.current.set(r.url, entry);
         });
-        entry.tex = tex;
-        if (cachedImg && cachedImg.complete && cachedImg.naturalWidth > 0) {
-          entry.ready = true;
-          entry.size = { w: cachedImg.naturalWidth, h: cachedImg.naturalHeight };
+        try {
+          gl.finish();
+        } catch {
+          // The transition safety timeout handles a lost WebGL context.
         }
-        texCacheRef.current.set(r.url, entry);
+        readyStateRef.current.assets = true;
+        notifyReady();
       });
-    });
-  }, [preloadUrls]);
+    };
+
+    prepareTextures();
+    return () => {
+      cancelled = true;
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [notifyReady, preloadUrls]);
 
   const onMouseMove=useCallback(e=>{
     if (!mouseReactRef.current) return;
@@ -546,13 +591,14 @@ export default function FaultyTerminal({
     const ro=new ResizeObserver(()=>resize()); ro.observe(ctn); resize();
 
     let contextLost=false;
+    let readyNotified=false;
     const onContextLost=e=>{ e.preventDefault(); contextLost=true; };
     const onContextRestored=()=>{ contextLost=false; deadDirtyRef.current=true; };
     canvas.addEventListener('webglcontextlost',onContextLost);
     canvas.addEventListener('webglcontextrestored',onContextRestored);
 
     const update=t=>{
-      if(contextLost||pauseRef.current) return;
+      if(contextLost||(pauseRef.current&&readyNotified)) return;
       if(pageLoadAnimationRef.current&&loadStartRef.current===0) loadStartRef.current=t;
       gl.useProgram(prog);
 
@@ -605,6 +651,18 @@ export default function FaultyTerminal({
       gl.bindTexture(gl.TEXTURE_2D,deadRef.current.tex);
 
       gl.drawArrays(gl.TRIANGLES,0,3);
+      if(!readyNotified){
+        // Force the driver's deferred shader work to complete while the
+        // transition shutter is closed, never during the visible reveal.
+        try {
+          gl.finish();
+        } catch {
+          // A lost context is handled by the bounded transition fallback.
+        }
+        readyNotified=true;
+        readyStateRef.current.shader=true;
+        notifyReady();
+      }
     };
     const unsubscribeFrame=subscribeFrame(update,{
       fps:renderProfile.animationFps,
@@ -628,7 +686,7 @@ export default function FaultyTerminal({
     };
   },[
     renderDpr,renderProfile,loadImageTexture,
-    onMouseMove,onClick,
+    onMouseMove,onClick,notifyReady,
   ]);
 
   return (
