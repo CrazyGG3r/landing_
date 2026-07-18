@@ -33,7 +33,7 @@ export default function App() {
               terminalEmissionFlickerFrequency={1}
               terminalCornerBloomIntensity={1.4}
               terminalCornerBloomEmission={1.2}
-              terminalCornerBloomColor="#8cd8eb"
+              terminalCornerBloomColor="#bfe9f3"
               terminalLensBlurIntensity={1}
               terminalLensBlurRange={0.24}
               terminalLensChromaticIntensity={1}
