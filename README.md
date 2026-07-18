@@ -1,18 +1,26 @@
-# React + Vite
+# BoltForged landing experience
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Vite and React power the landing page, portfolio, AMP reader screen, and the
+project's supporting experiments.
 
-Currently, two official plugins are available:
+## Commands
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
 
-## React Compiler
+## Source layout
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+- `src/app` — application entry point, routes, global styles, and fallback UI
+- `src/features` — self-contained routed experiences
+- `src/shared` — cross-feature components, hooks, and performance helpers
+- `src/archive` — inactive prototypes retained for reference
+- `public` — stable URL-addressed fonts, models, scenes, images, and documents
+- `dist-runtime` — generated AMP reader runtime; do not hand-edit or relocate
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+See [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for the ownership
+rules and safe change process.
