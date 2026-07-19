@@ -197,24 +197,13 @@ export default function VHSInstances({
         labelUniform,
         envMapIntensity,
       })
-      root.traverse((child) => {
-        if (!child.isMesh) return
-        const authoredName = child.userData?.name ?? child.name
-        const isGlass = authoredName === 'VHSGlass'
-        child.castShadow = !isGlass
-        child.receiveShadow = true
-      })
 
       const proxyMesh = shellMesh ? createStaticHitProxy(root, shellMesh) : null
       if (proxyMesh) {
         root.add(proxyMesh)
         proxyMesh.name = transform.name
-        // The cursor ID proxy is intentionally static and invisible, so retain
-        // the animated visual root explicitly for the foreground hover pass.
-        proxyMesh.metaballRenderRoot = root
       } else if (shellMesh) {
         shellMesh.name = transform.name
-        shellMesh.metaballRenderRoot = root
       }
 
       const mixer = new THREE.AnimationMixer(root)

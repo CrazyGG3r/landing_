@@ -23,7 +23,7 @@ import {
 import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import RetroTitle from './RetroTitle'   // adjust path as needed
 import { resolveVhsProjectId } from './vhsProjects'
-import { scheduleRouteWarmup, warmRoute } from '../../shared/performance/routePreloader'
+import { scheduleRouteWarmup, warmRoute } from '../performance/routePreloader'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
@@ -37,16 +37,16 @@ const CONFIG = {
   backgroundColor: '#111122',
   environmentPreset: null,           // disable preset
   hdriPath: '/hdri/vhs/Soft 2RingHighContrast.exr', // your HDRI file — lighting only, no skybox (Environment background stays false)
-  environmentIntensity: 0.28,      // controlled reflection source; the shaft lights establish the visible hierarchy
-  vhsEnvMapIntensity: 0.9,          // enough plastic response without turning every cover into chrome
-  ambientIntensity: 0.12,
-  directionalLightIntensity: 1.35,
-  directionalLightPosition: [8, 14, 6],
-  directionalLightColor: '#dcece8',
+  environmentIntensity: .15,      // optional, adjust brightness of the HDRI's contribution to lighting/reflections
+  vhsEnvMapIntensity: 1.1,         // per-material reflection strength applied to the VHS unit materials specifically (VHS/Reel/ReelHolder/Glass/VHSCover)
+  ambientIntensity: 0.4,
+  directionalLightIntensity: 0.8,
+  directionalLightPosition: [10, 20, 5],
+  directionalLightColor: '#ffffff',
   fillLightEnabled: true,           // soft opposite-side fill so the HDRI's key side isn't the only source of shape definition
-  fillLightIntensity: 0.22,
-  fillLightPosition: [-7, 3, -8],
-  fillLightColor: '#efc79f',
+  fillLightIntensity: 0.35,
+  fillLightPosition: [-8, 6, -10],
+  fillLightColor: '#bcd7ff',
   cameraFOV: 60,
   cameraDefaultPosition: [0, 2, 5],
   pathLookAheadDistance: 2.5,
@@ -74,109 +74,28 @@ const CONFIG = {
   debugMode: false,
   useGradientSkybox: true,
   skyboxRadius: 500,
-  startCenterColor: '#0a100f',
-  startEdgeColor: '#1c1916',
-  endCenterColor: '#3c4440',
-  endEdgeColor: '#111816',
-  skyboxIntensity: 0.82,
+  startCenterColor: '#7df1cb', //'#ccfff0'
+  startEdgeColor: '#015230', //'#006b4f'
+  endCenterColor: '#f3ca7f', //'#cfff99'
+  endEdgeColor: '#fa8541', //'#2a9e00'
+  skyboxIntensity: 1,
   useStaticVignette: true,
-  vignetteStrength: 0.16,
-  vignetteSoftness: [0.36, 1.18],
-  vignetteScale: [1.06, 1.0],
+  vignetteStrength: 0.26,
+  vignetteSoftness: [0.28, 1.08],
+  vignetteScale: [1.12, 1.02],
   vignetteOffset: [0.0, -0.02],
-  vignetteCenterLift: 0.025,
+  vignetteCenterLift: 0.06,
   vignetteFollowCamera: true,
-  vignetteFollowStrength: 0.055,
-  vignetteFollowLerp: 3.5,
+  vignetteFollowStrength: 0.12,
+  vignetteFollowLerp: 4.5,
   extraAmbientColor: '#c0c0d0',
-  extraAmbientIntensity: 0.24,
-  fogColor: '#0b100f',
-  fogDensity: 0.032,
-  rendererExposure: 0.92,
-  hoverExposureDip: 0.07,
-  cameraBreathingFov: 0.12,
-  hoverAccentIntensity: 14,
-  hoverAccentDistance: 4.8,
+  extraAmbientIntensity: 2.0,
   usePostComposite: true,
   postComposite: DEFAULT_POST_COMPOSITE,
 }
 
 const PROGRESS_EPSILON = 0.001
 const INITIAL_SCROLL_PERCENT = 0.01
-const PORTFOLIO_SCROLL_CLASS = 'portfolio-scroll-controls'
-const ARCHIVE_FRAME_LEVELS = [-1.5, 0.5, 2.5, 4.5, 6.5, 8.5, 10.5, 12.5]
-const ARCHIVE_HALF_WIDTH = 7.2
-const ARCHIVE_LIGHT_LIMIT = 4
-
-function configureArchiveScene(scene) {
-  const practicalLights = []
-  let sphereIndex = 0
-
-  scene.updateMatrixWorld(true)
-  scene.traverse((child) => {
-    if (!child.isMesh || !/^Sphere\d*$/.test(child.name)) return
-
-    const sourceMaterials = Array.isArray(child.material)
-      ? child.material
-      : [child.material]
-    const styledMaterials = sourceMaterials.map((sourceMaterial) => {
-      if (!sourceMaterial) return sourceMaterial
-      if (sourceMaterial.userData?.portfolioArchiveStyled) return sourceMaterial
-
-      const material = sourceMaterial.clone()
-      const authoredColor = material.color?.clone() ?? new THREE.Color('#8ca49e')
-      const practicalColor = authoredColor.lerp(new THREE.Color('#aeb9b2'), 0.38)
-
-      if (material.color) material.color.copy(practicalColor).multiplyScalar(0.72)
-      if (material.emissive) {
-        material.emissive.copy(practicalColor)
-        material.emissiveIntensity = 1.45
-      }
-      if ('roughness' in material) material.roughness = 0.34
-      if ('metalness' in material) material.metalness = 0.06
-      material.toneMapped = true
-      material.userData.portfolioArchiveStyled = true
-      material.needsUpdate = true
-      return material
-    })
-
-    child.material = Array.isArray(child.material)
-      ? styledMaterials
-      : styledMaterials[0]
-    child.castShadow = false
-    child.receiveShadow = false
-
-    const worldPosition = new THREE.Vector3()
-    child.getWorldPosition(worldPosition)
-    const materialColor = styledMaterials.find((material) => material?.emissive)?.emissive
-      ?? styledMaterials.find((material) => material?.color)?.color
-      ?? new THREE.Color('#8ca49e')
-
-    if (sphereIndex % 2 === 0 && practicalLights.length < ARCHIVE_LIGHT_LIMIT) {
-      practicalLights.push({
-        key: child.uuid,
-        position: worldPosition.toArray(),
-        color: `#${materialColor.getHexString()}`,
-      })
-    }
-    sphereIndex += 1
-  })
-
-  return practicalLights
-}
-
-function PortfolioScrollSurface() {
-  const scroll = useScroll()
-
-  useEffect(() => {
-    const element = scroll?.el
-    if (!element) return undefined
-    element.classList.add(PORTFOLIO_SCROLL_CLASS)
-    return () => element.classList.remove(PORTFOLIO_SCROLL_CLASS)
-  }, [scroll])
-
-  return null
-}
 
 function buildCurveFromPoints(points) {
   if (!points || points.length < 2) return null
@@ -611,326 +530,6 @@ function InitialScrollPrimer({ enabled, percent = INITIAL_SCROLL_PERCENT, onDone
   return null
 }
 
-function PortfolioCinematicRenderer({ progress, stateRef }) {
-  const { camera, gl, scene } = useThree()
-  const previousStateRef = useRef(null)
-
-  useLayoutEffect(() => {
-    previousStateRef.current = {
-      fog: scene.fog,
-      toneMapping: gl.toneMapping,
-      toneMappingExposure: gl.toneMappingExposure,
-    }
-
-    gl.toneMapping = THREE.ACESFilmicToneMapping
-    gl.toneMappingExposure = CONFIG.rendererExposure
-    scene.fog = new THREE.FogExp2(CONFIG.fogColor, CONFIG.fogDensity)
-
-    return () => {
-      const previous = previousStateRef.current
-      if (!previous) return
-      scene.fog = previous.fog
-      gl.toneMapping = previous.toneMapping
-      gl.toneMappingExposure = previous.toneMappingExposure
-    }
-  }, [gl, scene])
-
-  useFrame(({ clock }, delta) => {
-    const cursorState = stateRef.current?.cs
-    const isHovering = (cursorState?.activeId ?? 0) > 0
-    const hoverAmount = isHovering
-      ? THREE.MathUtils.clamp(cursorState?.alpha ?? 0, 0, 1)
-      : 0
-    const progressLift = Math.sin(THREE.MathUtils.clamp(progress, 0, 1) * Math.PI) * 0.025
-    const targetExposure = CONFIG.rendererExposure
-      + progressLift
-      - hoverAmount * CONFIG.hoverExposureDip
-
-    gl.toneMappingExposure = THREE.MathUtils.damp(
-      gl.toneMappingExposure,
-      targetExposure,
-      4.2,
-      delta,
-    )
-
-    if (scene.fog?.isFogExp2) {
-      const targetDensity = CONFIG.fogDensity * THREE.MathUtils.lerp(0.92, 1.08, progress)
-      scene.fog.density = THREE.MathUtils.damp(
-        scene.fog.density,
-        targetDensity,
-        2.2,
-        delta,
-      )
-    }
-
-    const breathing = Math.sin(clock.elapsedTime * 0.24) * CONFIG.cameraBreathingFov
-    const targetFov = CONFIG.cameraFOV + breathing * (1 - hoverAmount * 0.55)
-    const nextFov = THREE.MathUtils.damp(camera.fov, targetFov, 2.4, delta)
-    if (Math.abs(nextFov - camera.fov) > 0.0005) {
-      camera.fov = nextFov
-      camera.updateProjectionMatrix()
-    }
-  })
-
-  return null
-}
-
-function ArchiveShaft({ practicalLights }) {
-  const frameMeshRef = useRef(null)
-  const lightBarMeshRef = useRef(null)
-  const lightBarMaterialRef = useRef(null)
-  const dustRef = useRef(null)
-  const dummy = useMemo(() => new THREE.Object3D(), [])
-
-  const frameTransforms = useMemo(() => {
-    const transforms = []
-    const centerX = 0.5
-    const centerZ = -0.3
-    const span = ARCHIVE_HALF_WIDTH * 2
-
-    ARCHIVE_FRAME_LEVELS.forEach((y) => {
-      transforms.push(
-        { position: [centerX, y, centerZ - ARCHIVE_HALF_WIDTH], scale: [span, 0.09, 0.13] },
-        { position: [centerX, y, centerZ + ARCHIVE_HALF_WIDTH], scale: [span, 0.09, 0.13] },
-        { position: [centerX - ARCHIVE_HALF_WIDTH, y, centerZ], scale: [0.13, 0.09, span] },
-        { position: [centerX + ARCHIVE_HALF_WIDTH, y, centerZ], scale: [0.13, 0.09, span] },
-      )
-    })
-
-    ;[-1, 1].forEach((xDirection) => {
-      ;[-1, 1].forEach((zDirection) => {
-        transforms.push({
-          position: [
-            centerX + xDirection * ARCHIVE_HALF_WIDTH,
-            5.25,
-            centerZ + zDirection * ARCHIVE_HALF_WIDTH,
-          ],
-          scale: [0.12, 14.5, 0.12],
-        })
-      })
-    })
-
-    return transforms
-  }, [])
-
-  const lightBarTransforms = useMemo(() => {
-    const transforms = []
-    for (let y = -0.2; y <= 12.4; y += 2.1) {
-      transforms.push(
-        { position: [-2.2, y, -9.08], scale: [2.25, 0.045, 0.055] },
-        { position: [3.2, y, -9.08], scale: [2.25, 0.045, 0.055] },
-      )
-    }
-    return transforms
-  }, [])
-
-  const dustGeometry = useMemo(() => {
-    const count = 180
-    const positions = new Float32Array(count * 3)
-    let seed = 918273
-    const random = () => {
-      seed = (seed * 1664525 + 1013904223) >>> 0
-      return seed / 4294967296
-    }
-
-    for (let i = 0; i < count; i += 1) {
-      positions[i * 3] = (random() - 0.5) * 13
-      positions[i * 3 + 1] = random() * 15 - 2
-      positions[i * 3 + 2] = (random() - 0.5) * 13
-    }
-
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.computeBoundingSphere()
-    return geometry
-  }, [])
-
-  useLayoutEffect(() => {
-    const frameMesh = frameMeshRef.current
-    const lightBarMesh = lightBarMeshRef.current
-
-    if (frameMesh) {
-      frameTransforms.forEach((transform, index) => {
-        dummy.position.fromArray(transform.position)
-        dummy.rotation.set(0, 0, 0)
-        dummy.scale.fromArray(transform.scale)
-        dummy.updateMatrix()
-        frameMesh.setMatrixAt(index, dummy.matrix)
-      })
-      frameMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
-      frameMesh.instanceMatrix.needsUpdate = true
-      frameMesh.computeBoundingSphere()
-    }
-
-    if (lightBarMesh) {
-      lightBarTransforms.forEach((transform, index) => {
-        dummy.position.fromArray(transform.position)
-        dummy.rotation.set(0, 0, 0)
-        dummy.scale.fromArray(transform.scale)
-        dummy.updateMatrix()
-        lightBarMesh.setMatrixAt(index, dummy.matrix)
-      })
-      lightBarMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
-      lightBarMesh.instanceMatrix.needsUpdate = true
-      lightBarMesh.computeBoundingSphere()
-    }
-  }, [dummy, frameTransforms, lightBarTransforms])
-
-  useEffect(() => () => {
-    dustGeometry.dispose()
-  }, [dustGeometry])
-
-  useFrame(({ clock }) => {
-    const time = clock.elapsedTime
-    if (dustRef.current) {
-      dustRef.current.rotation.y = Math.sin(time * 0.035) * 0.018
-      dustRef.current.position.y = Math.sin(time * 0.08) * 0.07
-    }
-    if (lightBarMaterialRef.current) {
-      const lowPulse = Math.sin(time * 1.4) * 0.035
-      const rareInstability = Math.pow(Math.max(0, Math.sin(time * 0.47) - 0.985), 2) * 42
-      lightBarMaterialRef.current.emissiveIntensity = 1.8 + lowPulse - rareInstability
-    }
-  })
-
-  return (
-    <group>
-      <mesh position={[0.5, 5.25, -0.3]} receiveShadow renderOrder={-30}>
-        <boxGeometry args={[18.8, 19.5, 18.8]} />
-        <meshStandardMaterial
-          color="#111816"
-          roughness={0.92}
-          metalness={0.025}
-          envMapIntensity={0.12}
-          side={THREE.BackSide}
-        />
-      </mesh>
-
-      <mesh position={[0.5, -1.9, -0.3]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[17.5, 17.5]} />
-        <meshStandardMaterial
-          color="#171a18"
-          roughness={0.48}
-          metalness={0.16}
-          envMapIntensity={0.34}
-        />
-      </mesh>
-
-      <instancedMesh
-        ref={frameMeshRef}
-        args={[undefined, undefined, frameTransforms.length]}
-        receiveShadow
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          color="#252b29"
-          roughness={0.68}
-          metalness={0.24}
-          envMapIntensity={0.28}
-        />
-      </instancedMesh>
-
-      <instancedMesh
-        ref={lightBarMeshRef}
-        args={[undefined, undefined, lightBarTransforms.length]}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          ref={lightBarMaterialRef}
-          color="#d9e1da"
-          emissive="#b8cec6"
-          emissiveIntensity={1.8}
-          roughness={0.34}
-          toneMapped={false}
-        />
-      </instancedMesh>
-
-      <points ref={dustRef} geometry={dustGeometry} frustumCulled={false}>
-        <pointsMaterial
-          color="#d8d2c2"
-          size={0.024}
-          opacity={0.2}
-          transparent
-          depthWrite={false}
-          sizeAttenuation
-          fog
-        />
-      </points>
-
-      {practicalLights.map((light) => (
-        <pointLight
-          key={light.key}
-          position={light.position}
-          color={light.color}
-          intensity={8}
-          distance={5.5}
-          decay={2}
-        />
-      ))}
-    </group>
-  )
-}
-
-function HoverAccentLight({ objects, stateRef }) {
-  const lightRef = useRef(null)
-  const targetPositionRef = useRef(new THREE.Vector3())
-  const desiredPositionRef = useRef(new THREE.Vector3())
-  const cameraDirectionRef = useRef(new THREE.Vector3())
-  const targetColorRef = useRef(new THREE.Color('#d7ebe4'))
-  const neutralColorRef = useRef(new THREE.Color('#d7ebe4'))
-  const { camera } = useThree()
-
-  useFrame((_, delta) => {
-    const light = lightRef.current
-    if (!light) return
-
-    const cursorState = stateRef.current?.cs
-    const activeIndex = (cursorState?.activeId ?? 0) - 1
-    const activeObject = activeIndex >= 0 ? objects[activeIndex] : null
-
-    if (!activeObject?.renderRoot) {
-      light.intensity = THREE.MathUtils.damp(light.intensity, 0, 8, delta)
-      return
-    }
-
-    activeObject.renderRoot.updateWorldMatrix(true, false)
-    activeObject.renderRoot.getWorldPosition(targetPositionRef.current)
-    cameraDirectionRef.current
-      .copy(camera.position)
-      .sub(targetPositionRef.current)
-      .normalize()
-      .multiplyScalar(1.15)
-    desiredPositionRef.current
-      .copy(targetPositionRef.current)
-      .add(cameraDirectionRef.current)
-    desiredPositionRef.current.y += 0.45
-    light.position.lerp(desiredPositionRef.current, 1 - Math.exp(-8 * delta))
-
-    targetColorRef.current
-      .copy(activeObject.blobColor ?? neutralColorRef.current)
-      .lerp(neutralColorRef.current, 0.46)
-    light.color.lerp(targetColorRef.current, 1 - Math.exp(-6 * delta))
-
-    const hoverAmount = THREE.MathUtils.clamp(cursorState?.alpha ?? 0, 0, 1)
-    const targetIntensity = CONFIG.hoverAccentIntensity * hoverAmount
-    light.intensity = THREE.MathUtils.damp(
-      light.intensity,
-      targetIntensity,
-      7,
-      delta,
-    )
-  })
-
-  return (
-    <pointLight
-      ref={lightRef}
-      intensity={0}
-      distance={CONFIG.hoverAccentDistance}
-      decay={2}
-    />
-  )
-}
-
 function InteractiveObjectFocusScroller({
   enabled,
   objects,
@@ -1293,18 +892,6 @@ function DebugPanel({
         borderLeft: `4px solid ${markers.start && markers.end ? '#4caf50' : '#ff9800'}`,
       }}
     >
-      <style>{`
-        .${PORTFOLIO_SCROLL_CLASS} {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-        }
-        .${PORTFOLIO_SCROLL_CLASS}::-webkit-scrollbar {
-          display: none;
-          width: 0;
-          height: 0;
-        }
-      `}</style>
-
       <div><strong>PORTFOLIO DEBUG</strong></div>
       <div>Path points: {pathPointCount}</div>
       <div>Start marker: {markers.start ? 'YES' : 'NO'}</div>
@@ -1483,7 +1070,6 @@ export default function Portfolio() {
   const [error, setError] = useState(null)
   const [metaballObjects, setMetaballObjects] = useState([])
   const [vhsEmptyTransforms, setVhsEmptyTransforms] = useState([])
-  const [practicalLights, setPracticalLights] = useState([])
   const [pageTransition, setPageTransition] = useState({
     mounted: false,
     visible: false,
@@ -1563,7 +1149,6 @@ export default function Portfolio() {
 
     setPathPoints(extractedPoints)
     setMarkers(extractedMarkers)
-    setPracticalLights(configureArchiveScene(loadedScene))
 
     // Filter interactiveMeshes: keep only those with name starting with "I_"
     const filteredMeshes = (interactiveMeshes || []).filter(
@@ -1888,7 +1473,6 @@ export default function Portfolio() {
             inset: 0,
             filter: CONFIG.usePostComposite ? compositeFilter : 'none',
             transform: CONFIG.usePostComposite ? 'translateZ(0)' : 'none',
-            willChange: CONFIG.usePostComposite ? 'filter' : 'auto',
           }}
         >
           <Canvas
@@ -1911,20 +1495,11 @@ export default function Portfolio() {
               alpha: CONFIG.useGradientSkybox,
             }}
           >
-            <ScrollControls
-              pages={5}
-              damping={0.1}
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-            >
-              <PortfolioScrollSurface />
+            <ScrollControls pages={5} damping={0.1}>
               <InitialScrollPrimer
                 enabled={!isLoading && !initialScrollPrimed}
                 percent={INITIAL_SCROLL_PERCENT}
                 onDone={handleInitialScrollPrimed}
-              />
-              <PortfolioCinematicRenderer
-                progress={effectiveProgress}
-                stateRef={metaballStateRef}
               />
 
               {CONFIG.useGradientSkybox && (
@@ -1948,7 +1523,6 @@ export default function Portfolio() {
                   vignetteFollowLerp={CONFIG.vignetteFollowLerp}
                 />
               )}
-              <ArchiveShaft practicalLights={practicalLights} />
 
               <ambientLight intensity={CONFIG.ambientIntensity} />
               {CONFIG.useGradientSkybox && (
@@ -1970,13 +1544,6 @@ export default function Portfolio() {
                 color={CONFIG.directionalLightColor}
                 castShadow
                 shadow-mapSize={[1024, 1024]}
-                shadow-camera-left={-10}
-                shadow-camera-right={10}
-                shadow-camera-top={12}
-                shadow-camera-bottom={-12}
-                shadow-camera-near={0.5}
-                shadow-camera-far={40}
-                shadow-bias={-0.00035}
               />
               {CONFIG.fillLightEnabled && (
                 <directionalLight
@@ -2023,18 +1590,12 @@ export default function Portfolio() {
               />
 
               {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
-                <>
-                  <HoverAccentLight
-                    objects={metaballObjects}
-                    stateRef={metaballStateRef}
-                  />
-                  <MetaballCursorR3F
-                    objects={metaballObjects}
-                    eventTarget={scrollContainerRef}
-                    disabled={metaballCursorDismissed}
-                    onStateReady={handleMetaballReady}
-                  />
-                </>
+                <MetaballCursorR3F
+                  objects={metaballObjects}
+                  eventTarget={scrollContainerRef}
+                  disabled={metaballCursorDismissed}
+                  onStateReady={handleMetaballReady}
+                />
               )}
 
               {CONFIG.showMetaballCursor && metaballObjects.length > 0 && trimmedCurve && (
