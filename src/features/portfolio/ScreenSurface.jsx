@@ -44,6 +44,8 @@ export default function ScreenSurface({
   shaderFps = 8,
   interactionShaderFps = 8,
   ampScrollStateRef,
+  transportStateRef,
+  onControllerReady,
   // Overall post-composite mix, not Screen opacity: 0 = clean AMP, 1 = full VHS.
   vhsIntensity = 1,
   powerOnSpeed = 3.0,
@@ -142,8 +144,15 @@ export default function ScreenSurface({
     screenNode.material = displayMat
     hasRenderedRef.current = false
     lastVhsRenderAtRef.current = -Infinity
+    const controller = {
+      scrollToStart() {
+        domTexture.scrollTo(0, 0)
+      },
+    }
+    onControllerReady?.(controller)
 
     return () => {
+      onControllerReady?.(null)
       if (originalMatRef.current) screenNode.material = originalMatRef.current
       domTexture.dispose()
       material.dispose()
@@ -156,7 +165,7 @@ export default function ScreenSurface({
       hasRenderedRef.current = false
       lastVhsRenderAtRef.current = -Infinity
     }
-  }, [screenNode, embedSrc, resolution, fps, idleFps, config])
+  }, [screenNode, embedSrc, resolution, fps, idleFps, config, onControllerReady])
 
   // ── pointer down/up + wheel forwarding (move is handled per-frame via raycast) ──
   useEffect(() => {
@@ -186,6 +195,7 @@ export default function ScreenSurface({
             : 1
       if (ampScrollStateRef && e.deltaY !== 0) {
         ampScrollStateRef.current.playDirection = e.deltaY < 0 ? -1 : 1
+        ampScrollStateRef.current.manualPlaybackUntil = performance.now() + 220
       }
       domRef.current?.forwardWheel(e.deltaX * unit, e.deltaY * unit)
     }
@@ -216,6 +226,19 @@ export default function ScreenSurface({
       ampScrollStateRef.current.scrollTop = metrics.scrollTop
       ampScrollStateRef.current.scrollHeight = metrics.scrollHeight
       ampScrollStateRef.current.clientHeight = metrics.clientHeight
+    }
+
+    // The physical Play/Reverse transport runs independently of the scene's
+    // camera path. Speeds are expressed in iframe viewports per second so the
+    // five states feel consistent across responsive reader dimensions.
+    const transport = transportStateRef?.current
+    if (activeRef.current && transport?.direction) {
+      const metrics = dom.getScrollMetrics()
+      const viewportHeight = Math.max(1, metrics.clientHeight || resolution)
+      const viewportRate = Math.max(0, Number(transport.viewportRate) || 0)
+      const direction = transport.direction < 0 ? -1 : 1
+      if (ampScrollStateRef) ampScrollStateRef.current.playDirection = direction
+      dom.forwardWheel(0, direction * viewportHeight * viewportRate * delta)
     }
 
     // Power-on ramp (CRT warms up over ~1/powerOnSpeed s once activated).

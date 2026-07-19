@@ -7,9 +7,18 @@ import React, {
   useState,
 } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { Environment, useProgress } from '@react-three/drei'
+import { Environment, Html, useProgress } from '@react-three/drei'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import { useLocation, useNavigationType } from 'react-router-dom'
+import {
+  FastForward,
+  Play,
+  Rewind,
+  SkipBack,
+  SkipForward,
+  Snail,
+  Square,
+} from 'lucide-react'
 import * as THREE from 'three'
 import {
   DEFAULT_VHS_MODEL_PATH,
@@ -48,10 +57,9 @@ import { warmRoute } from '../../shared/performance/routePreloader'
 // three.js scene graph — no per-frame syncing needed.
 //
 // The room's Camera node has no animated FOV (only translation/rotation are
-// keyframed) — GLTFLoader already converts its authored yfov (radians) to
-// three.js's degrees convention. The only adjustment this scene needs is
-// recomputing `camera.aspect` from the live viewport instead of the glTF's
-// baked 16:9, so the framing isn't stretched on other aspect ratios.
+// keyframed). Its established FOV is applied explicitly so a model re-export
+// cannot silently alter the lens, while `camera.aspect` still follows the live
+// viewport instead of the glTF's baked 16:9.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -59,6 +67,10 @@ const CONFIG = {
   vhsModelPath: DEFAULT_VHS_MODEL_PATH,
   vhsScale: 1,
   cameraNodeName: 'Camera',
+  // Keep the established framing independent from incidental lens changes in
+  // future Blender exports. ScrollPathCamera captures this as its start FOV
+  // and narrows it toward 32 degrees along the path.
+  cameraFov: 37.29907897795257,
   vhsPointNodeName: 'VHSPoint',
   backgroundColor: '#111122',
   hdriPath: '/hdri/vhs/Soft 2RingHighContrast.exr',
@@ -86,6 +98,28 @@ const CONFIG = {
   screenActivationDelayMs: 500,
 }
 
+const VHS_BUTTONS = [
+  { name: 'VHSPlayer_Rev', label: 'REV', Icon: Rewind },
+  { name: 'VHSPlayer_Play', label: 'PLAY', Icon: Play },
+  { name: 'VHSPlayer_Slow', label: 'SLOW', Icon: Snail },
+  { name: 'VHSPlayer_Stop', label: 'STOP', Icon: Square },
+  { name: 'VHSPlayer_Fast', label: 'FAST', Icon: FastForward },
+  { name: 'VHSPlayer_Prev', label: 'PREV', Icon: SkipBack },
+  { name: 'VHSPlayer_Next', label: 'NEXT', Icon: SkipForward },
+]
+
+const VHS_SPEEDS = [
+  { label: 'Very Slow', viewportRate: 0.03 },
+  { label: 'Slow', viewportRate: 0.05 },
+  // One viewport every 12.5 seconds: intentionally calm enough to read.
+  { label: 'Normal', viewportRate: 0.08 },
+  { label: 'Fast', viewportRate: 0.14 },
+  { label: 'Very Fast', viewportRate: 0.24 },
+]
+const NORMAL_SPEED_INDEX = 2
+const BUTTON_FADE_START = 0.72
+const BUTTON_FADE_END = 0.78
+
 function findNamedNode(root, name) {
   let found = null
   root.traverse((child) => {
@@ -94,12 +128,24 @@ function findNamedNode(root, name) {
   return found
 }
 
+function smoothstep(min, max, value) {
+  const t = THREE.MathUtils.clamp((value - min) / Math.max(0.0001, max - min), 0, 1)
+  return t * t * (3 - 2 * t)
+}
+
 // ─── ROOM: camera + all three baked animations ───────────────────────────────
 
-function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete }) {
+function EntrySceneRoom({
+  playEntryAnimation,
+  onReady,
+  onEntryAnimationsComplete,
+  buttonControllerRef,
+}) {
   const gltf = useLoader(GLTFLoader, CONFIG.modelPath)
   const mixerRef = useRef(null)
   const entryActionsRef = useRef(null)
+  const buttonActionsRef = useRef(new Map())
+  const lockedButtonsRef = useRef(new Set())
   const fireCompleteRef = useRef(null)
   const notifiedRef = useRef(false)
   const entryDoneRef = useRef(false)
@@ -121,6 +167,7 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
   useEffect(() => {
     if (!cameraNode) return
     cameraNode.manual = true
+    cameraNode.fov = CONFIG.cameraFov
     cameraNode.aspect = size.width / size.height
     cameraNode.updateProjectionMatrix()
     setDefault({ camera: cameraNode })
@@ -158,6 +205,7 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
     entryDoneRef.current = false
 
     const mixer = new THREE.AnimationMixer(gltf.scene)
+    const lockedButtons = lockedButtonsRef.current
     entryActionsRef.current = entryClips.map((clip) => {
       const action = mixer.clipAction(clip)
       action.clampWhenFinished = true
@@ -165,7 +213,48 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
       action.play()
       return action
     })
+
+    const buttonActions = new Map()
+    VHS_BUTTONS.forEach(({ name }) => {
+      // Blender may split one authored button motion into identically named
+      // clips with numeric suffixes (the current Slow button does this).
+      const clips = gltf.animations.filter(
+        (clip) => clip.name === name || clip.name.startsWith(`${name}.`),
+      )
+      const actions = clips.map((clip) => {
+        const action = mixer.clipAction(clip)
+        action.enabled = true
+        action.clampWhenFinished = true
+        action.setLoop(THREE.LoopOnce, 1)
+        action.weight = 0
+        action.paused = true
+        action.play()
+        return action
+      })
+      buttonActions.set(name, actions)
+    })
+    buttonActionsRef.current = buttonActions
     mixerRef.current = mixer
+
+    const buttonController = {
+      press(name) {
+        if (lockedButtons.has(name)) return false
+        const actions = buttonActionsRef.current.get(name)
+        if (!actions?.length) return false
+
+        lockedButtons.add(name)
+        actions.forEach((action) => {
+          action.reset()
+          action.enabled = true
+          action.weight = 1
+          action.paused = false
+          action.timeScale = 1
+          action.play()
+        })
+        return true
+      },
+    }
+    buttonControllerRef.current = buttonController
 
     let firedComplete = false
     fireCompleteRef.current = () => {
@@ -191,12 +280,17 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
     }
 
     return () => {
+      if (buttonControllerRef.current === buttonController) {
+        buttonControllerRef.current = null
+      }
       mixer.stopAllAction()
       mixerRef.current = null
       entryActionsRef.current = null
+      buttonActionsRef.current = new Map()
+      lockedButtons.clear()
       fireCompleteRef.current = null
     }
-  }, [gltf, playEntryAnimation, onEntryAnimationsComplete])
+  }, [gltf, playEntryAnimation, onEntryAnimationsComplete, buttonControllerRef])
 
   // Ready as soon as the scene graph is available — do NOT require a Camera
   // node (the glb may not include one). vhsPointNode gates the reveal; if it is
@@ -210,12 +304,24 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
   }, [vhsPointNode, screenNode, gltf, onReady])
 
   useFrame((_, rawDelta) => {
-    if (entryDoneRef.current) return
+    const hasActiveButton = lockedButtonsRef.current.size > 0
+    if (entryDoneRef.current && !hasActiveButton) return
     mixerRef.current?.update(Math.min(rawDelta, 0.1))
 
-    const actions = entryActionsRef.current
-    if (actions?.length && actions.every((action) => action.paused)) {
+    const entryActions = entryActionsRef.current
+    if (!entryDoneRef.current && entryActions?.length && entryActions.every((action) => action.paused)) {
       fireCompleteRef.current?.()
+    }
+
+    if (hasActiveButton) {
+      lockedButtonsRef.current.forEach((name) => {
+        const actions = buttonActionsRef.current.get(name)
+        if (!actions?.length || !actions.every((action) => action.paused)) return
+        actions.forEach((action) => {
+          action.weight = 0
+        })
+        lockedButtonsRef.current.delete(name)
+      })
     }
   })
 
@@ -225,6 +331,199 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
   // already falls back to three's single-sided default — intentional
   // (visible from one side only). Left untouched here on purpose.
   return <primitive object={gltf.scene} />
+}
+
+function VhsPlayerControls({
+  sceneRoot,
+  enabled,
+  cameraScrollStateRef,
+  onPress,
+  transportSnapshot,
+  vhsIndex,
+  vhsCount,
+}) {
+  const { gl, camera } = useThree()
+  const anchorRefs = useRef([])
+  const iconRefs = useRef([])
+  const labelRefs = useRef([])
+  const revealRef = useRef(0)
+  const raycasterRef = useRef(new THREE.Raycaster())
+  const pointerRef = useRef(new THREE.Vector2())
+  const worldPositionRef = useRef(new THREE.Vector3())
+
+  const buttons = useMemo(() => VHS_BUTTONS.map((spec) => {
+    const matches = []
+    sceneRoot?.traverse((child) => {
+      if (child.name === spec.name) matches.push(child)
+    })
+    // The glTF uses an outer transform node and an inner mesh with the same
+    // name. Anchor to the transform so the label follows the button animation.
+    const anchor = matches.find((node) => !node.isMesh) ?? matches[0] ?? null
+    const hitMeshes = []
+    anchor?.traverse((child) => {
+      if (child.isMesh) hitMeshes.push(child)
+    })
+    return { ...spec, anchor, hitMeshes }
+  }), [sceneRoot])
+
+  useEffect(() => {
+    if (!enabled) revealRef.current = 0
+  }, [enabled])
+
+  useEffect(() => {
+    if (!enabled) return undefined
+    const canvas = gl.domElement
+    const hitMeshes = buttons.flatMap((button) => button.hitMeshes)
+    const nameByMesh = new Map()
+    buttons.forEach((button) => {
+      button.hitMeshes.forEach((mesh) => nameByMesh.set(mesh, button.name))
+    })
+
+    const handlePointerDown = (event) => {
+      if (event.button !== 0 || !hitMeshes.length) return
+      const bounds = canvas.getBoundingClientRect()
+      pointerRef.current.set(
+        ((event.clientX - bounds.left) / Math.max(1, bounds.width)) * 2 - 1,
+        -((event.clientY - bounds.top) / Math.max(1, bounds.height)) * 2 + 1,
+      )
+      raycasterRef.current.setFromCamera(pointerRef.current, camera)
+      const hit = raycasterRef.current.intersectObjects(hitMeshes, false)[0]
+      const name = hit ? nameByMesh.get(hit.object) : null
+      if (name) onPress(name)
+    }
+
+    canvas.addEventListener('pointerdown', handlePointerDown)
+    return () => canvas.removeEventListener('pointerdown', handlePointerDown)
+  }, [buttons, camera, enabled, gl, onPress])
+
+  useFrame((_, rawDelta) => {
+    const delta = Math.min(rawDelta, 0.1)
+    revealRef.current = enabled
+      ? Math.min(1, revealRef.current + delta / 0.36)
+      : 0
+
+    const progress = THREE.MathUtils.clamp(
+      cameraScrollStateRef?.current?.progress ?? 0,
+      0,
+      1,
+    )
+    const textMix = smoothstep(BUTTON_FADE_START, BUTTON_FADE_END, progress)
+    const reveal = smoothstep(0, 1, revealRef.current)
+
+    buttons.forEach((button, index) => {
+      const group = anchorRefs.current[index]
+      if (group && button.anchor) {
+        button.anchor.getWorldPosition(worldPositionRef.current)
+        group.position.copy(worldPositionRef.current)
+      }
+
+      const icon = iconRefs.current[index]
+      if (icon) {
+        icon.style.opacity = String(reveal * (1 - textMix))
+        icon.style.transform = `scale(${THREE.MathUtils.lerp(0.82, 1, 1 - textMix)})`
+      }
+      const label = labelRefs.current[index]
+      if (label) {
+        label.style.opacity = String(reveal * textMix)
+        label.style.transform = `scale(${THREE.MathUtils.lerp(0.82, 1, textMix)})`
+      }
+    })
+  })
+
+  return buttons.map((button, index) => {
+    const { name, label } = button
+    const isPressed =
+      (name === 'VHSPlayer_Play' && transportSnapshot.direction === 1) ||
+      (name === 'VHSPlayer_Rev' && transportSnapshot.direction === -1)
+    const boundary =
+      (name === 'VHSPlayer_Prev' && vhsIndex === 0) ||
+      (name === 'VHSPlayer_Next' && vhsIndex === vhsCount - 1)
+    const speedTitle =
+      name === 'VHSPlayer_Fast' || name === 'VHSPlayer_Slow'
+        ? `Current speed: ${VHS_SPEEDS[transportSnapshot.speedIndex].label}`
+        : undefined
+
+    return (
+      <group
+        key={name}
+        ref={(node) => {
+          anchorRefs.current[index] = node
+        }}
+      >
+        <Html center zIndexRange={[8, 4]}>
+          <button
+            type="button"
+            aria-label={`${label}${boundary ? ' (limit reached)' : ''}`}
+            aria-pressed={name === 'VHSPlayer_Play' || name === 'VHSPlayer_Rev' ? isPressed : undefined}
+            title={speedTitle ?? label}
+            onClick={(event) => {
+              event.stopPropagation()
+              onPress(name)
+            }}
+            style={{
+              position: 'relative',
+              display: 'grid',
+              placeItems: 'center',
+              width: 34,
+              height: 28,
+              margin: 0,
+              padding: 0,
+              border: 0,
+              borderRadius: 4,
+              outline: 'none',
+              boxShadow: 'none',
+              WebkitTapHighlightColor: 'transparent',
+              background: 'transparent',
+              color: isPressed ? '#b8fff1' : boundary ? 'rgba(236, 244, 255, 0.45)' : '#f4f8ff',
+              textShadow: '0 1px 2px rgba(0, 0, 0, 0.95), 0 0 7px rgba(170, 225, 255, 0.75)',
+              filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.9))',
+              cursor: 'pointer',
+              pointerEvents: enabled ? 'auto' : 'none',
+            }}
+          >
+            <span
+              ref={(node) => {
+                iconRefs.current[index] = node
+              }}
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                opacity: 0,
+                willChange: 'opacity, transform',
+              }}
+            >
+              {React.createElement(button.Icon, {
+                size: 15,
+                strokeWidth: 2.2,
+                fill: name === 'VHSPlayer_Play' ? 'currentColor' : 'none',
+              })}
+            </span>
+            <span
+              ref={(node) => {
+                labelRefs.current[index] = node
+              }}
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                font: '700 8px/1 ui-monospace, SFMono-Regular, Consolas, monospace',
+                letterSpacing: '0.055em',
+                opacity: 0,
+                willChange: 'opacity, transform',
+              }}
+            >
+              {label}
+            </span>
+          </button>
+        </Html>
+      </group>
+    )
+  })
 }
 
 // ─── SELECTED VHS UNIT: spawned as a child of VHSPoint ───────────────────────
@@ -245,14 +544,17 @@ function EntrySceneVhsUnit({
   vhsIndex,
   vhsCount,
   playEntryAnimation,
-  playbackActive,
+  playbackReady,
   ampScrollStateRef,
+  transportStateRef,
 }) {
   const gltf = useLoader(GLTFLoader, CONFIG.vhsModelPath)
   const { camera } = useThree()
   const attachedRef = useRef(null)
   const mixerRef = useRef(null)
   const entryVhsActionRef = useRef(null)
+  const entryVhsShouldPlayRef = useRef(false)
+  const hasAttachedOnceRef = useRef(false)
   const vhsPlayActionRef = useRef(null)
   const reelActionRef = useRef(null)
 
@@ -275,6 +577,14 @@ function EntrySceneVhsUnit({
 
     const { vhsSourceMaterials, reelSupportSourceMaterials, glassSourceMaterials, coverSourceMaterials } =
       collectVhsSourceMaterials(gltf.scene)
+    const sourceMaterials = new Set()
+    gltf.scene.traverse((child) => {
+      if (!child.isMesh) return
+      const materials = Array.isArray(child.material) ? child.material : [child.material]
+      materials.forEach((material) => {
+        if (material) sourceMaterials.add(material)
+      })
+    })
 
     reelSupportSourceMaterials.forEach((m) => {
       fixCutoutTransparency(m)
@@ -296,6 +606,8 @@ function EntrySceneVhsUnit({
 
     const mixer = new THREE.AnimationMixer(root)
     const findClip = (...names) => names.map((name) => gltf.animations.find((c) => c.name === name)).find(Boolean)
+    const shouldPlayEntryVhs = playEntryAnimation && !hasAttachedOnceRef.current
+    entryVhsShouldPlayRef.current = shouldPlayEntryVhs
 
     // This is the one unit sitting in the player, not on the shelf — it must
     // stay in its "Entry_VHS" pose always (never the shelf "VHS_Idle" pose).
@@ -306,7 +618,7 @@ function EntrySceneVhsUnit({
       action.clampWhenFinished = true
       action.setLoop(THREE.LoopOnce, 1)
       action.play()
-      if (!playEntryAnimation) action.time = entryVhsClip.duration
+      if (!shouldPlayEntryVhs) action.time = entryVhsClip.duration
       entryVhsActionRef.current = action
     }
 
@@ -342,15 +654,26 @@ function EntrySceneVhsUnit({
 
     vhsPointNode.add(root)
     attachedRef.current = root
+    hasAttachedOnceRef.current = true
 
     return () => {
       mixer.stopAllAction()
       mixerRef.current = null
       entryVhsActionRef.current = null
+      entryVhsShouldPlayRef.current = false
       vhsPlayActionRef.current = null
       reelActionRef.current = null
       vhsPointNode.remove(root)
       attachedRef.current = null
+      const ownedMaterials = new Set()
+      root.traverse((child) => {
+        if (!child.isMesh) return
+        const materials = Array.isArray(child.material) ? child.material : [child.material]
+        materials.forEach((material) => {
+          if (material && !sourceMaterials.has(material)) ownedMaterials.add(material)
+        })
+      })
+      ownedMaterials.forEach((material) => material.dispose())
     }
   }, [
     gltf,
@@ -376,11 +699,21 @@ function EntrySceneVhsUnit({
     const vhsPlayAction = vhsPlayActionRef.current
     const entryVhsAction = entryVhsActionRef.current
     const ownEntryComplete =
-      !playEntryAnimation || !entryVhsAction || entryVhsAction.paused
-    if (vhsPlayAction && playbackActive && ownEntryComplete) {
-      vhsPlayAction.timeScale = ampScroll?.playDirection === -1 ? -1 : 1
+      !entryVhsShouldPlayRef.current || !entryVhsAction || entryVhsAction.paused
+    const manualDirection =
+      ampScroll?.manualPlaybackUntil > performance.now()
+        ? ampScroll.playDirection
+        : 0
+    const playbackDirection = playbackReady
+      ? transportStateRef?.current?.direction || manualDirection
+      : 0
+    if (vhsPlayAction && playbackDirection && ownEntryComplete) {
+      vhsPlayAction.timeScale = playbackDirection < 0 ? -1 : 1
       vhsPlayAction.weight = 1
       vhsPlayAction.paused = false
+    } else if (vhsPlayAction && !vhsPlayAction.paused) {
+      // Stop freezes the transport at its exact current authored pose.
+      vhsPlayAction.paused = true
     }
 
     mixer.update(Math.min(rawDelta, 0.1))
@@ -409,12 +742,16 @@ export default function EntryScene() {
   const playEntryAnimation =
     navigationType === 'PUSH' && location.state?.fromPortfolio === true
   const initialTrackProgress = playEntryAnimation ? 0 : 1
-  const vhsIndex = typeof location.state?.vhsIndex === 'number' ? location.state.vhsIndex : 0
   const vhsCount = location.state?.vhsCount > 0
     ? location.state.vhsCount
     : INTERACTIVE_OBJECT_SCROLL_TARGETS.length
+  const initialVhsIndex =
+    typeof location.state?.vhsIndex === 'number'
+      ? THREE.MathUtils.clamp(Math.trunc(location.state.vhsIndex), 0, vhsCount - 1)
+      : 0
 
   const { active: assetsLoading, progress: assetsProgress } = useProgress()
+  const [vhsIndex, setVhsIndex] = useState(initialVhsIndex)
   const [vhsPointNode, setVhsPointNode] = useState(null)
   const [screenNode, setScreenNode] = useState(null)
   const [sceneRoot, setSceneRoot] = useState(null)
@@ -422,6 +759,16 @@ export default function EntryScene() {
   const [screenActive, setScreenActive] = useState(false)
   const [scrollTrackingActive, setScrollTrackingActive] = useState(false)
   const activationTimerRef = useRef(null)
+  const buttonControllerRef = useRef(null)
+  const screenControllerRef = useRef(null)
+  const transportStateRef = useRef({
+    direction: 0,
+    speedIndex: NORMAL_SPEED_INDEX,
+    viewportRate: VHS_SPEEDS[NORMAL_SPEED_INDEX].viewportRate,
+  })
+  const [transportSnapshot, setTransportSnapshot] = useState({
+    ...transportStateRef.current,
+  })
   // Camera travel and AMP reading are separate scroll domains. ScreenSurface
   // publishes the reader's responsive document metrics for the tape animations.
   const cameraScrollStateRef = useRef({ progress: initialTrackProgress })
@@ -431,6 +778,7 @@ export default function EntryScene() {
     scrollTop: 0,
     scrollHeight: 0,
     clientHeight: 0,
+    manualPlaybackUntil: 0,
   })
 
   // The Screen's embed is per-tape: the selected VHS (vhsIndex) maps to an AMP
@@ -440,6 +788,18 @@ export default function EntryScene() {
     const projectId = resolveVhsProjectId(vhsIndex)
     const path = `${CONFIG.screenEmbedPath}?p=${encodeURIComponent(projectId)}`
     return typeof window !== 'undefined' ? `${window.location.origin}${path}` : path
+  }, [vhsIndex])
+
+  useEffect(() => {
+    // A newly inserted tape starts at the beginning of its own project; do
+    // not let one frame of the previous document's metrics scrub its reel.
+    Object.assign(ampScrollStateRef.current, {
+      progress: 0,
+      scrollTop: 0,
+      scrollHeight: 0,
+      clientHeight: 0,
+      manualPlaybackUntil: 0,
+    })
   }, [vhsIndex])
 
   useEffect(() => {
@@ -455,6 +815,67 @@ export default function EntryScene() {
     setScreenNode(sn)
     setSceneRoot(root)
   }, [])
+
+  const handleScreenControllerReady = useCallback((controller) => {
+    screenControllerRef.current = controller
+  }, [])
+
+  const updateTransport = useCallback((changes) => {
+    Object.assign(transportStateRef.current, changes)
+    const speed = VHS_SPEEDS[transportStateRef.current.speedIndex]
+    transportStateRef.current.viewportRate = speed.viewportRate
+    setTransportSnapshot({ ...transportStateRef.current })
+  }, [])
+
+  const handleButtonPress = useCallback((name) => {
+    // A pressed button owns its animation until the authored clip finishes.
+    // Other transport buttons remain independent and responsive.
+    if (!buttonControllerRef.current?.press(name)) return
+
+    switch (name) {
+      case 'VHSPlayer_Play':
+        updateTransport({
+          direction: transportStateRef.current.direction === 1 ? 0 : 1,
+        })
+        break
+      case 'VHSPlayer_Rev':
+        updateTransport({
+          direction: transportStateRef.current.direction === -1 ? 0 : -1,
+        })
+        break
+      case 'VHSPlayer_Fast':
+        updateTransport({
+          speedIndex: Math.min(
+            VHS_SPEEDS.length - 1,
+            transportStateRef.current.speedIndex + 1,
+          ),
+        })
+        break
+      case 'VHSPlayer_Slow':
+        updateTransport({
+          speedIndex: Math.max(0, transportStateRef.current.speedIndex - 1),
+        })
+        break
+      case 'VHSPlayer_Next':
+        setVhsIndex((current) => Math.min(vhsCount - 1, current + 1))
+        break
+      case 'VHSPlayer_Prev':
+        setVhsIndex((current) => Math.max(0, current - 1))
+        break
+      case 'VHSPlayer_Stop':
+        updateTransport({
+          direction: 0,
+          speedIndex: NORMAL_SPEED_INDEX,
+        })
+        ampScrollStateRef.current.progress = 0
+        ampScrollStateRef.current.scrollTop = 0
+        ampScrollStateRef.current.manualPlaybackUntil = 0
+        screenControllerRef.current?.scrollToStart()
+        break
+      default:
+        break
+    }
+  }, [updateTransport, vhsCount])
 
   const handleEntryAnimationsComplete = useCallback(() => {
     // Scroll-path camera tracking picks up the instant the intro finishes —
@@ -513,6 +934,7 @@ export default function EntryScene() {
             playEntryAnimation={playEntryAnimation}
             onReady={handleRoomReady}
             onEntryAnimationsComplete={handleEntryAnimationsComplete}
+            buttonControllerRef={buttonControllerRef}
           />
         </Suspense>
 
@@ -523,10 +945,23 @@ export default function EntryScene() {
               vhsIndex={vhsIndex}
               vhsCount={vhsCount}
               playEntryAnimation={playEntryAnimation}
-              playbackActive={scrollTrackingActive}
+              playbackReady={scrollTrackingActive}
               ampScrollStateRef={ampScrollStateRef}
+              transportStateRef={transportStateRef}
             />
           </Suspense>
+        )}
+
+        {sceneRoot && (
+          <VhsPlayerControls
+            sceneRoot={sceneRoot}
+            enabled={scrollTrackingActive}
+            cameraScrollStateRef={cameraScrollStateRef}
+            onPress={handleButtonPress}
+            transportSnapshot={transportSnapshot}
+            vhsIndex={vhsIndex}
+            vhsCount={vhsCount}
+          />
         )}
 
         {screenNode && (
@@ -540,6 +975,8 @@ export default function EntryScene() {
             shaderFps={CONFIG.readerFpsCap}
             interactionShaderFps={CONFIG.readerFpsCap}
             ampScrollStateRef={ampScrollStateRef}
+            transportStateRef={transportStateRef}
+            onControllerReady={handleScreenControllerReady}
             vhsIntensity={CONFIG.vhsIntensity}
           />
         )}

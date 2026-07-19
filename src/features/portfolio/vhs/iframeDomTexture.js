@@ -639,6 +639,22 @@ export class IframeDomTexture {
     })
   }
 
+  // Immediate transport-style seek used by the physical VHS controls. Keeping
+  // this operation inside the iframe texture avoids leaking the embedded
+  // window into React and makes sure the cheap interim canvas shift is queued
+  // alongside the real document scroll.
+  scrollTo(left = 0, top = 0) {
+    if (this._disposed) return
+    const win = this._safeWin()
+    if (!win) return
+
+    this._pendingWheelX = 0
+    this._pendingWheelY = 0
+    this._markActivity()
+    try { win.scrollTo(Number(left) || 0, Number(top) || 0) } catch { /* noop */ }
+    this._queueVisualScrollToViewport()
+  }
+
   _queueVisualScrollToViewport() {
     if (!this.hasFrame) return
     const { x, y } = this._readViewportScroll()
