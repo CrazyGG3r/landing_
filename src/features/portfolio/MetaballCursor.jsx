@@ -233,6 +233,7 @@ export function buildMetaballObjects(meshes) {
 
     return {
       mesh,
+      renderRoot:   mesh.metaballRenderRoot ?? mesh,
       geometry:     mesh.geometry,
       blobColor,
       colorA,
@@ -288,6 +289,9 @@ uniform vec3  u_hoverColor;
 uniform float u_hoverMix;
 uniform int   u_activeIdx;
 uniform sampler2D tScene;
+uniform sampler2D tActive;
+uniform sampler2D tSceneDepth;
+uniform sampler2D tActiveDepth;
 uniform sampler2D tID;
 uniform float u_trigNoise;
 uniform float u_noiseScale;
@@ -348,17 +352,21 @@ float sdf(vec2 uv, float na) {
 
 void main() {
   vec2 uv    = gl_FragCoord.xy;
-  vec3 scene = texture2D(tScene, uv / u_res).rgb;
+  vec2 screenUv = uv / u_res;
+  vec3 scene = texture2D(tScene, screenUv).rgb;
+  vec4 activeLayer = texture2D(tActive, screenUv);
+  float sceneDepth = texture2D(tSceneDepth, screenUv).x;
+  float activeDepth = texture2D(tActiveDepth, screenUv).x;
 
+  // rtActive is composited after the blob, but it must still respect the
+  // camera depth of ordinary scene geometry. Both targets use this camera, so
+  // their hardware depth values are directly comparable without linearizing.
+  float activeIsVisible = step(activeDepth, sceneDepth + 0.00001);
+  activeLayer *= activeIsVisible;
+
+  // The blob belongs to the active object and sits above the rest of the
+  // scene. Other interactive IDs must not punch clean holes through it.
   float mask = 1.0;
-  if (u_activeIdx >= 0) {
-    vec2 idUV = uv / u_res;
-    float idVal = texture2D(tID, idUV).r * 255.0;
-    float activeIdFloat = float(u_activeIdx + 1);
-    float isActive = step(abs(idVal - activeIdFloat), 0.5);
-    float isBackground = step(idVal, 0.5);
-    mask = max(isActive, isBackground);
-  }
 
   float baseF   = sdf(uv, 0.0);
   float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
@@ -440,6 +448,9 @@ void main() {
   res = mix(res, 1.0 - fs, totalIns * u_alpha);
   res += prism * (1.0 - res);
   res = mix(res, vec3(0.95, 0.85, 1.0), ripGlow * 0.4 * u_alpha);
+  // rtActive is captured over transparent black, so its RGB is already
+  // premultiplied by alpha. Composite it once, above the completed blob.
+  res = activeLayer.rgb + res * (1.0 - activeLayer.a);
 
   gl_FragColor = vec4(res, 1.0);
 }
@@ -524,14 +535,6 @@ void main() {
   vec2 uv = gl_FragCoord.xy;
 
   float mask = 1.0;
-  if (u_activeIdx >= 0) {
-    vec2 idUV = uv / u_res;
-    float idVal = texture2D(tID, idUV).r * 255.0;
-    float activeIdFloat = float(u_activeIdx + 1);
-    float isActive = step(abs(idVal - activeIdFloat), 0.5);
-    float isBackground = step(idVal, 0.5);
-    mask = max(isActive, isBackground);
-  }
 
   float baseF   = sdf(uv, 0.0);
   float baseIns = 1.0 - smoothstep(-u_edge * u_res.y, u_edge * u_res.y, baseF);
@@ -878,6 +881,7 @@ function computeIdTargetSize(pixelWidth, pixelHeight, targetRes) {
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
+  const activeCaptureLayer = 31
 
   // ── Render targets ────────────────────────────────────────────────────────
   const idSize = computeIdTargetSize(rW, rH, cfg.idRes)
@@ -891,6 +895,17 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
   })
+  rtScene.depthTexture = new THREE.DepthTexture(rW, rH, THREE.UnsignedIntType)
+  rtScene.depthTexture.minFilter = THREE.NearestFilter
+  rtScene.depthTexture.magFilter = THREE.NearestFilter
+
+  const rtActive = new THREE.WebGLRenderTarget(rW, rH, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+  })
+  rtActive.depthTexture = new THREE.DepthTexture(rW, rH, THREE.UnsignedIntType)
+  rtActive.depthTexture.minFilter = THREE.NearestFilter
+  rtActive.depthTexture.magFilter = THREE.NearestFilter
 
   const rtMask = new THREE.WebGLRenderTarget(rW, rH, {
     minFilter: THREE.LinearFilter,
@@ -968,6 +983,9 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     u_prism:              { value: cfg.prismStrength },
     u_ripples:            { value: Array.from({ length: 6 }, () => new THREE.Vector3(-1, 0, 0)) },
     tScene:               { value: rtScene.texture },
+    tActive:              { value: rtActive.texture },
+    tSceneDepth:          { value: rtScene.depthTexture },
+    tActiveDepth:         { value: rtActive.depthTexture },
     tID:                  { value: rtID.texture },
     u_trailColor:         { value: new THREE.Color(cfg.trailColor) },
     u_ghostSizeScale:     { value: cfg.ghostSizeScale ?? [1, 1, 1, 1] },
@@ -1038,6 +1056,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
       if (Math.abs(rtScene.width - rW2) > 1 || Math.abs(rtScene.height - rH2) > 1) {
         rtScene.setSize(rW2, rH2)
+        rtActive.setSize(rW2, rH2)
         rtMask.setSize(rW2, rH2)
         sharedUniforms.u_res.value.set(rW2, rH2)
 
@@ -1076,11 +1095,64 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         })
       }
 
-      // Scene + mask passes
+      // Scene pass: remove the active visual root so it can be composited once,
+      // after the blob, instead of remaining entangled with ordinary depth.
+      const activeObject = cs.activeId > 0 ? objects[cs.activeId - 1] : null
+      const activeRoot = activeObject?.renderRoot ?? null
+      const activeWasVisible = activeRoot?.visible
+      if (activeRoot) activeRoot.visible = false
+
       renderer.setRenderTarget(rtScene)
       renderer.clear()
       renderer.render(scene, camera)
 
+      if (activeRoot) activeRoot.visible = activeWasVisible
+
+      // Active-only pass: temporarily place the animated VHS root and scene
+      // lights on an isolated camera layer. The environment remains available,
+      // while the skybox and every other VHS stay out of this transparent FBO.
+      const previousClearColor = renderer.getClearColor(new THREE.Color()).clone()
+      const previousClearAlpha = renderer.getClearAlpha()
+      const previousCameraLayerMask = camera.layers.mask
+      const previousBackground = scene.background
+      const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate
+      const activeLayerStates = []
+      const lightLayerStates = []
+
+      if (activeRoot) {
+        activeRoot.traverse((object) => {
+          activeLayerStates.push([object, object.layers.mask])
+          object.layers.set(activeCaptureLayer)
+        })
+        scene.traverse((object) => {
+          if (!object.isLight) return
+          lightLayerStates.push([object, object.layers.mask])
+          object.layers.enable(activeCaptureLayer)
+        })
+        camera.layers.set(activeCaptureLayer)
+      }
+
+      renderer.setRenderTarget(rtActive)
+      renderer.setClearColor(0x000000, 0)
+      renderer.clear()
+      if (activeRoot && activeWasVisible !== false) {
+        scene.background = null
+        renderer.shadowMap.autoUpdate = false
+        renderer.render(scene, camera)
+      }
+
+      activeLayerStates.forEach(([object, mask]) => {
+        object.layers.mask = mask
+      })
+      lightLayerStates.forEach(([object, mask]) => {
+        object.layers.mask = mask
+      })
+      camera.layers.mask = previousCameraLayerMask
+      scene.background = previousBackground
+      renderer.shadowMap.autoUpdate = previousShadowAutoUpdate
+      renderer.setClearColor(previousClearColor, previousClearAlpha)
+
+      // Mask pass
       renderer.setRenderTarget(rtMask)
       renderer.clear()
       renderer.render(maskScene, blobCam)
@@ -1159,6 +1231,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       const w = el.clientWidth, h = el.clientHeight, d = renderer.getPixelRatio()
       renderer.setSize(w, h)
       rtScene.setSize(w * d, h * d)
+      rtActive.setSize(w * d, h * d)
       rtMask.setSize(w * d, h * d)
       sharedUniforms.u_res.value.set(w * d, h * d)
 
@@ -1169,6 +1242,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     dispose() {
       rtID.dispose()
       rtScene.dispose()
+      rtActive.dispose()
       rtMask.dispose()
       blobMat.dispose()
       maskMat.dispose()

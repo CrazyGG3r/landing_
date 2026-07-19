@@ -1,10 +1,13 @@
-import { useLayoutEffect } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-// The CRT glass deliberately stays on MeshPhysicalMaterial so Three.js can use
-// its shared transmission buffer. That makes every opaque object already behind
-// the tube available to the refraction without a second scene render or a
-// component-owned framebuffer.
+// Keep the CRT optics on MeshPhysicalMaterial, but feed them a component-owned
+// background capture. Three's shared transmission buffer contains every opaque
+// object visible to the camera, including foreground geometry; a strong curved
+// refraction can therefore pull pixels from the VHS player back into the glass.
+// The dedicated capture below excludes only the known foreground roots while
+// the normal scene render remains completely unchanged.
 
 const DEFAULT_GLASS = {
   color: '#f4f8ff',
@@ -21,6 +24,7 @@ const DEFAULT_GLASS = {
   attenuationDistance: 1.5,
 }
 
+const DEFAULT_EXCLUDED_NODE_NAMES = ['VHSPlayerRig', 'VHSPoint']
 const TRANSMISSION_NORMAL = 'vec3 n = inverseTransformDirection( normal, viewMatrix );'
 const TRANSMISSION_VOLUME =
   'material.dispersion, material.ior, material.thickness,'
@@ -29,6 +33,14 @@ function findNamedMesh(root, name) {
   let found = null
   root.traverse((child) => {
     if (!found && child.isMesh && child.name === name) found = child
+  })
+  return found
+}
+
+function findNamedObject(root, name) {
+  let found = null
+  root.traverse((child) => {
+    if (!found && child.name === name) found = child
   })
   return found
 }
@@ -136,12 +148,42 @@ export default function CRTGlass({
   nodeName = 'CRTTVScreen',
   refraction = 0.7,
   settings,
+  excludedNodeNames = DEFAULT_EXCLUDED_NODE_NAMES,
 }) {
+  const { gl, scene, camera } = useThree()
+  const glassMeshRef = useRef(null)
+  const excludedRootsRef = useRef([])
+  const drawingBufferSizeRef = useRef(new THREE.Vector2())
+  const transmissionSize = useMemo(() => new THREE.Vector2(1, 1), [])
+  const transmissionTarget = useMemo(() => {
+    const supportsHalfFloat =
+      gl.extensions.has('EXT_color_buffer_half_float') ||
+      gl.extensions.has('EXT_color_buffer_float')
+    const target = new THREE.WebGLRenderTarget(1, 1, {
+      generateMipmaps: true,
+      type: supportsHalfFloat ? THREE.HalfFloatType : THREE.UnsignedByteType,
+      minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: true,
+      stencilBuffer: false,
+      colorSpace: THREE.ColorManagement.workingColorSpace,
+    })
+    target.texture.name = 'CRT background-only transmission'
+    target.samples = 4
+    return target
+  }, [gl])
+
+  useEffect(() => () => transmissionTarget.dispose(), [transmissionTarget])
+
   useLayoutEffect(() => {
     if (!sceneRoot) return undefined
 
     const mesh = findNamedMesh(sceneRoot, nodeName)
     if (!mesh) return undefined
+    glassMeshRef.current = mesh
+    excludedRootsRef.current = excludedNodeNames
+      .map((name) => findNamedObject(sceneRoot, name))
+      .filter(Boolean)
 
     const opts = { ...DEFAULT_GLASS, ...(settings || {}) }
     const numericRefraction = Number(refraction)
@@ -161,7 +203,9 @@ export default function CRTGlass({
       normalScale: source?.normalScale
         ? source.normalScale.clone()
         : new THREE.Vector2(1, 1),
-      transmission: opts.transmission,
+      // Keep this at zero so Three.js does not run its shared transmission
+      // pre-pass. USE_TRANSMISSION is forced below and receives our clean FBO.
+      transmission: 0,
       ior: opts.ior,
       thickness: opts.thickness,
       attenuationColor: new THREE.Color(opts.attenuationColor),
@@ -173,20 +217,84 @@ export default function CRTGlass({
       side: THREE.FrontSide,
       depthWrite: true,
     })
+    glass.defines = { ...glass.defines, USE_TRANSMISSION: '' }
 
     glass.onBeforeCompile = (shader) => {
+      shader.uniforms.transmission = { value: opts.transmission }
+      shader.uniforms.thickness = { value: opts.thickness }
+      shader.uniforms.attenuationColor = {
+        value: new THREE.Color(opts.attenuationColor),
+      }
+      shader.uniforms.attenuationDistance = {
+        value: opts.attenuationDistance,
+      }
+      shader.uniforms.transmissionSamplerMap = {
+        value: transmissionTarget.texture,
+      }
+      shader.uniforms.transmissionSamplerSize = {
+        value: transmissionSize,
+      }
       patchCrtTransmission(shader, refractionStrength, uvTransform)
     }
-    glass.customProgramCacheKey = () => 'crt-soft-bevel-transmission-v2'
+    glass.customProgramCacheKey = () => 'crt-soft-bevel-background-transmission-v3'
 
     const previous = mesh.material
     mesh.material = glass
 
     return () => {
       mesh.material = previous
+      if (glassMeshRef.current === mesh) glassMeshRef.current = null
+      excludedRootsRef.current = []
       glass.dispose()
     }
-  }, [sceneRoot, nodeName, refraction, settings])
+  }, [
+    sceneRoot,
+    nodeName,
+    refraction,
+    settings,
+    excludedNodeNames,
+    transmissionSize,
+    transmissionTarget,
+  ])
+
+  useFrame(() => {
+    const glassMesh = glassMeshRef.current
+    if (!glassMesh) return
+
+    gl.getDrawingBufferSize(drawingBufferSizeRef.current)
+    const width = Math.max(1, Math.round(drawingBufferSizeRef.current.x))
+    const height = Math.max(1, Math.round(drawingBufferSizeRef.current.y))
+    if (transmissionTarget.width !== width || transmissionTarget.height !== height) {
+      transmissionTarget.setSize(width, height)
+      transmissionSize.set(width, height)
+    }
+
+    const hiddenObjects = [glassMesh, ...excludedRootsRef.current]
+    const previousVisibility = hiddenObjects.map((object) => object.visible)
+    const previousTarget = gl.getRenderTarget()
+    const previousCubeFace = gl.getActiveCubeFace()
+    const previousMipmapLevel = gl.getActiveMipmapLevel()
+    const previousToneMapping = gl.toneMapping
+    const previousCameraViewport = camera.viewport
+
+    hiddenObjects.forEach((object) => {
+      object.visible = false
+    })
+
+    try {
+      gl.toneMapping = THREE.NoToneMapping
+      if (camera.viewport !== undefined) camera.viewport = undefined
+      gl.setRenderTarget(transmissionTarget)
+      gl.render(scene, camera)
+    } finally {
+      gl.setRenderTarget(previousTarget, previousCubeFace, previousMipmapLevel)
+      gl.toneMapping = previousToneMapping
+      camera.viewport = previousCameraViewport
+      hiddenObjects.forEach((object, index) => {
+        object.visible = previousVisibility[index]
+      })
+    }
+  })
 
   return null
 }

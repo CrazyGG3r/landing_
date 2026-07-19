@@ -74,20 +74,20 @@ const CONFIG = {
   debugMode: false,
   useGradientSkybox: true,
   skyboxRadius: 500,
-  startCenterColor: '#7df1cb', //'#ccfff0'
-  startEdgeColor: '#015230', //'#006b4f'
-  endCenterColor: '#f3ca7f', //'#cfff99'
-  endEdgeColor: '#fa8541', //'#2a9e00'
+  startCenterColor: '#000000', //'#7df1cb', //'#ccfff0'
+  startEdgeColor: '#353535', //'#015230', //'#006b4f'
+  endCenterColor: '#8b8b8b', //'#f3ca7f', //'#cfff99'
+  endEdgeColor: '#444444', //'#fa8541', //'#2a9e00'
   skyboxIntensity: 1,
   useStaticVignette: true,
-  vignetteStrength: 0.26,
-  vignetteSoftness: [0.28, 1.08],
-  vignetteScale: [1.12, 1.02],
+  vignetteStrength: 0.16,
+  vignetteSoftness: [0.36, 1.18],
+  vignetteScale: [1.06, 1.0],
   vignetteOffset: [0.0, -0.02],
-  vignetteCenterLift: 0.06,
+  vignetteCenterLift: 0.025,
   vignetteFollowCamera: true,
-  vignetteFollowStrength: 0.12,
-  vignetteFollowLerp: 4.5,
+  vignetteFollowStrength: 0.055,
+  vignetteFollowLerp: 3.5,
   extraAmbientColor: '#c0c0d0',
   extraAmbientIntensity: 2.0,
   usePostComposite: true,
@@ -96,6 +96,20 @@ const CONFIG = {
 
 const PROGRESS_EPSILON = 0.001
 const INITIAL_SCROLL_PERCENT = 0.01
+const PORTFOLIO_SCROLL_CLASS = 'portfolio-scroll-controls'
+
+function PortfolioScrollSurface() {
+  const scroll = useScroll()
+
+  useEffect(() => {
+    const element = scroll?.el
+    if (!element) return undefined
+    element.classList.add(PORTFOLIO_SCROLL_CLASS)
+    return () => element.classList.remove(PORTFOLIO_SCROLL_CLASS)
+  }, [scroll])
+
+  return null
+}
 
 function buildCurveFromPoints(points) {
   if (!points || points.length < 2) return null
@@ -892,6 +906,18 @@ function DebugPanel({
         borderLeft: `4px solid ${markers.start && markers.end ? '#4caf50' : '#ff9800'}`,
       }}
     >
+      <style>{`
+        .${PORTFOLIO_SCROLL_CLASS} {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .${PORTFOLIO_SCROLL_CLASS}::-webkit-scrollbar {
+          display: none;
+          width: 0;
+          height: 0;
+        }
+      `}</style>
+
       <div><strong>PORTFOLIO DEBUG</strong></div>
       <div>Path points: {pathPointCount}</div>
       <div>Start marker: {markers.start ? 'YES' : 'NO'}</div>
@@ -1473,6 +1499,7 @@ export default function Portfolio() {
             inset: 0,
             filter: CONFIG.usePostComposite ? compositeFilter : 'none',
             transform: CONFIG.usePostComposite ? 'translateZ(0)' : 'none',
+            willChange: CONFIG.usePostComposite ? 'filter' : 'auto',
           }}
         >
           <Canvas
@@ -1495,7 +1522,12 @@ export default function Portfolio() {
               alpha: CONFIG.useGradientSkybox,
             }}
           >
-            <ScrollControls pages={5} damping={0.1}>
+            <ScrollControls
+              pages={5}
+              damping={0.1}
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              <PortfolioScrollSurface />
               <InitialScrollPrimer
                 enabled={!isLoading && !initialScrollPrimed}
                 percent={INITIAL_SCROLL_PERCENT}

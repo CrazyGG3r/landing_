@@ -195,6 +195,10 @@ export function loadLabelTextureInto(uniformHolder, path) {
       tex.colorSpace = THREE.SRGBColorSpace
       tex.wrapS = THREE.ClampToEdgeWrapping
       tex.wrapT = THREE.ClampToEdgeWrapping
+      // TextureLoader defaults to the WebGL image convention (flipY = true),
+      // while VHSUnit.glb and vMapUv use glTF UVs. Match the model's convention
+      // so the authored cover atlas lands on the correct VHSCover sections.
+      tex.flipY = false
       tex.needsUpdate = true
       uniformHolder.value = tex
     },

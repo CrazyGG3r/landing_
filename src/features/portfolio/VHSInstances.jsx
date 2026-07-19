@@ -202,8 +202,12 @@ export default function VHSInstances({
       if (proxyMesh) {
         root.add(proxyMesh)
         proxyMesh.name = transform.name
+        // The cursor ID proxy is intentionally static and invisible, so retain
+        // the animated visual root explicitly for the foreground hover pass.
+        proxyMesh.metaballRenderRoot = root
       } else if (shellMesh) {
         shellMesh.name = transform.name
+        shellMesh.metaballRenderRoot = root
       }
 
       const mixer = new THREE.AnimationMixer(root)

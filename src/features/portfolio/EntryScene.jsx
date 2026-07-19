@@ -982,18 +982,18 @@ export default function EntryScene() {
         )}
 
         {sceneRoot && (
-          <CRTGlass
-            sceneRoot={sceneRoot}
-            refraction={CONFIG.crtRefraction}
-          />
-        )}
-
-        {sceneRoot && (
           <ScrollPathCamera
             sceneRoot={sceneRoot}
             active={scrollTrackingActive}
             initialProgress={initialTrackProgress}
             scrollStateRef={cameraScrollStateRef}
+          />
+        )}
+
+        {sceneRoot && (
+          <CRTGlass
+            sceneRoot={sceneRoot}
+            refraction={CONFIG.crtRefraction}
           />
         )}
       </Canvas>
