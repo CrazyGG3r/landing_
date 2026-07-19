@@ -43,6 +43,7 @@ export default function ScreenSurface({
   idleFps = 8,
   shaderFps = 8,
   interactionShaderFps = 8,
+  ampScrollStateRef,
   // Overall post-composite mix, not Screen opacity: 0 = clean AMP, 1 = full VHS.
   vhsIntensity = 1,
   powerOnSpeed = 3.0,
@@ -183,6 +184,9 @@ export default function ScreenSurface({
           : e.deltaMode === WheelEvent.DOM_DELTA_PAGE
             ? resolution
             : 1
+      if (ampScrollStateRef && e.deltaY !== 0) {
+        ampScrollStateRef.current.playDirection = e.deltaY < 0 ? -1 : 1
+      }
       domRef.current?.forwardWheel(e.deltaX * unit, e.deltaY * unit)
     }
 
@@ -194,7 +198,7 @@ export default function ScreenSurface({
       window.removeEventListener('pointerup', onUp)
       el.removeEventListener('wheel', onWheel)
     }
-  }, [gl, resolution])
+  }, [gl, resolution, ampScrollStateRef])
 
   useFrame((_, rawDelta) => {
     const dom = domRef.current
@@ -205,6 +209,14 @@ export default function ScreenSurface({
     const delta = Math.min(rawDelta, 0.1)
     timeRef.current += delta
     const nowMs = performance.now()
+
+    if (ampScrollStateRef) {
+      const metrics = dom.getScrollMetrics()
+      ampScrollStateRef.current.progress = metrics.progress
+      ampScrollStateRef.current.scrollTop = metrics.scrollTop
+      ampScrollStateRef.current.scrollHeight = metrics.scrollHeight
+      ampScrollStateRef.current.clientHeight = metrics.clientHeight
+    }
 
     // Power-on ramp (CRT warms up over ~1/powerOnSpeed s once activated).
     const target = activeRef.current ? 1 : 0

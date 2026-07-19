@@ -1,6 +1,9 @@
 /**
  * AMP READER DEPLOYMENT COMMAND
  *
+ * Deploy this complete dist-runtime directory. It includes the Reader's
+ * JavaScript chunks, stylesheet, and built-in graphic assets.
+ *
  * 1. Add this to the page <head>:
  *    <link rel="stylesheet" href="./dist-runtime/amp-reader.css">
  *
@@ -999,10 +1002,31 @@ function Mt(e, t, n, r, i) {
 	]), n && r && a;
 }
 //#endregion
+//#region src/rendering/Model3DLoadingPlaceholder.tsx
+var Nt = new URL(
+	/* @vite-ignore */
+	"./amp-model3d-loading.png",
+	import.meta.url
+).href;
+function Pt() {
+	return /* @__PURE__ */ (0, D.jsx)("div", {
+		className: "amp-model3d-loading-placeholder",
+		role: "status",
+		"aria-label": "Loading 3D model",
+		children: /* @__PURE__ */ (0, D.jsx)("img", {
+			className: "amp-model3d-loading-icon",
+			src: Nt,
+			alt: "",
+			"aria-hidden": !0,
+			draggable: !1
+		})
+	});
+}
+//#endregion
 //#region src/runtime/model3d/RuntimeModel3D.tsx
-var Nt = (0, S.lazy)(() => import("./RuntimeModel3DView-VugnG_gs.js"));
-function Pt({ node: e }) {
-	let t = (0, S.useRef)(null), n = (0, S.useRef)(null), r = f(e.src), { visible: i, activated: a, resident: o } = It(t), s = Mt(t, n, e.behaviors.pauseOnHover, i, "runtime"), [c, l] = (0, S.useState)({
+var Ft = (0, S.lazy)(() => import("./RuntimeModel3DView-VugnG_gs.js"));
+function It({ node: e }) {
+	let t = (0, S.useRef)(null), n = (0, S.useRef)(null), r = f(e.src), { visible: i, activated: a, resident: o } = Rt(t), s = Mt(t, n, e.behaviors.pauseOnHover, i, "runtime"), [c, l] = (0, S.useState)({
 		key: r,
 		ready: !1,
 		error: ""
@@ -1033,11 +1057,14 @@ function Pt({ node: e }) {
 				role: "img",
 				style: { visibility: i ? "visible" : "hidden" }
 			}),
-			!u.ready && /* @__PURE__ */ (0, D.jsx)("div", {
+			!u.ready && (u.error ? /* @__PURE__ */ (0, D.jsx)("div", {
 				className: "amp-runtime-asset-placeholder",
-				children: u.error ? `3D model unavailable: ${u.error}` : a ? "Loading 3D model…" : "3D model loads near viewport"
-			}),
-			o && r && /* @__PURE__ */ (0, D.jsx)(Ft, {
+				children: `3D model unavailable: ${u.error}`
+			}) : a ? /* @__PURE__ */ (0, D.jsx)(Pt, {}) : /* @__PURE__ */ (0, D.jsx)("div", {
+				className: "amp-runtime-asset-placeholder",
+				children: "3D model loads near viewport"
+			})),
+			o && r && /* @__PURE__ */ (0, D.jsx)(Lt, {
 				node: e,
 				src: r,
 				visible: i,
@@ -1049,7 +1076,7 @@ function Pt({ node: e }) {
 		]
 	});
 }
-function Ft(e) {
+function Lt(e) {
 	let { node: t, src: n, onReady: r, onError: i } = e, [a, o] = (0, S.useState)(!1), s = (0, S.useRef)(null);
 	(0, S.useEffect)(() => {
 		let e = Tt(`${t.id}:${n}`, (e) => {
@@ -1066,12 +1093,12 @@ function Ft(e) {
 	}, [r]), u = (0, S.useCallback)((e) => {
 		s.current?.(), s.current = null, i(e);
 	}, [i]);
-	return a ? /* @__PURE__ */ (0, D.jsx)(Lt, {
+	return a ? /* @__PURE__ */ (0, D.jsx)(zt, {
 		resetKey: e.src,
 		onError: u,
 		children: /* @__PURE__ */ (0, D.jsx)(S.Suspense, {
 			fallback: null,
-			children: /* @__PURE__ */ (0, D.jsx)(Nt, {
+			children: /* @__PURE__ */ (0, D.jsx)(Ft, {
 				...e,
 				onLoaded: c,
 				onReady: l,
@@ -1080,7 +1107,7 @@ function Ft(e) {
 		})
 	}) : null;
 }
-function It(e) {
+function Rt(e) {
 	let t = typeof IntersectionObserver > "u", [n, r] = (0, S.useState)(t), [i, a] = (0, S.useState)(t), [o, s] = (0, S.useState)(t);
 	return (0, S.useEffect)(() => {
 		let t = e.current;
@@ -1116,7 +1143,7 @@ function It(e) {
 		resident: o
 	};
 }
-var Lt = class extends S.Component {
+var zt = class extends S.Component {
 	state = { failed: !1 };
 	static getDerivedStateFromError() {
 		return { failed: !0 };
@@ -1133,7 +1160,7 @@ var Lt = class extends S.Component {
 };
 //#endregion
 //#region src/author/canvas/runtime-text-wrap.ts
-function Rt(e, t, n) {
+function Bt(e, t, n) {
 	let r = {
 		left: [],
 		right: []
@@ -1149,7 +1176,7 @@ function Rt(e, t, n) {
 		if (o <= a) return [];
 		let s = Math.max(2, Math.min(128, Math.ceil((o - a) / Math.max(n.scale, .01)))), c = [];
 		for (let r = 0; r <= s; r += 1) {
-			let l = a + (o - a) * r / s, u = i.map((e) => Vt(e, l, n.alphaThreshold, t)).filter((e) => e !== null);
+			let l = a + (o - a) * r / s, u = i.map((e) => Ut(e, l, n.alphaThreshold, t)).filter((e) => e !== null);
 			c.push(u.length ? t === "left" ? Math.max(...u) : Math.min(...u) : t === "left" ? e.left : e.right);
 		}
 		let l = t === "left" ? Math.max(0, Math.min(e.right, Math.max(...c)) - e.left) : Math.max(0, e.right - Math.max(e.left, Math.min(...c)));
@@ -1157,8 +1184,8 @@ function Rt(e, t, n) {
 		let u = Math.max(n.scale, .01), d = l / u, f = (o - a) / u, p = c.map((n, r) => {
 			let i = f * r / s;
 			return {
-				x: Wt(t === "left" ? Math.max(0, Math.min(d, (n - e.left) / u)) : Math.max(0, Math.min(d, (n - (e.right - l)) / u))),
-				y: Wt(i)
+				x: Kt(t === "left" ? Math.max(0, Math.min(d, (n - e.left) / u)) : Math.max(0, Math.min(d, (n - (e.right - l)) / u))),
+				y: Kt(i)
 			};
 		}), m = t === "left" ? [
 			{
@@ -1168,17 +1195,17 @@ function Rt(e, t, n) {
 			...p,
 			{
 				x: 0,
-				y: Wt(f)
+				y: Kt(f)
 			}
 		] : [
 			{
-				x: Wt(d),
+				x: Kt(d),
 				y: 0
 			},
 			...p,
 			{
-				x: Wt(d),
-				y: Wt(f)
+				x: Kt(d),
+				y: Kt(f)
 			}
 		];
 		return [{
@@ -1188,12 +1215,12 @@ function Rt(e, t, n) {
 			width: d,
 			height: f,
 			margin: n.margin,
-			shapeOutside: Bt(m),
+			shapeOutside: Ht(m),
 			contour: m
 		}];
 	});
 }
-function zt(e, t) {
+function Vt(e, t) {
 	return e.map((e) => ({
 		id: `model-static-${e.side}`,
 		side: e.side,
@@ -1202,43 +1229,43 @@ function zt(e, t) {
 		height: e.height,
 		margin: e.clearance ?? t,
 		contour: e.contour,
-		shapeOutside: Bt(e.contour)
+		shapeOutside: Ht(e.contour)
 	}));
 }
-function Bt(e) {
-	return `polygon(${e.map((e) => `${Wt(e.x)}px ${Wt(e.y)}px`).join(", ")})`;
+function Ht(e) {
+	return `polygon(${e.map((e) => `${Kt(e.x)}px ${Kt(e.y)}px`).join(", ")})`;
 }
-function Vt(e, t, n, r) {
+function Ut(e, t, n, r) {
 	let { rect: i } = e;
 	if (t < i.top || t > i.bottom || i.width <= 0 || i.height <= 0) return null;
 	if (!e.alpha || e.alphaWidth <= 0 || e.alphaHeight <= 0) return r === "left" ? i.right : i.left;
-	if (e.projection && Math.abs(e.projection.rotation) > 1e-5) return Ht(e, t, n, r);
+	if (e.projection && Math.abs(e.projection.rotation) > 1e-5) return Wt(e, t, n, r);
 	let a = Math.max(0, Math.min(e.alphaHeight - 1, Math.floor((t - i.top) / i.height * e.alphaHeight))), o = Math.round(Math.max(0, Math.min(1, n)) * 255);
 	if (r === "left") {
 		for (let t = e.alphaWidth - 1; t >= 0; --t) if (e.alpha[a * e.alphaWidth + t] > o) return i.left + (t + 1) / e.alphaWidth * i.width;
 	} else for (let t = 0; t < e.alphaWidth; t += 1) if (e.alpha[a * e.alphaWidth + t] > o) return i.left + t / e.alphaWidth * i.width;
 	return null;
 }
-function Ht(e, t, n, r) {
+function Wt(e, t, n, r) {
 	let i = e.projection, { rect: a } = e, o = Math.round(Math.max(0, Math.min(1, n)) * 255), s = Math.max(8, Math.min(192, Math.ceil(Math.max(e.alphaWidth, a.width)))), c = a.width / s;
 	for (let n = 0; n < s; n += 1) {
 		let s = r === "left" ? a.right - (n + .5) * c : a.left + (n + .5) * c;
-		if (Ut(e, i, s, t) > o) return r === "left" ? Math.min(a.right, s + c / 2) : Math.max(a.left, s - c / 2);
+		if (Gt(e, i, s, t) > o) return r === "left" ? Math.min(a.right, s + c / 2) : Math.max(a.left, s - c / 2);
 	}
 	return null;
 }
-function Ut(e, t, n, r) {
+function Gt(e, t, n, r) {
 	let i = n - t.centerX, a = r - t.centerY, o = Math.cos(t.rotation), s = Math.sin(t.rotation), c = o * i + s * a, l = -s * i + o * a, u = c / t.width + .5, d = l / t.height + .5;
 	if (u < 0 || u >= 1 || d < 0 || d >= 1) return 0;
 	let f = Math.min(e.alphaWidth - 1, Math.floor(u * e.alphaWidth)), p = Math.min(e.alphaHeight - 1, Math.floor(d * e.alphaHeight));
 	return e.alpha[p * e.alphaWidth + f] ?? 0;
 }
-function Wt(e) {
+function Kt(e) {
 	return Math.round(e * 100) / 100;
 }
 //#endregion
 //#region src/rendering/use-live-model-text-wrap.ts
-var Gt = {
+var qt = {
 	author: {
 		root: ".amp-canvas-viewport",
 		section: ".amp-section",
@@ -1249,21 +1276,21 @@ var Gt = {
 		section: ".amp-runtime-section",
 		model: ".amp-runtime-node-model3d"
 	}
-}, Kt = /* @__PURE__ */ new WeakMap(), qt = /* @__PURE__ */ new WeakMap(), Jt = /* @__PURE__ */ new WeakMap();
-function Yt(e, t, n) {
-	let [r, i] = (0, S.useState)([]), a = t.runtimeWrap, o = a?.static?.enabled ?? !1, s = n === "runtime" && o, c = n === "author" && o, l = a?.static?.baked?.state !== "pending", u = (0, S.useMemo)(() => zt(a?.static?.spacers ?? [], a?.margin ?? 0), [a?.margin, a?.static?.spacers]);
+}, Jt = /* @__PURE__ */ new WeakMap(), Yt = /* @__PURE__ */ new WeakMap(), Xt = /* @__PURE__ */ new WeakMap();
+function Zt(e, t, n) {
+	let [r, i] = (0, S.useState)([]), a = t.runtimeWrap, o = a?.static?.enabled ?? !1, s = n === "runtime" && o, c = n === "author" && o, l = a?.static?.baked?.state !== "pending", u = (0, S.useMemo)(() => Vt(a?.static?.spacers ?? [], a?.margin ?? 0), [a?.margin, a?.static?.spacers]);
 	return (0, S.useLayoutEffect)(() => {
 		let t = e.current;
 		if (!t || !a?.enabled || s || c) {
 			i((e) => e.length ? [] : e);
 			return;
 		}
-		let r = Gt[n], o = t.closest(r.root) ?? document, l = t.closest(r.section) ?? o, u = a.targetNodeIds ?? [], d = () => u.length ? u.map((e) => o.querySelector(`[data-node-id="${en(e)}"]`)).filter((e) => !!e && e?.dataset.ampTextWrap === "true") : Array.from(l.querySelectorAll(`${r.model}[data-amp-text-wrap="true"]`)), f = d(), p = 0, m = !1, h = /* @__PURE__ */ new WeakMap(), g = () => {
+		let r = qt[n], o = t.closest(r.root) ?? document, l = t.closest(r.section) ?? o, u = a.targetNodeIds ?? [], d = () => u.length ? u.map((e) => o.querySelector(`[data-node-id="${nn(e)}"]`)).filter((e) => !!e && e?.dataset.ampTextWrap === "true") : Array.from(l.querySelectorAll(`${r.model}[data-amp-text-wrap="true"]`)), f = d(), p = 0, m = !1, h = /* @__PURE__ */ new WeakMap(), g = () => {
 			p = 0;
 			let e = t.getBoundingClientRect(), n = t.offsetWidth > 0 ? e.width / t.offsetWidth : 1;
 			if (!Number.isFinite(n) || n <= 0) return;
-			let r = (a.mode ?? "silhouette") === "silhouette", o = Rt(e, f.map((e, t) => {
-				let i = e.querySelector("canvas"), a = e.getBoundingClientRect(), o = tn(e, a, n), s = r && i ? Xt(i) : null;
+			let r = (a.mode ?? "silhouette") === "silhouette", o = Bt(e, f.map((e, t) => {
+				let i = e.querySelector("canvas"), a = e.getBoundingClientRect(), o = rn(e, a, n), s = r && i ? Qt(i) : null;
 				return {
 					id: e.dataset.nodeId ?? String(t),
 					rect: a,
@@ -1278,7 +1305,7 @@ function Yt(e, t, n) {
 				alphaThreshold: a.alphaThreshold ?? .05,
 				scale: n
 			});
-			i((e) => $t(e, o) ? e : o);
+			i((e) => tn(e, o) ? e : o);
 		}, _ = () => {
 			m || (p ||= requestAnimationFrame(g));
 		}, v = typeof ResizeObserver > "u" ? null : new ResizeObserver(_);
@@ -1296,7 +1323,7 @@ function Yt(e, t, n) {
 			let n = t.closest(r.model);
 			if (!n || !f.includes(n) || (a.mode ?? "silhouette") !== "silhouette") return;
 			let i = performance.now(), o = 1e3 / Math.max(1, a.updateFps ?? 12);
-			i - (Jt.get(t) ?? -Infinity) >= o && (Jt.set(t, i), Zt(t)), !(i - (h.get(t) ?? -Infinity) < o) && (h.set(t, i), _());
+			i - (Xt.get(t) ?? -Infinity) >= o && (Xt.set(t, i), $t(t)), !(i - (h.get(t) ?? -Infinity) < o) && (h.set(t, i), _());
 		}, x = typeof MutationObserver > "u" ? null : new MutationObserver(y);
 		return o instanceof Node && x?.observe(o, {
 			childList: !0,
@@ -1312,17 +1339,17 @@ function Yt(e, t, n) {
 		n
 	]), !a?.enabled || c ? [] : s ? l ? u : [] : r;
 }
-function Xt(e) {
-	return qt.get(e) ?? Zt(e);
-}
-function Zt(e) {
-	let t = Qt(e);
-	return t?.alpha.some((e) => e > 0) ? (qt.set(e, t), t) : qt.get(e) ?? null;
-}
 function Qt(e) {
+	return Yt.get(e) ?? $t(e);
+}
+function $t(e) {
+	let t = en(e);
+	return t?.alpha.some((e) => e > 0) ? (Yt.set(e, t), t) : Yt.get(e) ?? null;
+}
+function en(e) {
 	if (!e.width || !e.height) return null;
-	let t = Kt.get(e);
-	t || (t = document.createElement("canvas"), Kt.set(e, t));
+	let t = Jt.get(e);
+	t || (t = document.createElement("canvas"), Jt.set(e, t));
 	let n = Math.min(1, 128 / Math.max(e.width, e.height)), r = Math.max(1, Math.round(e.width * n)), i = Math.max(1, Math.round(e.height * n));
 	t.width !== r && (t.width = r), t.height !== i && (t.height = i);
 	let a = t.getContext("2d", { willReadFrequently: !0 });
@@ -1340,16 +1367,16 @@ function Qt(e) {
 		return null;
 	}
 }
-function $t(e, t) {
+function tn(e, t) {
 	return e.length === t.length && e.every((e, n) => {
 		let r = t[n];
 		return !!r && e.id === r.id && e.side === r.side && e.top === r.top && e.width === r.width && e.height === r.height && e.margin === r.margin && e.shapeOutside === r.shapeOutside;
 	});
 }
-function en(e) {
+function nn(e) {
 	return typeof CSS < "u" && CSS.escape ? CSS.escape(e) : e.replace(/["\\]/g, "\\$&");
 }
-function tn(e, t, n) {
+function rn(e, t, n) {
 	let r = e.style.transform.match(/rotate\(\s*(-?(?:\d+\.?\d*|\.\d+))deg\s*\)/i), i = r ? Number(r[1]) * Math.PI / 180 : 0;
 	return {
 		centerX: (t.left + t.right) / 2,
@@ -1361,8 +1388,8 @@ function tn(e, t, n) {
 }
 //#endregion
 //#region src/runtime/nodes/RuntimeText.tsx
-function nn({ node: e }) {
-	let t = (0, S.useRef)(null), n = Yt(t, e, "runtime"), r = e.typography;
+function an({ node: e }) {
+	let t = (0, S.useRef)(null), n = Zt(t, e, "runtime"), r = e.typography;
 	return /* @__PURE__ */ (0, D.jsxs)("div", {
 		ref: t,
 		className: "amp-runtime-text",
@@ -1390,13 +1417,13 @@ function nn({ node: e }) {
 				shapeMargin: `${e.margin}px`,
 				pointerEvents: "none"
 			}
-		}, e.id)), /* @__PURE__ */ (0, D.jsx)(rn, {
+		}, e.id)), /* @__PURE__ */ (0, D.jsx)(on, {
 			content: e.content,
 			paragraphSpacing: r.paragraphSpacing
 		})]
 	});
 }
-function rn({ content: e, paragraphSpacing: t }) {
+function on({ content: e, paragraphSpacing: t }) {
 	let n = [];
 	for (let r = 0; r < e.length;) {
 		let i = e[r];
@@ -1407,7 +1434,7 @@ function rn({ content: e, paragraphSpacing: t }) {
 					marginBottom: t,
 					marginLeft: i.indent ? i.indent * 24 : void 0
 				},
-				children: i.runs.map(an)
+				children: i.runs.map(sn)
 			}, r)), r += 1;
 			continue;
 		}
@@ -1419,7 +1446,7 @@ function rn({ content: e, paragraphSpacing: t }) {
 					marginBottom: t,
 					marginLeft: n.indent ? n.indent * 24 : void 0
 				},
-				children: n.runs.map(an)
+				children: n.runs.map(sn)
 			}, r)), r += 1;
 		}
 		let c = {
@@ -1436,7 +1463,7 @@ function rn({ content: e, paragraphSpacing: t }) {
 	}
 	return /* @__PURE__ */ (0, D.jsx)(D.Fragment, { children: n });
 }
-function an(e, t) {
+function sn(e, t) {
 	let n = e.marks ?? [], r = [n.includes("underline") ? "underline" : "", n.includes("strikethrough") ? "line-through" : ""].filter(Boolean).join(" "), i = {
 		color: e.color,
 		fontWeight: n.includes("bold") ? "bold" : void 0,
@@ -1445,7 +1472,7 @@ function an(e, t) {
 	}, a = n.includes("code") ? /* @__PURE__ */ (0, D.jsx)("span", {
 		className: "amp-runtime-code",
 		children: e.text
-	}) : e.text, o = on(e.href);
+	}) : e.text, o = cn(e.href);
 	return o ? /* @__PURE__ */ (0, D.jsx)("a", {
 		href: o,
 		style: i,
@@ -1455,7 +1482,7 @@ function an(e, t) {
 		children: a
 	}, t);
 }
-function on(e) {
+function cn(e) {
 	if (e) {
 		if (e.startsWith("#") || e.startsWith("/") || e.startsWith("./") || e.startsWith("../")) return e;
 		try {
@@ -1473,7 +1500,7 @@ function on(e) {
 }
 //#endregion
 //#region src/runtime/nodes/RuntimeTable.tsx
-function sn({ node: e }) {
+function ln({ node: e }) {
 	let t = `${e.thinBorderWidth}px solid ${e.borderColor}`, n = `${e.thickBorderWidth}px solid ${e.borderColor}`, r = e.borderTemplate === "none" ? "none" : e.borderTemplate === "thin-all" ? t : n, i = e.borderTemplate === "none" ? "none" : e.borderTemplate === "thick-all" ? n : t;
 	return /* @__PURE__ */ (0, D.jsx)("table", {
 		className: "amp-runtime-table",
@@ -1495,7 +1522,7 @@ function sn({ node: e }) {
 						textAlign: e.textAlign,
 						background: a ? e.headerBackgroundColor : void 0
 					},
-					children: /* @__PURE__ */ (0, D.jsx)(rn, { content: t })
+					children: /* @__PURE__ */ (0, D.jsx)(on, { content: t })
 				}, r);
 			})
 		}, n)) })
@@ -1503,7 +1530,7 @@ function sn({ node: e }) {
 }
 //#endregion
 //#region src/runtime/nodes/RuntimeVideo.tsx
-function cn({ node: e }) {
+function un({ node: e }) {
 	let t = f(e.src), n = f(e.poster), r = (0, S.useRef)(null), [i, a] = (0, S.useState)(!1), [o, s] = (0, S.useState)(!1), [c, l] = (0, S.useState)(0), [u, d] = (0, S.useState)(!1), p = e.lightbox ?? {
 		enabled: !1,
 		hoverLabel: "Open Fullscreen"
@@ -1571,7 +1598,7 @@ function cn({ node: e }) {
 				children: p.hoverLabel
 			})
 		]
-	}), o && (0, lt.createPortal)(/* @__PURE__ */ (0, D.jsx)(ln, {
+	}), o && (0, lt.createPortal)(/* @__PURE__ */ (0, D.jsx)(dn, {
 		node: e,
 		src: t,
 		poster: n,
@@ -1579,7 +1606,7 @@ function cn({ node: e }) {
 		onClose: h
 	}), document.body)] });
 }
-function ln({ node: e, src: t, poster: n, initialTime: r, onClose: i }) {
+function dn({ node: e, src: t, poster: n, initialTime: r, onClose: i }) {
 	let a = (0, S.useRef)(null), [o, s] = (0, S.useState)(!0), c = (0, S.useCallback)(() => {
 		let e = a.current;
 		i(e?.currentTime ?? r, !!(e && !e.paused && !e.ended));
@@ -1622,30 +1649,30 @@ function ln({ node: e, src: t, poster: n, initialTime: r, onClose: i }) {
 }
 //#endregion
 //#region src/runtime/RuntimeNode.tsx
-var un = (0, S.memo)(function({ node: e, layerIndex: t }) {
+var fn = (0, S.memo)(function({ node: e, layerIndex: t }) {
 	let n = it(e.layout, e.style);
 	return n.zIndex = ae + (e.layout.zIndex ?? -t), (e.type === "video" || e.type === "model3d") && (n.background = "transparent"), /* @__PURE__ */ (0, D.jsx)("div", {
 		className: `amp-runtime-node amp-runtime-node-${e.type}`,
 		"data-node-id": e.id,
 		"data-amp-text-wrap": e.type === "model3d" ? String(e.textWrap.enabled) : void 0,
 		style: n,
-		children: /* @__PURE__ */ (0, D.jsx)(dn, { node: e })
+		children: /* @__PURE__ */ (0, D.jsx)(pn, { node: e })
 	});
 });
-function dn({ node: e }) {
+function pn({ node: e }) {
 	switch (e.type) {
-		case "text": return /* @__PURE__ */ (0, D.jsx)(nn, { node: e });
+		case "text": return /* @__PURE__ */ (0, D.jsx)(an, { node: e });
 		case "image": return /* @__PURE__ */ (0, D.jsx)(ft, { node: e });
-		case "video": return /* @__PURE__ */ (0, D.jsx)(cn, { node: e });
-		case "model3d": return /* @__PURE__ */ (0, D.jsx)(Pt, { node: e });
+		case "video": return /* @__PURE__ */ (0, D.jsx)(un, { node: e });
+		case "model3d": return /* @__PURE__ */ (0, D.jsx)(It, { node: e });
 		case "audio": return /* @__PURE__ */ (0, D.jsx)(ot, { node: e });
 		case "divider": return /* @__PURE__ */ (0, D.jsx)(ct, { node: e });
 		case "spacer": return /* @__PURE__ */ (0, D.jsx)("div", {
 			className: "amp-runtime-spacer",
 			"aria-hidden": !0
 		});
-		case "table": return /* @__PURE__ */ (0, D.jsx)(sn, { node: e });
-		case "container": return /* @__PURE__ */ (0, D.jsx)(D.Fragment, { children: e.children.map((e, t) => /* @__PURE__ */ (0, D.jsx)(un, {
+		case "table": return /* @__PURE__ */ (0, D.jsx)(ln, { node: e });
+		case "container": return /* @__PURE__ */ (0, D.jsx)(D.Fragment, { children: e.children.map((e, t) => /* @__PURE__ */ (0, D.jsx)(fn, {
 			node: e,
 			layerIndex: t
 		}, e.id)) });
@@ -1653,28 +1680,28 @@ function dn({ node: e }) {
 }
 //#endregion
 //#region src/runtime/scrollbar-mode.ts
-var fn = 0, pn = 0;
-function mn(e) {
-	fn += 1, e && (pn += 1), hn();
+var mn = 0, hn = 0;
+function gn(e) {
+	mn += 1, e && (hn += 1), _n();
 	let t = !1;
 	return () => {
-		t || (t = !0, fn = Math.max(0, fn - 1), e && (pn = Math.max(0, pn - 1)), hn());
+		t || (t = !0, mn = Math.max(0, mn - 1), e && (hn = Math.max(0, hn - 1)), _n());
 	};
 }
-function hn() {
+function _n() {
 	if (typeof document > "u") return;
 	let e = document.documentElement;
-	e.classList.toggle("amp-runtime-scrollbars-hidden", fn > 0 && pn === 0), e.classList.toggle("amp-runtime-scrollbars-legacy", pn > 0);
+	e.classList.toggle("amp-runtime-scrollbars-hidden", mn > 0 && hn === 0), e.classList.toggle("amp-runtime-scrollbars-legacy", hn > 0);
 }
 //#endregion
 //#region src/runtime/RuntimeDocument.tsx
-var gn = (0, S.lazy)(() => import("./RuntimeModel3DStage-Db10-TFE.js"));
-function _n({ document: e, className: t, style: n, ariaLabel: r }) {
+var vn = (0, S.lazy)(() => import("./RuntimeModel3DStage-Db10-TFE.js"));
+function yn({ document: e, className: t, style: n, ariaLabel: r }) {
 	let i = (0, S.useRef)(null), a = (0, S.useRef)(null), o = (0, S.useMemo)(() => e.sections.reduce((e, t) => e + (typeof t.height == "number" ? t.height : ie), 0), [e.sections]), [s, c] = (0, S.useState)({
 		scale: 1,
 		height: o
-	}), l = (0, S.useMemo)(() => Sn(e), [e]), u = e.presentation?.legacyMode.enabled ?? !1;
-	return (0, S.useEffect)(() => mn(u), [u]), (0, S.useLayoutEffect)(() => {
+	}), l = (0, S.useMemo)(() => wn(e), [e]), u = e.presentation?.legacyMode.enabled ?? !1;
+	return (0, S.useEffect)(() => gn(u), [u]), (0, S.useLayoutEffect)(() => {
 		let e = i.current, t = a.current;
 		if (!e || !t) return;
 		let n = 0, r = () => {
@@ -1703,7 +1730,7 @@ function _n({ document: e, className: t, style: n, ariaLabel: r }) {
 		onContextMenu: (e) => e.preventDefault(),
 		onDragStart: (e) => e.preventDefault(),
 		children: [
-			/* @__PURE__ */ (0, D.jsx)(yn, { document: e }),
+			/* @__PURE__ */ (0, D.jsx)(xn, { document: e }),
 			/* @__PURE__ */ (0, D.jsx)("div", {
 				ref: a,
 				className: "amp-runtime-stage",
@@ -1711,17 +1738,17 @@ function _n({ document: e, className: t, style: n, ariaLabel: r }) {
 					width: ie,
 					transform: `scale(${s.scale})`
 				},
-				children: e.sections.map((e) => /* @__PURE__ */ (0, D.jsx)(vn, { section: e }, e.id))
+				children: e.sections.map((e) => /* @__PURE__ */ (0, D.jsx)(bn, { section: e }, e.id))
 			}),
 			l && /* @__PURE__ */ (0, D.jsx)(S.Suspense, {
 				fallback: null,
-				children: /* @__PURE__ */ (0, D.jsx)(gn, {})
+				children: /* @__PURE__ */ (0, D.jsx)(vn, {})
 			}),
-			/* @__PURE__ */ (0, D.jsx)(bn, { document: e })
+			/* @__PURE__ */ (0, D.jsx)(Sn, { document: e })
 		]
 	});
 }
-function vn({ section: e }) {
+function bn({ section: e }) {
 	let t = f(e.background?.image), n = e.overflow ?? "hidden";
 	return /* @__PURE__ */ (0, D.jsx)("section", {
 		className: "amp-runtime-section",
@@ -1735,27 +1762,27 @@ function vn({ section: e }) {
 			overflow: n,
 			isolation: n === "hidden" ? "isolate" : "auto"
 		},
-		children: e.nodes.map((e, t) => /* @__PURE__ */ (0, D.jsx)(un, {
+		children: e.nodes.map((e, t) => /* @__PURE__ */ (0, D.jsx)(fn, {
 			node: e,
 			layerIndex: t
 		}, e.id))
 	});
 }
-function yn({ document: e }) {
+function xn({ document: e }) {
 	let { resolveAsset: t } = o(), n = (e.fonts ?? []).map((e) => {
 		let n = t(e.src);
 		return `@font-face{font-family:${JSON.stringify(e.family)};src:url(${JSON.stringify(n)});font-weight:${e.weight ?? "normal"};font-style:${e.style ?? "normal"};font-display:swap}`;
 	});
 	return n.length ? /* @__PURE__ */ (0, D.jsx)("style", { children: n.join("\n") }) : null;
 }
-function bn({ document: e }) {
+function Sn({ document: e }) {
 	let t = e.presentation?.legacyMode;
-	return !t?.enabled || !t.pixelation.enabled ? null : /* @__PURE__ */ (0, D.jsx)(xn, {
+	return !t?.enabled || !t.pixelation.enabled ? null : /* @__PURE__ */ (0, D.jsx)(Cn, {
 		settings: t.pixelation,
 		maxFps: p(e.presentation?.performance.frameRateLimit)
 	}, e.metadata.id);
 }
-function xn({ settings: e, maxFps: t }) {
+function Cn({ settings: e, maxFps: t }) {
 	let n = (0, S.useRef)(null);
 	return (0, S.useEffect)(() => {
 		let r = n.current;
@@ -1792,7 +1819,7 @@ function xn({ settings: e, maxFps: t }) {
 		]
 	});
 }
-function Sn(e) {
+function wn(e) {
 	let t = !1, n = (e) => e.forEach((e) => {
 		e.type === "model3d" ? t = !0 : e.type === "container" && n(e.children);
 	});
@@ -1800,7 +1827,7 @@ function Sn(e) {
 }
 //#endregion
 //#region src/runtime/AMPReader.tsx
-function Cn({ document: e, src: t, assetBaseUrl: n, resolveAsset: r, className: i, style: a, loadingFallback: o, errorFallback: s, onLoad: c, onError: l, ariaLabel: u }) {
+function Tn({ document: e, src: t, assetBaseUrl: n, resolveAsset: r, className: i, style: a, loadingFallback: o, errorFallback: s, onLoad: c, onError: l, ariaLabel: u }) {
 	let [d, f] = (0, S.useState)({}), p = e === void 0 && t === void 0 ? /* @__PURE__ */ Error("AMPReader requires either a document or src.") : void 0;
 	(0, S.useEffect)(() => {
 		if (e === void 0 && t === void 0) return;
@@ -1841,7 +1868,7 @@ function Cn({ document: e, src: t, assetBaseUrl: n, resolveAsset: r, className: 
 			legacyMode: v.legacyMode,
 			frameRateLimit: v.performance.frameRateLimit
 		},
-		children: /* @__PURE__ */ (0, D.jsx)(_n, {
+		children: /* @__PURE__ */ (0, D.jsx)(yn, {
 			document: d.loaded.document,
 			className: i,
 			style: a,
@@ -1851,7 +1878,7 @@ function Cn({ document: e, src: t, assetBaseUrl: n, resolveAsset: r, className: 
 }
 //#endregion
 //#region node_modules/react-dom/cjs/react-dom-client.production.js
-var wn = /* @__PURE__ */ e(((e) => {
+var En = /* @__PURE__ */ e(((e) => {
 	var t = i(), n = r(), a = ne();
 	function o(e) {
 		var t = "https://react.dev/errors/" + e;
@@ -9228,7 +9255,7 @@ var wn = /* @__PURE__ */ e(((e) => {
 		var r = !1, i = "", a = ic, c = ac, l = oc, u = null;
 		return n != null && (!0 === n.unstable_strictMode && (r = !0), n.identifierPrefix !== void 0 && (i = n.identifierPrefix), n.onUncaughtError !== void 0 && (a = n.onUncaughtError), n.onCaughtError !== void 0 && (c = n.onCaughtError), n.onRecoverableError !== void 0 && (l = n.onRecoverableError), n.formState !== void 0 && (u = n.formState)), t = pp(e, 1, !0, t, n ?? null, r, i, u, a, c, l, qp), t.context = mp(null), n = t.current, r = Eu(), r = ft(r), i = Za(r), i.callback = null, Qa(n, i, r), n = r, t.current.lanes = n, st(t, n), _d(t), e[yt] = t.current, Id(e), new Yp(t);
 	}, e.version = "19.2.7";
-})), Tn = /* @__PURE__ */ e(((e) => {
+})), Dn = /* @__PURE__ */ e(((e) => {
 	process.env.NODE_ENV !== "production" && (function() {
 		function t(e, t) {
 			for (e = e.memoizedState; e !== null && 0 < t;) e = e.next, t--;
@@ -20388,7 +20415,7 @@ var wn = /* @__PURE__ */ e(((e) => {
 			return n != null && (!0 === n.unstable_strictMode && (r = !0), n.identifierPrefix !== void 0 && (i = n.identifierPrefix), n.onUncaughtError !== void 0 && (a = n.onUncaughtError), n.onCaughtError !== void 0 && (o = n.onCaughtError), n.onRecoverableError !== void 0 && (s = n.onRecoverableError), n.formState !== void 0 && (c = n.formState)), t = $d(e, 1, !0, t, n ?? null, r, i, c, a, o, s, wf), t.context = ef(null), n = t.current, r = il(n), r = Ke(r), i = ra(r), i.callback = null, ia(n, i, r), pi(r, "hydrateRoot()", null), n = r, t.current.lanes = n, Ve(t, n), P(t), e[Yp] = t.current, du(e), new Ef(t);
 		}, e.version = "19.2.7", typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u" && typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop == "function" && __REACT_DEVTOOLS_GLOBAL_HOOK__.registerInternalModuleStop(Error());
 	})();
-})), En = /* @__PURE__ */ n((/* @__PURE__ */ e(((e, t) => {
+})), On = /* @__PURE__ */ n((/* @__PURE__ */ e(((e, t) => {
 	function n() {
 		if (!(typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ > "u" || typeof __REACT_DEVTOOLS_GLOBAL_HOOK__.checkDCE != "function")) {
 			if (process.env.NODE_ENV !== "production") throw Error("^_^");
@@ -20399,18 +20426,18 @@ var wn = /* @__PURE__ */ e(((e) => {
 			}
 		}
 	}
-	process.env.NODE_ENV === "production" ? (n(), t.exports = wn()) : t.exports = Tn();
+	process.env.NODE_ENV === "production" ? (n(), t.exports = En()) : t.exports = Dn();
 })))(), 1);
-function Dn(e, t) {
+function kn(e, t) {
 	let n = typeof e == "string" ? document.querySelector(e) : e;
 	if (!n) throw Error(`AMP Reader host was not found: ${String(e)}`);
-	let r = (0, En.createRoot)(n), i = (e) => r.render(/* @__PURE__ */ (0, D.jsx)(Cn, { ...e }));
+	let r = (0, On.createRoot)(n), i = (e) => r.render(/* @__PURE__ */ (0, D.jsx)(Tn, { ...e }));
 	return i(t), {
 		update: i,
 		unmount: () => r.unmount()
 	};
 }
 //#endregion
-export { Cn as AMPReader, _n as RuntimeDocument, nt as createAMPAssetResolver, et as loadAMPDocument, Dn as mountAMPReader };
+export { Tn as AMPReader, yn as RuntimeDocument, nt as createAMPAssetResolver, et as loadAMPDocument, kn as mountAMPReader };
 
 //# sourceMappingURL=amp-reader.js.map

@@ -231,28 +231,27 @@ function EntrySceneRoom({ playEntryAnimation, onReady, onEntryAnimationsComplete
 // Beyond its static "Entry_VHS" pose, this unit's "Play" clip (aka "VHS_Play"
 // — the glb sometimes ships it under either name, same fallback lookup
 // VHSInstances.jsx already uses) and "Reel_Play" clip are driven live by
-// scroll, read from the shared `scrollStateRef` that ScrollPathCamera writes
-// every frame/wheel-event (see ScrollPathCamera.jsx) — no second wheel
-// listener here, just reading the one shared source of truth:
-//   • "Play"/"VHS_Play" loops continuously (LoopRepeat) once scrolling has
-//     happened at least once, forward while the most recent scroll was up,
-//     reverse while it was down (sticky — holds direction until it flips).
-//   • "Reel_Play" is scrubbed directly: its time is set to the scroll track's
-//     completion percentage × its own clip duration, every frame — so it
-//     always reflects exactly how far along the track you've scrolled, no
-//     looping or direction involved.
+// the live AMP scroll state published by ScreenSurface:
+//   • "Play"/"VHS_Play" loops continuously after all Entry_ clips finish. It
+//     runs forward by default and while scrolling down on the Screen mesh, then
+//     reverses while the most recent Screen scroll direction is upward.
+//   • "Reel_Play" is scrubbed directly from the AMP document's real
+//     scrollTop / (scrollHeight - clientHeight), so it plays exactly once over
+//     the complete responsive project and is independent of camera travel.
 
 function EntrySceneVhsUnit({
   vhsPointNode,
   vhsIndex,
   vhsCount,
   playEntryAnimation,
-  scrollStateRef,
+  playbackActive,
+  ampScrollStateRef,
 }) {
   const gltf = useLoader(GLTFLoader, CONFIG.vhsModelPath)
   const { camera } = useThree()
   const attachedRef = useRef(null)
   const mixerRef = useRef(null)
+  const entryVhsActionRef = useRef(null)
   const vhsPlayActionRef = useRef(null)
   const reelActionRef = useRef(null)
 
@@ -307,11 +306,11 @@ function EntrySceneVhsUnit({
       action.setLoop(THREE.LoopOnce, 1)
       action.play()
       if (!playEntryAnimation) action.time = entryVhsClip.duration
+      entryVhsActionRef.current = action
     }
 
-    // "Play" ("VHS_Play"): starts inactive (weight 0) until the first scroll
-    // event ever records a direction — then loops forever, direction flipping
-    // live with whichever way was most recently scrolled.
+    // "Play" ("VHS_Play") is prepared now, but activated only after every
+    // Entry_ clip has finished. From then on it loops forward by default.
     const vhsPlayClip = findClip('VHS_Play', 'Play')
     if (vhsPlayClip) {
       const action = mixer.clipAction(vhsPlayClip)
@@ -324,10 +323,12 @@ function EntrySceneVhsUnit({
     }
 
     // "Reel_Play": pure scrub target, never itself "played" — its time is set
-    // directly from scroll completion percentage every frame below.
+    // directly from the AMP document's scroll completion every frame below.
     const reelClip = findClip('Reel_Play')
     if (reelClip) {
       const action = mixer.clipAction(reelClip)
+      action.setLoop(THREE.LoopOnce, 1)
+      action.clampWhenFinished = true
       action.weight = 1
       action.paused = true
       action.time = 0
@@ -344,6 +345,7 @@ function EntrySceneVhsUnit({
     return () => {
       mixer.stopAllAction()
       mixerRef.current = null
+      entryVhsActionRef.current = null
       vhsPlayActionRef.current = null
       reelActionRef.current = null
       vhsPointNode.remove(root)
@@ -363,16 +365,19 @@ function EntrySceneVhsUnit({
     const mixer = mixerRef.current
     if (!mixer) return
 
-    const scroll = scrollStateRef?.current
+    const ampScroll = ampScrollStateRef?.current
     const reelAction = reelActionRef.current
-    if (reelAction && scroll) {
-      const completion = THREE.MathUtils.clamp(scroll.progress ?? 0, 0, 1)
+    if (reelAction && ampScroll) {
+      const completion = THREE.MathUtils.clamp(ampScroll.progress ?? 0, 0, 1)
       reelAction.time = completion * reelAction.getClip().duration
     }
 
     const vhsPlayAction = vhsPlayActionRef.current
-    if (vhsPlayAction && scroll?.playDirection) {
-      vhsPlayAction.timeScale = scroll.playDirection
+    const entryVhsAction = entryVhsActionRef.current
+    const ownEntryComplete =
+      !playEntryAnimation || !entryVhsAction || entryVhsAction.paused
+    if (vhsPlayAction && playbackActive && ownEntryComplete) {
+      vhsPlayAction.timeScale = ampScroll?.playDirection === -1 ? -1 : 1
       vhsPlayAction.weight = 1
       vhsPlayAction.paused = false
     }
@@ -385,7 +390,7 @@ function EntrySceneVhsUnit({
         camera,
         vhsPlayAction: vhsPlayActionRef.current,
         reelAction: reelActionRef.current,
-        scroll: scroll ? { ...scroll } : null,
+        ampScroll: ampScroll ? { ...ampScroll } : null,
       }
     }
   })
@@ -416,10 +421,16 @@ export default function EntryScene() {
   const [screenActive, setScreenActive] = useState(false)
   const [scrollTrackingActive, setScrollTrackingActive] = useState(false)
   const activationTimerRef = useRef(null)
-  // Single shared source of truth for scroll state: ScrollPathCamera is the
-  // only thing that ever writes to it (see its own file), other components
-  // (EntrySceneVhsUnit) just read from it — no second wheel listener anywhere.
-  const scrollStateRef = useRef({ progress: initialTrackProgress, playDirection: 0 })
+  // Camera travel and AMP reading are separate scroll domains. ScreenSurface
+  // publishes the reader's responsive document metrics for the tape animations.
+  const cameraScrollStateRef = useRef({ progress: initialTrackProgress })
+  const ampScrollStateRef = useRef({
+    progress: 0,
+    playDirection: 1,
+    scrollTop: 0,
+    scrollHeight: 0,
+    clientHeight: 0,
+  })
 
   // The Screen's embed is per-tape: the selected VHS (vhsIndex) maps to an AMP
   // project, passed to the reader iframe as `?p=<projectId>`. Changing tapes
@@ -511,7 +522,8 @@ export default function EntryScene() {
               vhsIndex={vhsIndex}
               vhsCount={vhsCount}
               playEntryAnimation={playEntryAnimation}
-              scrollStateRef={scrollStateRef}
+              playbackActive={scrollTrackingActive}
+              ampScrollStateRef={ampScrollStateRef}
             />
           </Suspense>
         )}
@@ -526,6 +538,7 @@ export default function EntryScene() {
             idleFps={CONFIG.readerFpsCap}
             shaderFps={CONFIG.readerFpsCap}
             interactionShaderFps={CONFIG.readerFpsCap}
+            ampScrollStateRef={ampScrollStateRef}
             vhsIntensity={CONFIG.vhsIntensity}
           />
         )}
@@ -542,7 +555,7 @@ export default function EntryScene() {
             sceneRoot={sceneRoot}
             active={scrollTrackingActive}
             initialProgress={initialTrackProgress}
-            scrollStateRef={scrollStateRef}
+            scrollStateRef={cameraScrollStateRef}
           />
         )}
       </Canvas>

@@ -32,12 +32,10 @@ import * as THREE from 'three'
 // approaches 1 (camera zooms in the further along the track you scroll), and
 // widens back to that exact original default as progress returns to 0.
 //
-// If given a `scrollStateRef`, this also writes the live eased progress
-// (`.progress`) and the sign of the most recent wheel event (`.playDirection`:
-// +1 for scroll-up, -1 for scroll-down) into it every frame/wheel-event — the
-// one and only place scroll input is ever read from, so other components
-// (e.g. EntrySceneVhsUnit's Play/Reel_Play actions) can react to scroll
-// without attaching a second, competing wheel listener of their own.
+// If given a `scrollStateRef`, this also publishes the live eased camera-path
+// progress. Reader scroll and tape playback direction are owned separately by
+// ScreenSurface, because wheel events over the Screen mesh move the embedded
+// AMP document without moving this camera.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const DEFAULT_CONFIG = {
@@ -189,13 +187,6 @@ export default function ScrollPathCamera({
         0,
         1,
       )
-      // Scroll up (deltaY < 0) → +1, scroll down (deltaY > 0) → -1. Consumers
-      // (e.g. EntrySceneVhsUnit's "Play" action) read this to decide forward
-      // vs reverse; it's sticky (holds the last direction) until the next
-      // wheel event flips it.
-      if (scrollStateRef) {
-        scrollStateRef.current.playDirection = event.deltaY > 0 ? -1 : 1
-      }
     }
     window.addEventListener('wheel', handleWheel, { passive: false })
     return () => window.removeEventListener('wheel', handleWheel)

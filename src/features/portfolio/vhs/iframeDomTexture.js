@@ -328,6 +328,30 @@ export class IframeDomTexture {
     }
   }
 
+  // Public, same-origin scroll metrics for synchronizing an external animation
+  // with the complete embedded document. Live measurements keep the percentage
+  // correct after viewport resizes and late layout changes in the AMP project.
+  getScrollMetrics() {
+    const doc = this._safeDoc()
+    const scrollingElement = doc?.scrollingElement || doc?.documentElement
+    if (!scrollingElement) {
+      return { scrollTop: 0, scrollHeight: 0, clientHeight: 0, progress: 0 }
+    }
+
+    const scrollTop = Math.max(0, scrollingElement.scrollTop || 0)
+    const scrollHeight = Math.max(0, scrollingElement.scrollHeight || 0)
+    const clientHeight = Math.max(
+      0,
+      scrollingElement.clientHeight || this._safeWin()?.innerHeight || 0,
+    )
+    const maxScroll = Math.max(0, scrollHeight - clientHeight)
+    const progress = maxScroll > 0
+      ? THREE.MathUtils.clamp(scrollTop / maxScroll, 0, 1)
+      : 0
+
+    return { scrollTop, scrollHeight, clientHeight, progress }
+  }
+
   _applyViewportScroll(clone, scrollX, scrollY) {
     if (!scrollX && !scrollY) return
 
