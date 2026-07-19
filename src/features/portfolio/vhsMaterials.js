@@ -240,6 +240,26 @@ export function applyDualMaskTint(material, { primaryMaskUniform, secondaryMaskU
       }
       #endif`,
     )
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <roughnessmap_fragment>',
+      `#include <roughnessmap_fragment>
+      #ifdef USE_MAP
+      {
+        float vhsMicroNoise = fract(
+          sin(dot(vMapUv * vec2(173.1, 91.7), vec2(12.9898, 78.233))) * 43758.5453
+        );
+        float vhsSoftSmudge = sin((vMapUv.x * 1.7 + vMapUv.y) * 12.0) * 0.5 + 0.5;
+        roughnessFactor = clamp(
+          roughnessFactor
+          + (vhsMicroNoise - 0.5) * 0.045
+          + (vhsSoftSmudge - 0.5) * 0.016,
+          0.08,
+          1.0
+        );
+      }
+      #endif`,
+    )
   }
   material.needsUpdate = true
 }
@@ -263,6 +283,26 @@ export function applyLabelOverlay(material, { labelUniform }) {
       {
         vec4 vhsLabelSample = texture2D( uVhsLabelMap, vMapUv );
         diffuseColor.rgb = mix( diffuseColor.rgb, vhsLabelSample.rgb, vhsLabelSample.a );
+      }
+      #endif`,
+    )
+
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <roughnessmap_fragment>',
+      `#include <roughnessmap_fragment>
+      #ifdef USE_MAP
+      {
+        float vhsLabelMicroNoise = fract(
+          sin(dot(vMapUv * vec2(149.3, 103.7), vec2(12.9898, 78.233))) * 43758.5453
+        );
+        float vhsLabelSmudge = sin((vMapUv.x - vMapUv.y * 0.65) * 10.0) * 0.5 + 0.5;
+        roughnessFactor = clamp(
+          roughnessFactor
+          + (vhsLabelMicroNoise - 0.5) * 0.04
+          + (vhsLabelSmudge - 0.5) * 0.014,
+          0.1,
+          1.0
+        );
       }
       #endif`,
     )
@@ -338,6 +378,8 @@ export function applyVhsMaterials(root, {
         primaryColor: colors.primary,
         secondaryColor: colors.secondary,
       })
+      tinted.roughness = THREE.MathUtils.clamp(tinted.roughness ?? 0.54, 0.38, 0.72)
+      tinted.metalness = Math.min(tinted.metalness ?? 0, 0.12)
       tinted.envMapIntensity = envMapIntensity
       makeSolidOccluder(tinted)
       tintedByOriginal.set(original, tinted)
@@ -371,6 +413,8 @@ export function applyVhsMaterials(root, {
     if (!labeled) {
       labeled = original.clone()
       applyLabelOverlay(labeled, { labelUniform })
+      labeled.roughness = THREE.MathUtils.clamp(labeled.roughness ?? 0.5, 0.42, 0.7)
+      labeled.metalness = Math.min(labeled.metalness ?? 0, 0.1)
       labeled.envMapIntensity = envMapIntensity
       labeled.needsUpdate = true
       labeledByOriginal.set(original, labeled)

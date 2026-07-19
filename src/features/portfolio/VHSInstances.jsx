@@ -197,6 +197,13 @@ export default function VHSInstances({
         labelUniform,
         envMapIntensity,
       })
+      root.traverse((child) => {
+        if (!child.isMesh) return
+        const authoredName = child.userData?.name ?? child.name
+        const isGlass = authoredName === 'VHSGlass'
+        child.castShadow = !isGlass
+        child.receiveShadow = true
+      })
 
       const proxyMesh = shellMesh ? createStaticHitProxy(root, shellMesh) : null
       if (proxyMesh) {
