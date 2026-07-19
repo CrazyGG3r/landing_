@@ -74,8 +74,9 @@ const CONFIG = {
   // Overall VHS post-composite intensity (0 = clean AMP signal, 1 = full VHS).
   // This blends the treatment itself; it does not change the Screen's opacity.
   vhsIntensity: .3,
-  // Curved CRTGlass edge refraction strength, clamped to the 0..1 range.
-  crtRefraction: 0.65,
+  // Soft optical bevel strength. The glass stays thin/clear in the center and
+  // bends the live screen plus the room more strongly toward its curved edges.
+  crtRefraction: 0.82,
   // The hosted AMP reader, served on its own route so its runtime remains
   // fully sandboxed inside the ScreenSurface iframe.
   screenEmbedPath: '/__vhs_screen',
