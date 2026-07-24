@@ -1,0 +1,188 @@
+@font-face {
+  font-family: 'BL Melody Bold';
+  src: url('/fonts/BLMelody-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BL Melody Mono ExtraLight';
+  src: url('/fonts/BLMelodyMono-ExtraLight.otf') format('opentype');
+  font-weight: 200;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'BL Melody Mono Bold';
+  src: url('/fonts/BLMelodyMono-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TRTCENZODEMO-ExtraBold';
+  src: url('/fonts/TRTCENZODEMO-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-display: swap;
+}
+
+.zaman-auth {
+  --ink: rgba(238, 236, 255, 0.94);
+  --ink-dim: rgba(206, 202, 236, 0.62);
+  --edge: rgba(186, 170, 255, 0.26);
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #04030a;
+  color: var(--ink);
+  font-family: 'BL Melody Mono ExtraLight', ui-monospace, monospace;
+  display: grid;
+  place-items: center;
+}
+
+/* Pulls the shader field down at the edges so the card keeps its contrast. */
+.zaman-auth__vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 34%, rgba(4, 3, 10, 0.72) 100%),
+    linear-gradient(180deg, rgba(4, 3, 10, 0.55) 0%, transparent 26%, transparent 74%, rgba(4, 3, 10, 0.62) 100%);
+}
+
+.zaman-auth__grain {
+  position: fixed;
+  inset: -50%;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='180' height='180' filter='url(%23n)' opacity='0.55'/></svg>");
+  animation: zaman-grain 900ms steps(3, end) infinite;
+}
+
+@keyframes zaman-grain {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-2%, 1.5%); }
+  66% { transform: translate(1.5%, -2%); }
+  100% { transform: translate(0, 0); }
+}
+
+.zaman-auth__card {
+  position: relative;
+  z-index: 4;
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 48px));
+  padding: 44px 40px 38px;
+  border-radius: 34px;
+  border: 1px solid var(--edge);
+  background: linear-gradient(
+    155deg,
+    rgba(28, 18, 58, 0.42) 0%,
+    rgba(9, 6, 24, 0.58) 58%,
+    rgba(30, 12, 52, 0.44) 100%
+  );
+  backdrop-filter: blur(3px) saturate(126%);
+  -webkit-backdrop-filter: blur(3px) saturate(126%);
+  box-shadow:
+    0 42px 90px -30px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -34px 60px -44px rgba(150, 110, 255, 0.7);
+  text-align: center;
+  animation: zaman-rise 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes zaman-rise {
+  from { opacity: 0; transform: translateY(26px) scale(0.975); }
+  to { opacity: 1; transform: none; }
+}
+
+.zaman-auth__eyebrow {
+  margin: 0 0 18px;
+  font-family: 'BL Melody Mono Bold', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.zaman-auth__title {
+  margin: 0;
+  font-family: 'TRTCENZODEMO-ExtraBold', 'BL Melody Bold', serif;
+  font-size: clamp(30px, 6.4vw, 44px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  /* Faint chromatic split, echoing the dispersion in the glass shader. */
+  text-shadow:
+    -1.5px 0 rgba(255, 40, 140, 0.42),
+    1.5px 0 rgba(40, 200, 255, 0.42),
+    0 0 34px rgba(170, 120, 255, 0.45);
+}
+
+.zaman-auth__subtitle {
+  margin: 16px auto 30px;
+  max-width: 30ch;
+  font-size: 12.5px;
+  line-height: 1.7;
+  letter-spacing: 0.04em;
+  color: var(--ink-dim);
+}
+
+.zaman-auth__rule {
+  height: 1px;
+  margin: 0 0 26px;
+  background: linear-gradient(90deg, transparent, var(--edge), transparent);
+}
+
+.zaman-gsi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+}
+
+.zaman-gsi__slot {
+  transition: opacity 320ms ease;
+  border-radius: 999px;
+  /* Lifts Google's flat black pill off the glass so it reads as a control. */
+  box-shadow:
+    0 0 0 1px rgba(190, 170, 255, 0.22),
+    0 14px 34px -14px rgba(120, 80, 255, 0.85);
+}
+
+.zaman-gsi__pending {
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(200, 195, 235, 0.42);
+}
+
+.zaman-auth__status {
+  margin: 22px 0 0;
+  min-height: 34px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  letter-spacing: 0.05em;
+}
+
+.zaman-auth__status--error {
+  color: #ff8fae;
+}
+
+.zaman-auth__status--busy {
+  color: rgba(190, 200, 255, 0.78);
+}
+
+.zaman-auth__footnote {
+  margin: 26px 0 0;
+  font-size: 9.5px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(190, 186, 224, 0.34);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zaman-auth__card { animation: none; }
+  .zaman-auth__grain { animation: none; }
+}

@@ -26,4 +26,15 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Edge runtime: browser-style globals (fetch, Response, crypto) plus
+    // process.env. Not React, so the component-oriented rules don't apply.
+    files: ['middleware.js', 'lib/**/*.js', 'api/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser, process: 'readonly' },
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

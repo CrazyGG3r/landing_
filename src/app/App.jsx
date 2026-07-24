@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import {
   loadEntryRoute,
   loadPortfolioRoute,
@@ -19,6 +19,7 @@ const NotFound = lazy(() => import('./NotFound'))
 const Kitchen = lazy(() => import('../features/animation/Landing'))
 const Scribble = lazy(() => import('../features/model-playground/Landing'))
 const Dashboard = lazy(() => import('../features/dashboard/Landing'))
+const AdminLogin = lazy(() => import('../features/admin-auth/Login'))
 
 export default function App() {
   return (
@@ -53,6 +54,19 @@ export default function App() {
         <Route path="/animation" element={<Kitchen />} />
         <Route path="/test" element={<Scribble />} />
         <Route path="/pi_dashboard" element={<Dashboard />} />
+        {/* Gate for the static Project-Zaman archive in public/admin. The edge
+            middleware bounces every other /admin path here until a session
+            cookie is present. */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        {/* Dev only. In production the edge middleware owns /admin — it either
+            bounces to the login page or lets Vercel serve the static Quartz
+            index, and this route is never reached. `vite dev` runs no
+            middleware, so without it /admin falls through to the 404 page.
+            Keeping it out of the production bundle also rules out a redirect
+            loop if Vercel ever resolved /admin/ to the SPA instead. */}
+        {import.meta.env.DEV && (
+          <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+        )}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
