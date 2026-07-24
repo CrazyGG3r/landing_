@@ -29,9 +29,9 @@ export default defineConfig([
   {
     // Edge runtime: browser-style globals (fetch, Response, crypto) plus
     // process.env. Not React, so the component-oriented rules don't apply.
-    files: ['middleware.js', 'lib/**/*.js', 'api/**/*.js'],
+    files: ['middleware.js', 'lib/**/*.js', 'api/**/*.js', 'dev/**/*.js'],
     languageOptions: {
-      globals: { ...globals.browser, process: 'readonly' },
+      globals: { ...globals.browser, ...globals.node },
     },
     rules: {
       'react-refresh/only-export-components': 'off',
