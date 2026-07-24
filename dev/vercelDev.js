@@ -10,6 +10,9 @@
  * the same surface the Edge runtime exposes — the handlers run unmodified.
  */
 
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 const API_PREFIX = '/api/';
 const ADMIN_PREFIX = '/admin';
 
@@ -103,8 +106,24 @@ export function vercelDev() {
 
           // `next()` from @vercel/edge marks pass-through with this header;
           // anything else is a real response (the redirect to /admin/login).
-          if (!result || result.headers.get('x-middleware-next') === '1') return next();
-          return await sendWebResponse(res, result);
+          if (result && result.headers.get('x-middleware-next') !== '1') {
+            return await sendWebResponse(res, result);
+          }
+
+          // Gate passed. Vercel's static layer resolves /admin/ to the Quartz
+          // index.html, but Vite's SPA fallback would swallow the directory
+          // request and render the React app over the archive instead. Resolve
+          // it here so a signed-in visitor sees the same page in both places.
+          if (pathname === ADMIN_PREFIX) {
+            res.statusCode = 308; // mirrors the redirect in vercel.json
+            res.setHeader('location', `${ADMIN_PREFIX}/${url.search}`);
+            return res.end();
+          }
+          if (pathname.endsWith('/')) {
+            const index = path.join(server.config.publicDir, pathname, 'index.html');
+            if (existsSync(index)) req.url = `${pathname}index.html${url.search}`;
+          }
+          return next();
         } catch (error) {
           server.config.logger.error(`[vercel-dev] ${pathname} failed: ${error.stack}`);
           return fail(res, 500, 'dev_handler_error');

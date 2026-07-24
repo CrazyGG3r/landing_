@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import {
   loadEntryRoute,
   loadPortfolioRoute,
@@ -58,15 +58,11 @@ export default function App() {
             middleware bounces every other /admin path here until a session
             cookie is present. */}
         <Route path="/admin/login" element={<AdminLogin />} />
-        {/* Dev only. In production the edge middleware owns /admin — it either
-            bounces to the login page or lets Vercel serve the static Quartz
-            index, and this route is never reached. `vite dev` runs no
-            middleware, so without it /admin falls through to the 404 page.
-            Keeping it out of the production bundle also rules out a redirect
-            loop if Vercel ever resolved /admin/ to the SPA instead. */}
-        {import.meta.env.DEV && (
-          <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
-        )}
+        {/* Note: there is deliberately no route for /admin itself. The edge
+            middleware owns that path in both dev and production — it either
+            redirects here or lets the static Quartz index be served. A React
+            route would shadow the archive and, for a signed-in visitor, bounce
+            them back to this page in a loop. */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
