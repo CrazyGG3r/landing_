@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useResizeObserver } from '../core/hooks';
-import { FONT_SUBTITLE } from '../core/constants';
+import { FONT_TITLE } from '../core/constants';
 
 const CalloutWithLeader = memo(function CalloutWithLeader({
   text,
@@ -9,14 +9,14 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
 }) {
   const calloutRef = useRef(null);
   const [layout, setLayout] = useState(null);
-  const sizeRef = useRef({ width: 200, height: 34 });
+  const sizeRef = useRef({ width: 210, height: 40 });
 
   const updateSize = useCallback(() => {
     const node = calloutRef.current;
     if (!node) return;
     sizeRef.current = {
-      width: node.offsetWidth || 200,
-      height: node.offsetHeight || 34,
+      width: node.offsetWidth || 210,
+      height: node.offsetHeight || 40,
     };
   }, []);
 
@@ -24,31 +24,37 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
     if (!calloutRef.current || !targetRect) return;
 
     const margin = 16;
-    const calloutWidth = sizeRef.current.width || 200;
-    const calloutHeight = sizeRef.current.height || 34;
+    const w = sizeRef.current.width || 210;
+    const h = sizeRef.current.height || 40;
 
-    const leaderStretch = 96;
-    let x = targetRect.right + 26 + leaderStretch;
-    let y = targetRect.top - calloutHeight * 0.5;
+    const stretch = 128;   // horizontal span of the diagonal leader
+    const rise = 34;       // how far the bar floats above the node line
+    const elbowGap = 24;   // where the diagonal meets the horizontal rule
+    const lineExtend = 46; // how far the rule runs past the bar
+
+    const nodeY = targetRect.top + targetRect.height * 0.5;
+
+    // Prefer the right side; flip left if it would overflow.
     let flipped = false;
-
-    if (x + calloutWidth > window.innerWidth - margin) {
-      x = targetRect.left - calloutWidth - 26 - leaderStretch;
+    let nodeX = targetRect.right;
+    let x = nodeX + stretch;
+    if (x + w > window.innerWidth - margin) {
       flipped = true;
+      nodeX = targetRect.left;
+      x = nodeX - stretch - w;
     }
 
-    x = Math.max(margin, Math.min(x, window.innerWidth - calloutWidth - margin));
-    y = Math.max(margin, Math.min(y, window.innerHeight - calloutHeight - margin));
+    x = Math.max(margin, Math.min(x, window.innerWidth - w - margin));
 
-    const anchorX = flipped ? targetRect.left : targetRect.right;
-    const anchorY = targetRect.top + Math.min(18, targetRect.height * 0.2);
-    const tipOffset = 8;
-    const endX = flipped ? x + calloutWidth + tipOffset : x - tipOffset;
-    const endY = y + calloutHeight * 0.5;
-    const elbowX = anchorX + (endX - anchorX) * 0.82;
-    const path = `M ${anchorX} ${anchorY} L ${elbowX} ${anchorY} L ${elbowX} ${endY} L ${endX} ${endY}`;
+    let baselineY = nodeY - rise;
+    baselineY = Math.max(margin + h, Math.min(baselineY, window.innerHeight - margin));
+    const y = baselineY - h;
 
-    setLayout({ x, y, path, anchorX, anchorY, endX, endY, flipped });
+    const elbowX = flipped ? x + w + elbowGap : x - elbowGap;
+    const lineEndX = flipped ? x - lineExtend : x + w + lineExtend;
+    const path = `M ${nodeX} ${nodeY} L ${elbowX} ${baselineY} L ${lineEndX} ${baselineY}`;
+
+    setLayout({ x, y, w, h, baselineY, nodeX, nodeY, elbowX, lineEndX, path, flipped });
   }, [targetRect]);
 
   useEffect(() => {
@@ -67,11 +73,9 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
     if (targetRect) recompute();
   });
 
-  const alignEnd = layout?.flipped;
-
   return (
     <>
-      {/* Hairline leader — ties the floating caption back to the reticle */}
+      {/* Ringed node + diagonal leader + horizontal rule */}
       <svg
         style={{
           position: 'fixed',
@@ -84,10 +88,10 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
         }}
       >
         <defs>
-          <linearGradient id="calloutLeader" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="rgba(150,185,255,0.0)" />
-            <stop offset="18%" stopColor="rgba(160,195,255,0.55)" />
-            <stop offset="100%" stopColor="rgba(225,238,255,0.85)" />
+          <linearGradient id="calloutRule" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="rgba(150,185,255,0.35)" />
+            <stop offset="55%" stopColor="rgba(220,235,255,0.9)" />
+            <stop offset="100%" stopColor="rgba(220,235,255,0.15)" />
           </linearGradient>
         </defs>
         {layout && (
@@ -96,40 +100,56 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
               key={`callout-path-${layout.x}-${layout.y}`}
               d={layout.path}
               fill="none"
-              stroke="url(#calloutLeader)"
-              strokeWidth="1"
+              stroke="url(#calloutRule)"
+              strokeWidth="1.4"
               strokeLinecap="round"
               strokeLinejoin="round"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
             />
-            {/* pinned node + breathing halo at the reticle */}
+
+            {/* pulsing halo */}
             <motion.circle
-              cx={layout.anchorX}
-              cy={layout.anchorY}
-              r="2.2"
-              fill="rgba(200,222,255,0.95)"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3, delay: 0.04 }}
-            />
-            <motion.circle
-              cx={layout.anchorX}
-              cy={layout.anchorY}
-              r="2.2"
+              cx={layout.nodeX}
+              cy={layout.nodeY}
+              r="6"
               fill="none"
-              stroke="rgba(160,195,255,0.6)"
+              stroke="rgba(160,198,255,0.6)"
               strokeWidth="1"
               initial={{ scale: 1, opacity: 0.6 }}
-              animate={{ scale: 3.4, opacity: 0 }}
+              animate={{ scale: 2.4, opacity: 0 }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+              style={{ transformOrigin: `${layout.nodeX}px ${layout.nodeY}px` }}
+            />
+            {/* outer ring */}
+            <motion.circle
+              cx={layout.nodeX}
+              cy={layout.nodeY}
+              r="6"
+              fill="rgba(10,14,22,0.55)"
+              stroke="rgba(210,228,255,0.95)"
+              strokeWidth="1.4"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              style={{ transformOrigin: `${layout.nodeX}px ${layout.nodeY}px` }}
+            />
+            {/* inner dot */}
+            <motion.circle
+              cx={layout.nodeX}
+              cy={layout.nodeY}
+              r="2.3"
+              fill="rgba(225,238,255,1)"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.35, delay: 0.08 }}
             />
           </>
         )}
       </svg>
 
-      {/* Boxless caption — floats over the scene like the rest of the type */}
+      {/* Header bar sitting on the rule */}
       <motion.div
         ref={calloutRef}
         style={{
@@ -137,101 +157,46 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
           left: layout ? layout.x : -9999,
           top: layout ? layout.y : -9999,
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: alignEnd ? 'flex-end' : 'flex-start',
-          gap: 8,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '11px 22px',
+          background: 'linear-gradient(180deg, rgba(26,31,41,0.9), rgba(12,15,21,0.86))',
+          border: '1px solid rgba(200,216,255,0.16)',
+          borderRadius: '5px',
+          backdropFilter: 'blur(12px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(12px) saturate(140%)',
+          boxShadow: '0 12px 34px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08)',
           pointerEvents: 'none',
           zIndex: 10003,
+          transformOrigin: layout?.flipped ? 'right bottom' : 'left bottom',
           opacity: layout ? 1 : 0,
           willChange: 'transform, opacity',
         }}
-        initial={{ opacity: 0, x: alignEnd ? 8 : -8 }}
-        animate={{ opacity: layout ? 1 : 0, x: 0 }}
-        transition={{ duration: 0.45, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+        animate={{ opacity: layout ? 1 : 0, y: 0, scale: 1 }}
+        transition={{ duration: 0.45, delay: 0.22, ease: [0.22, 1, 0.36, 1] }}
       >
+        {/* accent hairline along the top edge */}
         <div style={{
-          position: 'relative',
-          display: 'flex',
-          flexDirection: alignEnd ? 'row-reverse' : 'row',
-          alignItems: 'center',
-          gap: 12,
+          position: 'absolute',
+          top: 0,
+          left: 10,
+          right: 10,
+          height: 1,
+          background: 'linear-gradient(90deg, rgba(160,198,255,0), rgba(200,224,255,0.6), rgba(160,198,255,0))',
+          pointerEvents: 'none',
+        }} />
+        <span style={{
+          fontFamily: FONT_TITLE,
+          fontSize: '14px',
+          letterSpacing: '0.14em',
+          textTransform: 'uppercase',
+          color: 'rgba(246, 249, 255, 0.98)',
+          whiteSpace: 'nowrap',
+          textShadow: '0 2px 8px rgba(0,0,0,0.6)',
         }}>
-          {/* soft backlit glow — light, not a container */}
-          <div style={{
-            position: 'absolute',
-            inset: '-14px -22px',
-            background: 'radial-gradient(ellipse at center, rgba(40,64,112,0.42) 0%, rgba(12,18,32,0) 72%)',
-            filter: 'blur(8px)',
-            pointerEvents: 'none',
-            zIndex: 0,
-          }} />
-
-          {/* live indicator */}
-          <span style={{
-            position: 'relative',
-            zIndex: 1,
-            width: 5,
-            height: 5,
-            flex: '0 0 auto',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}>
-            <motion.span
-              style={{
-                position: 'absolute',
-                inset: -3,
-                borderRadius: '50%',
-                border: '1px solid rgba(160,198,255,0.7)',
-              }}
-              animate={{ scale: [1, 2.3], opacity: [0.6, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-            />
-            <motion.span
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: '50%',
-                background: 'rgba(200,222,255,1)',
-                boxShadow: '0 0 9px rgba(170,205,255,0.95)',
-              }}
-              animate={{ opacity: [1, 0.4, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            />
-          </span>
-
-          <span style={{
-            position: 'relative',
-            zIndex: 1,
-            fontFamily: FONT_SUBTITLE,
-            fontSize: '13px',
-            fontWeight: 200,
-            letterSpacing: '0.34em',
-            textTransform: 'uppercase',
-            whiteSpace: 'nowrap',
-            color: 'rgba(244, 248, 255, 0.96)',
-            textShadow: '0 0 18px rgba(120,160,255,0.45), 0 2px 8px rgba(0,0,0,0.7)',
-            paddingLeft: alignEnd ? 0 : 1,
-            paddingRight: alignEnd ? 1 : 0,
-          }}>
-            {text}
-          </span>
-        </div>
-
-        {/* underline that draws in beneath the caption */}
-        <motion.div
-          style={{
-            width: '100%',
-            height: 1,
-            transformOrigin: alignEnd ? 'right center' : 'left center',
-            background: alignEnd
-              ? 'linear-gradient(90deg, rgba(225,238,255,0.75), rgba(150,185,255,0.35), rgba(150,185,255,0))'
-              : 'linear-gradient(90deg, rgba(150,185,255,0), rgba(150,185,255,0.35), rgba(225,238,255,0.75))',
-          }}
-          initial={{ scaleX: 0, opacity: 0 }}
-          animate={{ scaleX: 1, opacity: 1 }}
-          transition={{ duration: 0.55, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        />
+          {text}
+        </span>
       </motion.div>
     </>
   );

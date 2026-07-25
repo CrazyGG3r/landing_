@@ -1,7 +1,17 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { motion as Motion } from 'framer-motion';
 import { useResizeObserver } from '../core/hooks';
-import { FONT_LETTERBOX_SUBTITLE } from '../core/constants';
+import { FONT_SUBTITLE } from '../core/constants';
+
+const CORNER_SIZE = 13;
+const CORNER_BORDER = '1.5px solid rgba(205,224,255,0.92)';
+
+const CORNERS = [
+  { key: 'tl', pos: { top: -1, left: -1, borderTop: CORNER_BORDER, borderLeft: CORNER_BORDER }, from: { x: -5, y: -5 } },
+  { key: 'tr', pos: { top: -1, right: -1, borderTop: CORNER_BORDER, borderRight: CORNER_BORDER }, from: { x: 5, y: -5 } },
+  { key: 'bl', pos: { bottom: -1, left: -1, borderBottom: CORNER_BORDER, borderLeft: CORNER_BORDER }, from: { x: -5, y: 5 } },
+  { key: 'br', pos: { bottom: -1, right: -1, borderBottom: CORNER_BORDER, borderRight: CORNER_BORDER }, from: { x: 5, y: 5 } },
+];
 
 const CalloutWithLeader = memo(function CalloutWithLeader({
   text,
@@ -9,31 +19,14 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
 }) {
   const calloutRef = useRef(null);
   const [layout, setLayout] = useState(null);
-  const sizeRef = useRef({ width: 220, height: 48 });
-  const overlayStyle = useMemo(() => ({
-    position: 'absolute',
-    inset: 0,
-    borderRadius: '10px',
-    background: 'linear-gradient(120deg, rgba(120,160,255,0.18), rgba(255,255,255,0))',
-    pointerEvents: 'none',
-    opacity: 0.8,
-  }), []);
-  const topLineStyle = useMemo(() => ({
-    position: 'absolute',
-    top: 0,
-    left: 10,
-    right: 10,
-    height: 1,
-    background: 'linear-gradient(90deg, rgba(140,180,255,0.0), rgba(160,200,255,0.8), rgba(140,180,255,0.0))',
-    opacity: 0.7,
-  }), []);
+  const sizeRef = useRef({ width: 200, height: 44 });
 
   const updateSize = useCallback(() => {
     const node = calloutRef.current;
     if (!node) return;
     sizeRef.current = {
-      width: node.offsetWidth || 220,
-      height: node.offsetHeight || 48,
+      width: node.offsetWidth || 200,
+      height: node.offsetHeight || 44,
     };
   }, []);
 
@@ -41,28 +34,28 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
     if (!calloutRef.current || !targetRect) return;
 
     const margin = 16;
-    const calloutWidth = sizeRef.current.width || 220;
-    const calloutHeight = sizeRef.current.height || 48;
+    const w = sizeRef.current.width || 200;
+    const h = sizeRef.current.height || 44;
 
-    const leaderStretch = 90;
+    const leaderStretch = 84;
     let x = targetRect.right + 24 + leaderStretch;
-    let y = targetRect.top - calloutHeight * 0.6;
+    let y = targetRect.top - h * 0.5;
     let flipped = false;
 
-    if (x + calloutWidth > window.innerWidth - margin) {
-      x = targetRect.left - calloutWidth - 24 - leaderStretch;
+    if (x + w > window.innerWidth - margin) {
+      x = targetRect.left - w - 24 - leaderStretch;
       flipped = true;
     }
 
-    x = Math.max(margin, Math.min(x, window.innerWidth - calloutWidth - margin));
-    y = Math.max(margin, Math.min(y, window.innerHeight - calloutHeight - margin));
+    x = Math.max(margin, Math.min(x, window.innerWidth - w - margin));
+    y = Math.max(margin, Math.min(y, window.innerHeight - h - margin));
 
     const anchorX = flipped ? targetRect.left : targetRect.right;
     const anchorY = targetRect.top + Math.min(18, targetRect.height * 0.2);
-    const tipOffset = 6;
-    const endX = flipped ? x + calloutWidth + tipOffset : x - tipOffset;
-    const endY = y + calloutHeight * 0.5;
-    const elbowX = anchorX + (endX - anchorX) * 0.78;
+    const tipOffset = 7;
+    const endX = flipped ? x + w + tipOffset : x - tipOffset;
+    const endY = y + h * 0.5;
+    const elbowX = anchorX + (endX - anchorX) * 0.8;
     const path = `M ${anchorX} ${anchorY} L ${elbowX} ${anchorY} L ${elbowX} ${endY} L ${endX} ${endY}`;
 
     setLayout({ x, y, path, anchorX, anchorY, endX, endY, flipped });
@@ -86,6 +79,7 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
 
   return (
     <>
+      {/* Slim elbow leader + ringed node at the reticle */}
       <svg
         style={{
           position: 'fixed',
@@ -98,17 +92,11 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
         }}
       >
         <defs>
-          <linearGradient id="calloutGradient" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="rgba(120,160,255,0.9)" />
-            <stop offset="100%" stopColor="rgba(220,240,255,0.8)" />
+          <linearGradient id="calloutLeader" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="rgba(150,185,255,0.15)" />
+            <stop offset="40%" stopColor="rgba(180,208,255,0.65)" />
+            <stop offset="100%" stopColor="rgba(220,235,255,0.9)" />
           </linearGradient>
-          <filter id="calloutGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
         {layout && (
           <>
@@ -116,82 +104,116 @@ const CalloutWithLeader = memo(function CalloutWithLeader({
               key={`callout-path-${layout.x}-${layout.y}`}
               d={layout.path}
               fill="none"
-              stroke="url(#calloutGradient)"
-              strokeWidth="1.6"
-              strokeLinecap="square"
-              strokeLinejoin="miter"
-              filter="url(#calloutGlow)"
+              stroke="url(#calloutLeader)"
+              strokeWidth="1.1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             />
+            {/* breathing halo */}
             <Motion.circle
               cx={layout.anchorX}
               cy={layout.anchorY}
-              r="3"
-              fill="rgba(200,220,255,0.9)"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.35, delay: 0.06 }}
+              r="5"
+              fill="none"
+              stroke="rgba(160,198,255,0.55)"
+              strokeWidth="1"
+              initial={{ scale: 1, opacity: 0.55 }}
+              animate={{ scale: 2.6, opacity: 0 }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+              style={{ transformOrigin: `${layout.anchorX}px ${layout.anchorY}px` }}
             />
+            {/* ring */}
             <Motion.circle
-              cx={layout.endX}
-              cy={layout.endY}
-              r="2.4"
-              fill="rgba(255,255,255,0.9)"
+              cx={layout.anchorX}
+              cy={layout.anchorY}
+              r="5"
+              fill="rgba(10,14,22,0.5)"
+              stroke="rgba(210,228,255,0.95)"
+              strokeWidth="1.2"
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.35, delay: 0.18 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              style={{ transformOrigin: `${layout.anchorX}px ${layout.anchorY}px` }}
+            />
+            {/* dot */}
+            <Motion.circle
+              cx={layout.anchorX}
+              cy={layout.anchorY}
+              r="1.9"
+              fill="rgba(225,238,255,1)"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.35, delay: 0.08 }}
             />
           </>
         )}
       </svg>
+
+      {/* HUD corner-frame label — no box, just brackets over a soft backlight */}
       <Motion.div
         ref={calloutRef}
         style={{
           position: 'fixed',
           left: layout ? layout.x : -9999,
           top: layout ? layout.y : -9999,
-          padding: '12px 22px',
-          background: 'linear-gradient(160deg, rgba(20,26,36,0.82), rgba(10,12,18,0.7))',
-          backdropFilter: 'blur(14px) saturate(160%)',
-          WebkitBackdropFilter: 'blur(14px) saturate(160%)',
-          border: '1px solid rgba(180, 200, 255, 0.25)',
-          borderRadius: '10px',
-          color: 'rgba(245, 248, 255, 0.96)',
-          fontSize: '12px',
-          letterSpacing: '0.22em',
-          textTransform: 'none',
-          fontFamily: FONT_LETTERBOX_SUBTITLE,
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '13px 22px',
           pointerEvents: 'none',
           zIndex: 10003,
-          boxShadow: '0 12px 32px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.06)',
-          transformOrigin: layout?.flipped ? 'right center' : 'left center',
+          filter: 'drop-shadow(0 0 7px rgba(120,160,255,0.22))',
           opacity: layout ? 1 : 0,
-          textShadow: '0 2px 6px rgba(0, 0, 0, 0.6)',
           willChange: 'transform, opacity',
         }}
-        initial={{ opacity: 0, scale: 0.96, y: 6 }}
-        animate={{ opacity: layout ? 1 : 0, scale: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: layout ? 1 : 0, scale: 1 }}
+        transition={{ duration: 0.4, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div style={overlayStyle} />
-        <div style={topLineStyle} />
+        {/* soft edgeless backlight for legibility over the scene */}
         <div style={{
           position: 'absolute',
-          left: layout?.flipped ? 'auto' : -6,
-          right: layout?.flipped ? -6 : 'auto',
-          top: '50%',
-          width: 10,
-          height: 10,
-          transform: 'translateY(-50%) rotate(45deg)',
-          background: 'rgba(12,16,24,0.95)',
-          border: '1px solid rgba(180, 200, 255, 0.25)',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.35)',
+          inset: '-8px -14px',
+          background: 'radial-gradient(ellipse at center, rgba(26,42,74,0.5) 0%, rgba(10,15,26,0) 72%)',
+          filter: 'blur(7px)',
+          pointerEvents: 'none',
+          zIndex: 0,
         }} />
-        <span style={{ position: 'relative', zIndex: 1 }}>{text}</span>
+
+        {CORNERS.map((c, i) => (
+          <Motion.span
+            key={c.key}
+            style={{
+              position: 'absolute',
+              width: CORNER_SIZE,
+              height: CORNER_SIZE,
+              ...c.pos,
+              pointerEvents: 'none',
+            }}
+            initial={{ opacity: 0, x: c.from.x, y: c.from.y }}
+            animate={{ opacity: layout ? 1 : 0, x: 0, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.24 + i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+          />
+        ))}
+
+        <span style={{
+          position: 'relative',
+          zIndex: 1,
+          fontFamily: FONT_SUBTITLE,
+          fontSize: '13px',
+          fontWeight: 200,
+          letterSpacing: '0.3em',
+          textTransform: 'uppercase',
+          color: 'rgba(244, 248, 255, 0.96)',
+          whiteSpace: 'nowrap',
+          paddingLeft: '0.15em',
+          textShadow: '0 0 16px rgba(120,160,255,0.4), 0 2px 6px rgba(0,0,0,0.7)',
+        }}>
+          {text}
+        </span>
       </Motion.div>
     </>
   );
