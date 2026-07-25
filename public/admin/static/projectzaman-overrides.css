@@ -1,0 +1,258 @@
+:root:root {
+  --pz-accent: #315f73;
+  --pz-accent-hover: #4f7d80;
+  --pz-tag-surface: color-mix(in srgb, var(--pz-accent) 11%, transparent);
+  --pz-mark-surface: rgba(73, 126, 137, 0.22);
+  --pz-pattern-opacity: 0.035;
+  --secondary: var(--pz-accent);
+  --tertiary: var(--pz-accent-hover);
+  --highlight: var(--pz-tag-surface);
+  --textHighlight: var(--pz-mark-surface);
+  --text-accent: var(--pz-accent);
+  --text-accent-hover: var(--pz-accent-hover);
+  --interactive-accent: var(--pz-accent);
+  --interactive-accent-hover: var(--pz-accent-hover);
+  --tag-background: var(--pz-tag-surface);
+  --tag-background-hover: color-mix(in srgb, var(--pz-accent) 18%, transparent);
+  --tag-color: var(--pz-accent);
+}
+
+:root:root[saved-theme="dark"] {
+  --pz-accent: #8bb4c4;
+  --pz-accent-hover: #96c5ba;
+  --pz-tag-surface: color-mix(in srgb, var(--pz-accent) 14%, transparent);
+  --pz-mark-surface: rgba(113, 164, 174, 0.28);
+  --pz-pattern-opacity: 0.045;
+}
+
+.center {
+  isolation: isolate;
+  position: relative;
+}
+
+.center::before {
+  background-image: url("/admin/static/projectzaman-pattern.svg");
+  background-position: center top;
+  background-repeat: repeat;
+  background-size: 288px 288px;
+  content: "";
+  inset: 0;
+  opacity: var(--pz-pattern-opacity);
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+.center > * {
+  position: relative;
+  z-index: 1;
+}
+
+.note-properties-tags {
+  align-items: flex-start;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-width: 100%;
+}
+
+.note-properties-tags .note-properties-separator {
+  display: none;
+}
+
+.note-properties-tags .tag-link,
+a.internal.tag-link {
+  background: var(--tag-background);
+  color: var(--tag-color);
+  overflow-wrap: anywhere;
+}
+
+.note-properties-tags .tag-link:hover,
+a.internal.tag-link:hover {
+  background: var(--tag-background-hover);
+  color: var(--tertiary);
+}
+
+.projectzaman-redundant-title,
+.projectzaman-redundant-tags {
+  display: none;
+}
+
+.projectzaman-mobile-graph-slot {
+  align-items: center;
+  display: none;
+}
+
+.projectzaman-mobile-graph-button,
+.projectzaman-graph-close {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--lightgray);
+  color: var(--darkgray);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.projectzaman-mobile-graph-button {
+  border-radius: 4px;
+  height: 2rem;
+  padding: 0;
+  width: 2rem;
+}
+
+.projectzaman-mobile-graph-button:hover,
+.projectzaman-graph-close:hover {
+  background: var(--highlight);
+  color: var(--secondary);
+}
+
+.projectzaman-mobile-graph-button:focus-visible,
+.projectzaman-graph-close:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+.projectzaman-mobile-graph-button svg,
+.projectzaman-graph-close svg {
+  height: 1.1rem;
+  pointer-events: none;
+  width: 1.1rem;
+}
+
+.projectzaman-graph-close {
+  background: color-mix(in srgb, var(--light) 90%, transparent);
+  border-radius: 999px;
+  height: 2.5rem;
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+  width: 2.5rem;
+  z-index: 3;
+}
+
+html.projectzaman-graph-open,
+html.projectzaman-graph-open body {
+  overflow: hidden;
+}
+
+.graph > .global-graph-outer.active {
+  background: color-mix(in srgb, var(--dark) 22%, transparent);
+}
+
+@media (max-width: 800px) {
+  :root:root {
+    --pz-pattern-opacity: 0.022;
+  }
+
+  :root:root[saved-theme="dark"] {
+    --pz-pattern-opacity: 0.03;
+  }
+
+  .page > #quartz-body .page-header,
+  .page > #quartz-body .center,
+  .page > #quartz-body .sidebar.right,
+  .page > #quartz-body footer {
+    box-sizing: border-box;
+    padding-inline: clamp(1.125rem, 6vw, 1.5rem);
+    width: 100%;
+  }
+
+  .note-properties {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .note-properties .note-properties-table,
+  .note-properties .note-properties-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .note-properties .note-properties-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .note-properties .note-properties-key,
+  .note-properties .note-properties-value {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+  }
+
+  .note-properties .note-properties-key {
+    padding-bottom: 0.1rem;
+  }
+
+  .note-properties .note-properties-value {
+    padding-top: 0.1rem;
+  }
+
+  .projectzaman-mobile-graph-slot {
+    display: flex;
+  }
+
+  .sidebar.right .graph > h3,
+  .sidebar.right .graph > .graph-outer {
+    display: none;
+  }
+
+  .sidebar.right .graph {
+    height: 0;
+    margin: 0;
+    min-height: 0;
+  }
+
+  .sidebar.right .graph > .global-graph-outer.active {
+    display: block;
+    height: 100dvh;
+    inset: 0;
+    position: fixed;
+    width: 100dvw;
+    z-index: 999;
+  }
+
+  .graph > .global-graph-outer > .global-graph-container {
+    border: 0;
+    border-radius: 0;
+    height: 100dvh;
+    inset: 0;
+    position: fixed;
+    transform: none;
+    width: 100dvw;
+  }
+
+  .table-container,
+  pre,
+  pre:has(> code.mermaid) {
+    max-width: 100%;
+  }
+
+  pre:has(> code.mermaid) svg {
+    height: auto;
+    max-width: 100%;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root:root,
+  :root:root[saved-theme="dark"] {
+    --pz-pattern-opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .projectzaman-mobile-graph-button,
+  .projectzaman-graph-close {
+    transition: none;
+  }
+}
+
+@media print {
+  .center::before,
+  .projectzaman-mobile-graph-slot,
+  .projectzaman-graph-close {
+    display: none;
+  }
+}
