@@ -1,3 +1,35 @@
+@font-face {
+  font-display: swap;
+  font-family: "ProjectZaman Code";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/Monofrik%20Demo.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "ProjectZaman Code";
+  font-style: italic;
+  font-weight: 400;
+  src: url("/fonts/Monofrik%20Slant%20Demo.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "ProjectZaman Project";
+  font-style: normal;
+  font-weight: 100;
+  src: url("/fonts/inter.18pt-thin.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "ProjectZaman Zaman";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/Rosehot.ttf") format("truetype");
+}
+
 :root:root {
   --pz-accent: #315f73;
   --pz-accent-hover: #4f7d80;
@@ -15,6 +47,8 @@
   --tag-background: var(--pz-tag-surface);
   --tag-background-hover: color-mix(in srgb, var(--pz-accent) 18%, transparent);
   --tag-color: var(--pz-accent);
+  --codeFont: "ProjectZaman Code", ui-monospace, monospace;
+  --font-monospace: "ProjectZaman Code", ui-monospace, monospace;
 }
 
 :root:root[saved-theme="dark"] {
@@ -50,6 +84,110 @@
 
 html[data-projectzaman-mode="constrained"] .center::before {
   display: none;
+}
+
+code,
+pre {
+  font-family: "ProjectZaman Code", var(--codeFont), ui-monospace, monospace;
+}
+
+.page-title > a.projectzaman-brand {
+  align-items: baseline;
+  display: inline-flex;
+  gap: 0.24em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.projectzaman-brand-project {
+  font-family: "ProjectZaman Project", var(--titleFont), sans-serif;
+  font-size: 0.92rem;
+  font-weight: 100;
+  letter-spacing: 0.035em;
+}
+
+.projectzaman-brand-zaman {
+  font-family: "ProjectZaman Zaman", var(--titleFont), serif;
+  font-size: 1.55rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.toc.projectzaman-toc-enhanced .toc-content.overflow {
+  -webkit-mask-image: none;
+  mask-image: none;
+  overflow: hidden;
+  overflow: clip;
+  scrollbar-width: none;
+}
+
+.toc.projectzaman-toc-enhanced:not(:has(> .toc-header.collapsed)) {
+  min-height: 9rem;
+}
+
+.toc.projectzaman-toc-enhanced .toc-content.overflow::-webkit-scrollbar,
+.toc.projectzaman-toc-enhanced .toc-content > .overflow-end {
+  display: none;
+}
+
+.toc.projectzaman-toc-enhanced .toc-content > li[hidden] {
+  display: none !important;
+}
+
+.toc.projectzaman-toc-enhanced .toc-content > li > a {
+  opacity: 0.34;
+  transition:
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.toc.projectzaman-toc-enhanced
+  .toc-content
+  > li.projectzaman-toc-near
+  > a {
+  opacity: 0.58;
+}
+
+.toc.projectzaman-toc-enhanced
+  .toc-content
+  > li.projectzaman-toc-active
+  > a {
+  color: var(--secondary);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.projectzaman-toc-gap {
+  padding-left: 0 !important;
+}
+
+.projectzaman-toc-gap > button {
+  background: transparent;
+  border: 0;
+  color: var(--gray);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  opacity: 0.78;
+  padding: 0.25rem 0;
+  text-align: left;
+  width: 100%;
+}
+
+.projectzaman-toc-gap-after > button {
+  text-align: right;
+}
+
+.projectzaman-toc-gap > button:hover,
+.projectzaman-toc-gap > button:focus-visible {
+  color: var(--secondary);
+  opacity: 1;
+}
+
+.projectzaman-toc-gap > button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 .search-button.projectzaman-loading,
@@ -511,6 +649,7 @@ html.projectzaman-graph-open body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .toc.projectzaman-toc-enhanced .toc-content > li > a,
   .projectzaman-mobile-graph-button,
   .projectzaman-graph-close,
   .projectzaman-image-media {

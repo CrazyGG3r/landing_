@@ -25,9 +25,357 @@
     </svg>`;
 
   let imageViewer = null;
+  let tocController = null;
 
   function normalizedText(value) {
     return value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  }
+
+  function initializeBrandTitle() {
+    const link = document.querySelector(".sidebar.left .page-title > a");
+    if (
+      !link ||
+      link.classList.contains("projectzaman-brand") ||
+      normalizedText(link.textContent ?? "") !== "project zaman"
+    ) {
+      return;
+    }
+
+    const project = document.createElement("span");
+    project.className = "projectzaman-brand-project";
+    project.textContent = "Project";
+
+    const zaman = document.createElement("span");
+    zaman.className = "projectzaman-brand-zaman";
+    zaman.textContent = "Zaman";
+
+    link.classList.add("projectzaman-brand");
+    link.setAttribute("aria-label", "Project Zaman");
+    link.replaceChildren(project, zaman);
+  }
+
+  function cleanupToc() {
+    if (!tocController) return;
+    cancelAnimationFrame(tocController.state.frame);
+    window.removeEventListener("scroll", tocController.onScroll);
+    window.removeEventListener("resize", tocController.onResize);
+    window.removeEventListener("hashchange", tocController.onHashChange);
+    tocController.header?.removeEventListener("click", tocController.onHeaderClick);
+    tocController.before.remove();
+    tocController.after.remove();
+    tocController.toc.classList.remove("projectzaman-toc-enhanced");
+    tocController.list.classList.remove("projectzaman-toc-window");
+    for (const { item, link } of tocController.entries) {
+      item.hidden = false;
+      item.classList.remove(
+        "projectzaman-toc-active",
+        "projectzaman-toc-near",
+      );
+      link.removeAttribute("aria-current");
+    }
+    tocController = null;
+  }
+
+  function initializeToc() {
+    cleanupToc();
+
+    const toc = document.querySelector(".sidebar.right .toc");
+    const list = toc?.querySelector(":scope > .toc-content");
+    if (!toc || !list) return;
+
+    const entries = [...list.children]
+      .map((item) => {
+        const link = item.querySelector(":scope > a[data-for]");
+        if (!link) return null;
+        return {
+          heading: document.getElementById(link.dataset.for ?? ""),
+          item,
+          link,
+        };
+      })
+      .filter(Boolean);
+    if (entries.length === 0) return;
+
+    function makeGap(className, label) {
+      const item = document.createElement("li");
+      item.className = `projectzaman-toc-gap ${className}`;
+      item.hidden = true;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-label", label);
+      item.appendChild(button);
+      return { button, item };
+    }
+
+    const before = makeGap(
+      "projectzaman-toc-gap-before",
+      "Show earlier sections",
+    );
+    const after = makeGap(
+      "projectzaman-toc-gap-after",
+      "Show later sections",
+    );
+    list.insertBefore(before.item, entries[0].item);
+    list.insertBefore(after.item, list.querySelector(":scope > .overflow-end"));
+    toc.classList.add("projectzaman-toc-enhanced");
+    list.classList.add("projectzaman-toc-window");
+    list.scrollTop = 0;
+
+    const state = {
+      active: 0,
+      availableHeight: 0,
+      end: entries.length - 1,
+      frame: 0,
+      gapHeight: 26,
+      heights: entries.map(() => 24),
+      manualStart: null,
+      start: 0,
+    };
+
+    function rangeHeight(start, end) {
+      let height = start > 0 ? state.gapHeight : 0;
+      for (let index = start; index <= end; index += 1) {
+        height += state.heights[index];
+      }
+      if (end < entries.length - 1) height += state.gapHeight;
+      return height;
+    }
+
+    function currentHeadingIndex() {
+      if (
+        window.scrollY + window.innerHeight >=
+        document.documentElement.scrollHeight - 2
+      ) {
+        for (let index = entries.length - 1; index >= 0; index -= 1) {
+          if (entries[index].heading) return index;
+        }
+      }
+
+      const activationLine = Math.max(96, window.innerHeight * 0.28);
+      let active = 0;
+      for (let index = 0; index < entries.length; index += 1) {
+        const heading = entries[index].heading;
+        if (!heading) continue;
+        if (heading.getBoundingClientRect().top <= activationLine) active = index;
+        else break;
+      }
+      return active;
+    }
+
+    function automaticWindow(active) {
+      if (rangeHeight(0, entries.length - 1) <= state.availableHeight) {
+        return [0, entries.length - 1];
+      }
+
+      let start = active;
+      let end = active;
+      let leftBlocked = false;
+      let rightBlocked = false;
+
+      while (!leftBlocked || !rightBlocked) {
+        const beforeCount = active - start;
+        const afterCount = end - active;
+        const directions =
+          afterCount <= beforeCount + 1 ? ["right", "left"] : ["left", "right"];
+        let added = false;
+
+        for (const direction of directions) {
+          if (direction === "left" && !leftBlocked) {
+            if (start === 0) {
+              leftBlocked = true;
+            } else if (
+              rangeHeight(start - 1, end) <= state.availableHeight
+            ) {
+              start -= 1;
+              added = true;
+              break;
+            } else {
+              leftBlocked = true;
+            }
+          }
+          if (direction === "right" && !rightBlocked) {
+            if (end === entries.length - 1) {
+              rightBlocked = true;
+            } else if (
+              rangeHeight(start, end + 1) <= state.availableHeight
+            ) {
+              end += 1;
+              added = true;
+              break;
+            } else {
+              rightBlocked = true;
+            }
+          }
+        }
+
+        if (!added && leftBlocked && rightBlocked) break;
+      }
+      return [start, end];
+    }
+
+    function manualWindow(requestedStart) {
+      let start = Math.max(0, Math.min(requestedStart, entries.length - 1));
+      let end = start;
+      while (
+        end < entries.length - 1 &&
+        rangeHeight(start, end + 1) <= state.availableHeight
+      ) {
+        end += 1;
+      }
+      while (start > 0 && rangeHeight(start - 1, end) <= state.availableHeight) {
+        start -= 1;
+      }
+      return [start, end];
+    }
+
+    function renderWindow() {
+      state.active = currentHeadingIndex();
+      const [start, end] =
+        state.manualStart === null
+          ? automaticWindow(state.active)
+          : manualWindow(state.manualStart);
+      state.start = start;
+      state.end = end;
+
+      entries.forEach(({ item, link }, index) => {
+        const active = index === state.active;
+        item.hidden = index < start || index > end;
+        item.classList.toggle("projectzaman-toc-active", active);
+        item.classList.toggle(
+          "projectzaman-toc-near",
+          !active && Math.abs(index - state.active) <= 2,
+        );
+        if (active) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+      });
+
+      const earlier = start;
+      const later = entries.length - end - 1;
+      before.item.hidden = earlier === 0;
+      before.button.textContent = `\u2191 ${earlier} earlier`;
+      before.button.setAttribute(
+        "aria-label",
+        `Show ${earlier} earlier section${earlier === 1 ? "" : "s"}`,
+      );
+      after.item.hidden = later === 0;
+      after.button.textContent = `${later} later \u2193`;
+      after.button.setAttribute(
+        "aria-label",
+        `Show ${later} later section${later === 1 ? "" : "s"}`,
+      );
+      list.scrollTop = 0;
+    }
+
+    function fitWindow() {
+      renderWindow();
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        if (list.scrollHeight <= list.clientHeight + 1 || list.clientHeight <= 0) {
+          break;
+        }
+        const nextHeight = Math.max(
+          52,
+          Math.min(state.availableHeight - 1, list.clientHeight),
+        );
+        if (nextHeight >= state.availableHeight) break;
+        state.availableHeight = nextHeight;
+        renderWindow();
+      }
+    }
+
+    function measureAndRender() {
+      const outerHeight = (element) => {
+        const style = getComputedStyle(element);
+        return (
+          element.getBoundingClientRect().height +
+          (Number.parseFloat(style.marginTop) || 0) +
+          (Number.parseFloat(style.marginBottom) || 0)
+        );
+      };
+      for (const { item } of entries) item.hidden = false;
+      before.item.hidden = false;
+      after.item.hidden = false;
+      const viewportAllowance = Math.max(
+        120,
+        window.innerHeight - list.getBoundingClientRect().top - 24,
+      );
+      state.availableHeight = Math.max(
+        120,
+        Math.min(list.clientHeight || viewportAllowance, viewportAllowance),
+      );
+      state.heights = entries.map(({ item }) => Math.max(1, outerHeight(item)));
+      state.gapHeight = Math.max(
+        outerHeight(before.item),
+        outerHeight(after.item),
+        24,
+      );
+      fitWindow();
+    }
+
+    function schedule(mode = "scroll") {
+      cancelAnimationFrame(state.frame);
+      state.frame = requestAnimationFrame(() => {
+        if (mode === "measure") measureAndRender();
+        else fitWindow();
+      });
+    }
+
+    const onScroll = () => {
+      state.manualStart = null;
+      schedule();
+    };
+    const onResize = () => {
+      state.manualStart = null;
+      schedule("measure");
+    };
+    const onHashChange = () => {
+      state.manualStart = null;
+      schedule();
+    };
+    const header = toc.querySelector(":scope > .toc-header");
+    const onHeaderClick = () => {
+      const expandedBefore = header?.getAttribute("aria-expanded");
+      requestAnimationFrame(() => {
+        if (header?.getAttribute("aria-expanded") === expandedBefore) {
+          const collapsed = !header.classList.contains("collapsed");
+          header.classList.toggle("collapsed", collapsed);
+          header.setAttribute("aria-expanded", String(!collapsed));
+          list.classList.toggle("collapsed", collapsed);
+        }
+        schedule("measure");
+      });
+    };
+
+    before.button.addEventListener("click", () => {
+      const pageSize = Math.max(1, state.end - state.start);
+      state.manualStart = Math.max(0, state.start - pageSize);
+      fitWindow();
+      entries[state.start].link.focus({ preventScroll: true });
+    });
+    after.button.addEventListener("click", () => {
+      state.manualStart = Math.min(entries.length - 1, state.end + 1);
+      fitWindow();
+      entries[state.start].link.focus({ preventScroll: true });
+    });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize, { passive: true });
+    window.addEventListener("hashchange", onHashChange);
+    header?.addEventListener("click", onHeaderClick);
+
+    tocController = {
+      after: after.item,
+      before: before.item,
+      entries,
+      header,
+      list,
+      onHashChange,
+      onHeaderClick,
+      onResize,
+      onScroll,
+      state,
+      toc,
+    };
+    measureAndRender();
+    window.addCleanup?.(cleanupToc);
   }
 
   function markRedundantMetadata() {
@@ -582,9 +930,11 @@
 
   function initialize() {
     closeImageViewer(false);
+    initializeBrandTitle();
     markRedundantMetadata();
     initializeProperties();
     initializeImages();
+    initializeToc();
     initializeGraph();
     globalThis.__projectZamanMarkReady?.();
   }
