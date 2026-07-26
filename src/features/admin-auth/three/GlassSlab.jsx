@@ -64,7 +64,12 @@ const GlassSlab = memo(function GlassSlab({
       return undefined;
     }
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    const constrained = window.matchMedia(
+      '(max-width: 800px), (pointer: coarse), (hover: none)',
+    ).matches;
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, constrained ? 1 : 1.75),
+    );
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(0x000000, 0);
     renderer.domElement.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;display:block;';
@@ -128,8 +133,8 @@ const GlassSlab = memo(function GlassSlab({
           bevelThickness: 0.05,
           bevelSize: 0.05,
           bevelOffset: 0,
-          bevelSegments: 6,
-          curveSegments: 28,
+          bevelSegments: constrained ? 3 : 6,
+          curveSegments: constrained ? 16 : 28,
         },
       );
       geometry.center();

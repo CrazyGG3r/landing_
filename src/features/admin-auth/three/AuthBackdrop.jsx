@@ -111,7 +111,10 @@ const AuthBackdrop = memo(forwardRef(function AuthBackdrop({
     stateRef.current = { gl, program, uniforms };
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const constrained = window.matchMedia(
+        '(max-width: 800px), (pointer: coarse), (hover: none)',
+      ).matches;
+      const dpr = Math.min(window.devicePixelRatio || 1, constrained ? 1.25 : 2);
       const width = Math.max(1, Math.floor(window.innerWidth * dpr));
       const height = Math.max(1, Math.floor(window.innerHeight * dpr));
       if (canvas.width === width && canvas.height === height) return;

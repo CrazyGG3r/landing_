@@ -4,6 +4,7 @@
     { "source": "/admin", "destination": "/admin/", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index" }
+    { "source": "/admin/login", "destination": "/index" },
+    { "source": "/((?!api/|admin(?:/|$)).*)", "destination": "/index" }
   ]
 }

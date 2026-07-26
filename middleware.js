@@ -19,6 +19,13 @@ export const config = {
 
 const LOGIN_PATH = '/admin/login';
 
+function isDocumentRequest(request) {
+  const destination = request.headers.get('sec-fetch-dest');
+  if (destination === 'document' || destination === 'iframe') return true;
+
+  return (request.headers.get('accept') || '').includes('text/html');
+}
+
 function redirectToLogin(requestUrl, attemptedPath) {
   const login = new URL(LOGIN_PATH, requestUrl);
   // Preserve the deep link so sign-in drops you where you were headed.
@@ -36,6 +43,42 @@ function redirectToLogin(requestUrl, attemptedPath) {
   });
 }
 
+function unauthorizedAsset() {
+  return new Response('Authentication required.', {
+    status: 401,
+    headers: {
+      'Cache-Control': 'no-store, must-revalidate',
+      'Content-Type': 'text/plain; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+function rejectUnauthenticated(request, requestUrl, attemptedPath) {
+  return isDocumentRequest(request)
+    ? redirectToLogin(requestUrl, attemptedPath)
+    : unauthorizedAsset();
+}
+
+function authenticatedResponse(pathname) {
+  const response = next();
+  response.headers.set('Vary', 'Cookie');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+
+  // Mutable Quartz documents must not outlive an automated publication.
+  const isMutableDocument =
+    pathname.endsWith('/contentIndex.json') ||
+    pathname.endsWith('.html') ||
+    !pathname.split('/').at(-1)?.includes('.');
+  response.headers.set(
+    'Cache-Control',
+    isMutableDocument
+      ? 'private, no-store, must-revalidate'
+      : 'private, max-age=0, must-revalidate',
+  );
+  return response;
+}
+
 export default async function middleware(request) {
   const url = new URL(request.url);
   const { pathname } = url;
@@ -47,15 +90,17 @@ export default async function middleware(request) {
 
   const secret = process.env.AUTH_SECRET;
   // No signing secret means no trustworthy session — stay shut.
-  if (!secret) return redirectToLogin(url, pathname);
+  if (!secret) return rejectUnauthenticated(request, url, pathname);
 
   const token = readCookie(request, SESSION_COOKIE);
-  if (!token) return redirectToLogin(url, `${pathname}${url.search}`);
+  if (!token) {
+    return rejectUnauthenticated(request, url, `${pathname}${url.search}`);
+  }
 
   const claims = await verifySessionToken(token, secret);
   if (!claims || !isAllowedEmail(claims.email, process.env)) {
-    return redirectToLogin(url, `${pathname}${url.search}`);
+    return rejectUnauthenticated(request, url, `${pathname}${url.search}`);
   }
 
-  return next();
+  return authenticatedResponse(pathname);
 }

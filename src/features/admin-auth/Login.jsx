@@ -28,6 +28,7 @@ export default function Login() {
 
   const [cardBox, setCardBox] = useState({ width: 0, height: 0 });
   const [backdropReady, setBackdropReady] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [status, setStatus] = useState(clientId ? null : {
     tone: 'error',
     message: 'VITE_GOOGLE_CLIENT_ID is not set for this build, so sign-in is unavailable.',
@@ -35,6 +36,15 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   const target = safeTarget(new URLSearchParams(window.location.search).get('next'));
+
+  const openArchive = useCallback(() => {
+    // Unmount both WebGL canvases before Quartz starts. Two animation frames
+    // give their cleanup handlers time to release GPU resources on iOS.
+    setLeaving(true);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.location.replace(target));
+    });
+  }, [target]);
 
   // The glass slab can only be built once the backdrop canvas exists to sample.
   const setBackdropNode = useCallback((node) => {
@@ -77,13 +87,13 @@ export default function Login() {
     fetch('/api/auth/session', { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (!cancelled && data?.authenticated) window.location.replace(target);
+        if (!cancelled && data?.authenticated) openArchive();
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [target]);
+  }, [openArchive]);
 
   const handleCredential = useCallback(async (credential) => {
     if (!credential) return;
@@ -101,7 +111,7 @@ export default function Login() {
 
       if (response.ok) {
         setStatus({ tone: 'busy', message: 'Access granted — opening the archive…' });
-        window.location.replace(target);
+        openArchive();
         return;
       }
 
@@ -120,7 +130,7 @@ export default function Login() {
     } finally {
       setBusy(false);
     }
-  }, [target]);
+  }, [openArchive]);
 
   const handleLoadError = useCallback((message) => {
     setStatus({ tone: 'error', message });
@@ -128,11 +138,13 @@ export default function Login() {
 
   return (
     <main className="zaman-auth">
-      <WebGLErrorBoundary>
-        <AuthBackdrop ref={setBackdropNode} pointerRef={pointerRef} />
-      </WebGLErrorBoundary>
+      {!leaving && (
+        <WebGLErrorBoundary>
+          <AuthBackdrop ref={setBackdropNode} pointerRef={pointerRef} />
+        </WebGLErrorBoundary>
+      )}
 
-      {backdropReady && cardBox.width > 0 && (
+      {!leaving && backdropReady && cardBox.width > 0 && (
         <WebGLErrorBoundary>
           <GlassSlab
             backdropRef={backdropRef}
