@@ -339,6 +339,16 @@
     if (!open && restoreFocus) launcher?.focus({ preventScroll: true });
   }
 
+  function setGraphLauncherLoading(launcher, loading) {
+    launcher.disabled = loading;
+    launcher.classList.toggle("is-loading", loading);
+    launcher.setAttribute("aria-busy", String(loading));
+    launcher.setAttribute(
+      "aria-label",
+      loading ? "Loading graph view" : "Open graph view",
+    );
+  }
+
   function closeGraph(outer, launcher, nativeLauncher, restoreFocus = false) {
     if (outer.classList.contains("active")) nativeLauncher.click();
     requestAnimationFrame(() => {
@@ -424,6 +434,54 @@
     }
   }
 
+  function showGraphFailure(container, outer, launcher, nativeLauncher) {
+    setGraphLauncherLoading(launcher, false);
+    installGraphChrome(container, outer, launcher, nativeLauncher);
+    const status = container.querySelector(".projectzaman-graph-status");
+    if (status) {
+      status.classList.remove("is-pressing", "has-selection");
+      status.textContent =
+        "Interactive graph is unavailable here. Search and navigation still work.";
+    }
+    setGraphOpen(outer, launcher, true);
+  }
+
+  function openAdaptiveGraph(container, outer, launcher, nativeLauncher) {
+    const state = document.documentElement.dataset.projectzamanGraphRuntime;
+    if (state === "ready" || !state) {
+      nativeLauncher.click();
+      requestAnimationFrame(() => setGraphOpen(outer, launcher, true));
+      return;
+    }
+    if (state === "failed") {
+      showGraphFailure(container, outer, launcher, nativeLauncher);
+      return;
+    }
+
+    setGraphLauncherLoading(launcher, true);
+    const status = container.querySelector(".projectzaman-graph-status");
+    if (status) status.textContent = "Loading the interactive graph…";
+
+    const onReady = () => {
+      window.removeEventListener("projectzaman:graph-runtime-failed", onFailed);
+      setGraphLauncherLoading(launcher, false);
+      nativeLauncher.click();
+      requestAnimationFrame(() => setGraphOpen(outer, launcher, true));
+    };
+    const onFailed = () => {
+      window.removeEventListener("projectzaman:graph-runtime-ready", onReady);
+      showGraphFailure(container, outer, launcher, nativeLauncher);
+    };
+    window.addEventListener("projectzaman:graph-runtime-ready", onReady, {
+      once: true,
+    });
+    window.addEventListener("projectzaman:graph-runtime-failed", onFailed, {
+      once: true,
+    });
+    globalThis.__projectZamanGraphLoad?.();
+    window.dispatchEvent(new CustomEvent("projectzaman:graph-request"));
+  }
+
   function activeGraphStatus() {
     return document.querySelector(
       ".global-graph-outer.active .projectzaman-graph-status",
@@ -459,8 +517,7 @@
     launcher.innerHTML = graphIcon;
     launcher.addEventListener("click", (event) => {
       event.stopPropagation();
-      nativeLauncher.click();
-      requestAnimationFrame(() => setGraphOpen(outer, launcher, true));
+      openAdaptiveGraph(container, outer, launcher, nativeLauncher);
     });
     slot.appendChild(launcher);
     toolbar.appendChild(slot);
@@ -605,6 +662,17 @@
     const text = document.createElement("span");
     text.textContent = "Opening page…";
     status.appendChild(text);
+  });
+
+  window.addEventListener("projectzaman:graph-runtime-failed", () => {
+    if (!mobileQuery.matches) return;
+    const graph = document.querySelector(".sidebar.right .graph");
+    const outer = graph?.querySelector(".global-graph-outer");
+    const container = outer?.querySelector(".global-graph-container");
+    const launcher = document.querySelector(".projectzaman-mobile-graph-button");
+    const nativeLauncher = graph?.querySelector(".global-graph-icon");
+    if (!outer || !container || !launcher || !nativeLauncher) return;
+    showGraphFailure(container, outer, launcher, nativeLauncher);
   });
 
   document.addEventListener("nav", initialize);

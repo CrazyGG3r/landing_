@@ -270,6 +270,15 @@ html.projectzaman-image-open body {
   width: 1.1rem;
 }
 
+.projectzaman-mobile-graph-button.is-loading svg {
+  animation: projectzaman-graph-loading 900ms linear infinite;
+}
+
+.projectzaman-mobile-graph-button:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
 .projectzaman-graph-close {
   background: color-mix(in srgb, var(--light) 90%, transparent);
   border-radius: 999px;
@@ -473,6 +482,12 @@ html.projectzaman-graph-open body {
   }
 }
 
+@keyframes projectzaman-graph-loading {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-contrast: more) {
   :root:root,
   :root:root[saved-theme="dark"] {
@@ -485,6 +500,10 @@ html.projectzaman-graph-open body {
   .projectzaman-graph-close,
   .projectzaman-image-media {
     transition: none;
+  }
+
+  .projectzaman-mobile-graph-button.is-loading svg {
+    animation: none;
   }
 
   .projectzaman-graph-status.is-pressing::after {
