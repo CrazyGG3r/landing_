@@ -2,7 +2,11 @@
   if (globalThis.__projectZamanUiInstalled) return;
   globalThis.__projectZamanUiInstalled = true;
 
-  const mobileQuery = window.matchMedia("(max-width: 800px)");
+  const mobileQuery = window.matchMedia(
+    "(max-width: 800px), (pointer: coarse), (hover: none)",
+  );
+  const isConstrained = () =>
+    globalThis.__projectZamanConstrained === true || mobileQuery.matches;
   const graphIcon = `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
       <circle cx="6" cy="6" r="2.2"></circle>
@@ -57,7 +61,7 @@
     for (const details of document.querySelectorAll("details.note-properties")) {
       if (details.dataset.projectzamanMobileInitialized) continue;
       details.dataset.projectzamanMobileInitialized = "true";
-      if (mobileQuery.matches) details.open = false;
+      if (isConstrained()) details.open = false;
     }
   }
 
@@ -556,6 +560,10 @@
       );
     }
     nativeLauncher.__projectZamanSyncHandler = () => {
+      if (isConstrained()) {
+        globalThis.__projectZamanGraphLoad?.();
+        window.dispatchEvent(new CustomEvent("projectzaman:graph-request"));
+      }
       requestAnimationFrame(() => {
         const open = outer.classList.contains("active");
         outer.setAttribute("aria-hidden", String(!open));
@@ -578,6 +586,7 @@
     initializeProperties();
     initializeImages();
     initializeGraph();
+    globalThis.__projectZamanMarkReady?.();
   }
 
   document.addEventListener("click", (event) => {
@@ -665,7 +674,7 @@
   });
 
   window.addEventListener("projectzaman:graph-runtime-failed", () => {
-    if (!mobileQuery.matches) return;
+    if (!isConstrained()) return;
     const graph = document.querySelector(".sidebar.right .graph");
     const outer = graph?.querySelector(".global-graph-outer");
     const container = outer?.querySelector(".global-graph-container");

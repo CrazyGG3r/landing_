@@ -48,6 +48,21 @@
   z-index: 1;
 }
 
+html[data-projectzaman-mode="constrained"] .center::before {
+  display: none;
+}
+
+.search-button.projectzaman-loading,
+.explorer-toggle.projectzaman-loading {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.search-button.projectzaman-loading svg,
+.explorer-toggle.projectzaman-loading svg {
+  animation: projectzaman-graph-loading 900ms linear infinite;
+}
+
 .note-properties-tags {
   align-items: flex-start;
   display: inline-flex;
