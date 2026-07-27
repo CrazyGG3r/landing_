@@ -26,6 +26,307 @@
 
   let imageViewer = null;
   let tocController = null;
+  let historyCalendar = null;
+  let historyManifestPromise = null;
+  let modifiedDateController = null;
+
+  const historyManifestUrl = "/admin/static/projectzaman-history.json";
+
+  function loadHistoryManifest() {
+    if (!historyManifestPromise) {
+      historyManifestPromise = fetch(historyManifestUrl, {
+        credentials: "same-origin",
+        cache: "force-cache",
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`History request failed: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((manifest) => {
+          if (manifest?.version !== 1 || !manifest.records) {
+            throw new Error("History manifest is invalid");
+          }
+          return manifest;
+        })
+        .catch((error) => {
+          historyManifestPromise = null;
+          throw error;
+        });
+    }
+    return historyManifestPromise;
+  }
+
+  function historyDateLabel(day) {
+    return new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${day}T12:00:00Z`));
+  }
+
+  function cancelHistoryClose() {
+    if (!historyCalendar?.closeTimer) return;
+    clearTimeout(historyCalendar.closeTimer);
+    historyCalendar.closeTimer = 0;
+  }
+
+  function closeHistoryCalendar({ restoreFocus = false } = {}) {
+    if (!historyCalendar) return;
+    cancelHistoryClose();
+    historyCalendar.pendingAnchor = null;
+    if (historyCalendar.root.hidden) return;
+    const anchor = historyCalendar.anchor;
+    historyCalendar.root.hidden = true;
+    historyCalendar.anchor = null;
+    historyCalendar.record = null;
+    anchor?.setAttribute("aria-expanded", "false");
+    if (restoreFocus && anchor?.isConnected) anchor.focus();
+  }
+
+  function scheduleHistoryClose() {
+    cancelHistoryClose();
+    if (!historyCalendar || isConstrained()) return;
+    historyCalendar.closeTimer = window.setTimeout(
+      () => closeHistoryCalendar(),
+      180,
+    );
+  }
+
+  function positionHistoryCalendar() {
+    if (!historyCalendar?.anchor || historyCalendar.root.hidden) return;
+    const { root, anchor } = historyCalendar;
+    const anchorBox = anchor.getBoundingClientRect();
+    const panelBox = root.getBoundingClientRect();
+    const margin = 8;
+    let left = anchorBox.left;
+    let top = anchorBox.bottom + margin;
+    if (left + panelBox.width > window.innerWidth - margin) {
+      left = window.innerWidth - panelBox.width - margin;
+    }
+    if (top + panelBox.height > window.innerHeight - margin) {
+      top = anchorBox.top - panelBox.height - margin;
+    }
+    root.style.left = `${Math.max(margin, left)}px`;
+    root.style.top = `${Math.max(margin, top)}px`;
+  }
+
+  function renderHistoryCalendar() {
+    const calendar = historyCalendar;
+    if (!calendar?.record) return;
+    const { record, month } = calendar;
+    const [year, monthNumber] = month.split("-").map(Number);
+    const first = new Date(Date.UTC(year, monthNumber - 1, 1));
+    const firstCell = new Date(first);
+    firstCell.setUTCDate(firstCell.getUTCDate() - first.getUTCDay());
+    const days = new Map(record.days.map((day) => [day.date, day]));
+    const availableMonths = record.days.map(({ date }) => date.slice(0, 7));
+    const minimumMonth = availableMonths.at(-1);
+    const maximumMonth = availableMonths[0];
+
+    calendar.monthLabel.textContent = new Intl.DateTimeFormat(undefined, {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(first);
+    calendar.previous.disabled = month <= minimumMonth;
+    calendar.next.disabled = month >= maximumMonth;
+    calendar.days.replaceChildren();
+
+    for (let offset = 0; offset < 42; offset += 1) {
+      const current = new Date(firstCell);
+      current.setUTCDate(firstCell.getUTCDate() + offset);
+      const dayKey = current.toISOString().slice(0, 10);
+      const change = days.get(dayKey);
+      const cell = document.createElement("span");
+      cell.className = "projectzaman-history-day";
+      cell.textContent = String(current.getUTCDate());
+      if (current.getUTCMonth() !== monthNumber - 1) {
+        cell.classList.add("is-outside");
+      }
+      if (change) {
+        cell.classList.add("has-change");
+        const detail =
+          record.kind === "folder"
+            ? `${change.changed} of ${record.totalPages} pages changed`
+            : "page changed";
+        cell.classList.add(
+          record.kind === "folder" && change.all ? "is-all" : "is-partial",
+        );
+        cell.title = `${historyDateLabel(dayKey)}: ${detail}`;
+        cell.setAttribute("role", "img");
+        cell.setAttribute("aria-label", cell.title);
+      } else {
+        cell.setAttribute("aria-hidden", "true");
+      }
+      calendar.days.appendChild(cell);
+    }
+
+    const latest = historyDateLabel(record.days[0].date);
+    calendar.status.textContent =
+      record.kind === "folder"
+        ? `${record.totalPages} pages · latest change ${latest}. Filled dates mean all pages changed; outlined dates mean some changed.`
+        : `Latest change ${latest}. Marked dates show this page's Git history.`;
+    requestAnimationFrame(positionHistoryCalendar);
+  }
+
+  function shiftHistoryMonth(amount) {
+    if (!historyCalendar?.record) return;
+    const [year, month] = historyCalendar.month.split("-").map(Number);
+    const shifted = new Date(Date.UTC(year, month - 1 + amount, 1));
+    historyCalendar.month = shifted.toISOString().slice(0, 7);
+    renderHistoryCalendar();
+  }
+
+  function ensureHistoryCalendar() {
+    if (historyCalendar) return historyCalendar;
+    const root = document.createElement("section");
+    root.className = "projectzaman-history-calendar";
+    root.hidden = true;
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-label", "Modification calendar");
+
+    const header = document.createElement("div");
+    header.className = "projectzaman-history-header";
+    const previous = document.createElement("button");
+    previous.type = "button";
+    previous.textContent = "‹";
+    previous.setAttribute("aria-label", "Previous month");
+    const monthLabel = document.createElement("strong");
+    monthLabel.setAttribute("aria-live", "polite");
+    const next = document.createElement("button");
+    next.type = "button";
+    next.textContent = "›";
+    next.setAttribute("aria-label", "Next month");
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.setAttribute("aria-label", "Close modification calendar");
+    header.append(previous, monthLabel, next, close);
+
+    const weekdays = document.createElement("div");
+    weekdays.className = "projectzaman-history-weekdays";
+    for (const weekday of ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]) {
+      const label = document.createElement("span");
+      label.textContent = weekday;
+      weekdays.appendChild(label);
+    }
+    const days = document.createElement("div");
+    days.className = "projectzaman-history-days";
+    const status = document.createElement("p");
+    status.className = "projectzaman-history-status";
+    root.append(header, weekdays, days, status);
+    document.body.appendChild(root);
+
+    historyCalendar = {
+      anchor: null,
+      closeTimer: 0,
+      days,
+      month: "",
+      monthLabel,
+      next,
+      pendingAnchor: null,
+      previous,
+      record: null,
+      root,
+      status,
+    };
+    previous.addEventListener("click", () => shiftHistoryMonth(-1));
+    next.addEventListener("click", () => shiftHistoryMonth(1));
+    close.addEventListener("click", () =>
+      closeHistoryCalendar({ restoreFocus: true }),
+    );
+    root.addEventListener("mouseenter", cancelHistoryClose);
+    root.addEventListener("mouseleave", scheduleHistoryClose);
+    window.addEventListener("resize", positionHistoryCalendar, { passive: true });
+    window.addEventListener("scroll", positionHistoryCalendar, {
+      capture: true,
+      passive: true,
+    });
+    return historyCalendar;
+  }
+
+  async function openHistoryCalendar(anchor) {
+    const calendar = ensureHistoryCalendar();
+    cancelHistoryClose();
+    const requestAnchor = anchor;
+    calendar.pendingAnchor = requestAnchor;
+    anchor.classList.add("projectzaman-loading");
+    try {
+      const manifest = await loadHistoryManifest();
+      if (!requestAnchor.isConnected || calendar.pendingAnchor !== requestAnchor) {
+        return;
+      }
+      const record =
+        manifest.records[requestAnchor.dataset.projectzamanHistoryKey];
+      if (!record) throw new Error("No history exists for this page");
+      if (calendar.anchor && calendar.anchor !== requestAnchor) {
+        calendar.anchor.setAttribute("aria-expanded", "false");
+      }
+      calendar.anchor = requestAnchor;
+      calendar.pendingAnchor = null;
+      calendar.record = record;
+      calendar.month = record.days[0].date.slice(0, 7);
+      calendar.root.hidden = false;
+      requestAnchor.setAttribute("aria-expanded", "true");
+      renderHistoryCalendar();
+    } catch {
+      requestAnchor.title = "Modification history could not load. Activate to retry.";
+    } finally {
+      if (calendar.pendingAnchor === requestAnchor) {
+        calendar.pendingAnchor = null;
+      }
+      requestAnchor.classList.remove("projectzaman-loading");
+    }
+  }
+
+  function cleanupModifiedDate() {
+    closeHistoryCalendar();
+    if (!modifiedDateController) return;
+    const { anchor, handlers } = modifiedDateController;
+    for (const [type, handler] of Object.entries(handlers)) {
+      anchor.removeEventListener(type, handler);
+    }
+    modifiedDateController = null;
+  }
+
+  function initializeModifiedDate() {
+    cleanupModifiedDate();
+    const anchor = document.querySelector("time.projectzaman-modified-date");
+    if (!anchor) return;
+    const handlers = {
+      mouseenter: () => {
+        if (!isConstrained()) openHistoryCalendar(anchor);
+      },
+      mouseleave: scheduleHistoryClose,
+      focus: () => {
+        if (!isConstrained()) openHistoryCalendar(anchor);
+      },
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (
+          isConstrained() &&
+          historyCalendar?.anchor === anchor &&
+          !historyCalendar.root.hidden
+        ) {
+          closeHistoryCalendar();
+        } else {
+          openHistoryCalendar(anchor);
+        }
+      },
+      keydown: (event) => {
+        if (!["Enter", " ", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault();
+        openHistoryCalendar(anchor);
+      },
+    };
+    for (const [type, handler] of Object.entries(handlers)) {
+      anchor.addEventListener(type, handler);
+    }
+    modifiedDateController = { anchor, handlers };
+  }
 
   function normalizedText(value) {
     return value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
@@ -934,12 +1235,21 @@
     markRedundantMetadata();
     initializeProperties();
     initializeImages();
+    initializeModifiedDate();
     initializeToc();
     initializeGraph();
     globalThis.__projectZamanMarkReady?.();
   }
 
   document.addEventListener("click", (event) => {
+    if (
+      historyCalendar &&
+      !historyCalendar.root.hidden &&
+      !historyCalendar.root.contains(event.target) &&
+      event.target !== historyCalendar.anchor
+    ) {
+      closeHistoryCalendar();
+    }
     const image = event.target.closest?.("img.projectzaman-viewable-image");
     if (!image || !isViewableImage(image)) return;
     event.preventDefault();
@@ -968,6 +1278,11 @@
     }
 
     if (event.key !== "Escape") return;
+    if (historyCalendar && !historyCalendar.root.hidden) {
+      event.preventDefault();
+      closeHistoryCalendar({ restoreFocus: true });
+      return;
+    }
     if (imageViewer && !imageViewer.overlay.hidden) {
       event.preventDefault();
       closeImageViewer(true);
