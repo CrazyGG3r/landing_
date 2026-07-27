@@ -553,13 +553,13 @@
       const earlier = start;
       const later = entries.length - end - 1;
       before.item.hidden = earlier === 0;
-      before.button.textContent = `\u2191 ${earlier} earlier`;
+      before.button.textContent = `${earlier} more`;
       before.button.setAttribute(
         "aria-label",
         `Show ${earlier} earlier section${earlier === 1 ? "" : "s"}`,
       );
       after.item.hidden = later === 0;
-      after.button.textContent = `${later} later \u2193`;
+      after.button.textContent = `${later} more`;
       after.button.setAttribute(
         "aria-label",
         `Show ${later} later section${later === 1 ? "" : "s"}`,
