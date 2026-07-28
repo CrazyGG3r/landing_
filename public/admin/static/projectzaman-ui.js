@@ -23,14 +23,28 @@
       <path d="M4 4v6h6M20 20v-6h-6"></path>
       <path d="M5.5 15a7.5 7.5 0 0 0 12.2 2.7L20 15M4 9l2.3-2.7A7.5 7.5 0 0 1 18.5 9"></path>
     </svg>`;
+  const updatesIcon = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+      <path d="M4 17V7M4 17h10M4 17l4-4 3 2 7-8"></path>
+      <path d="M15 7h3v3"></path>
+    </svg>`;
+  const arrowIcon = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="m9 18 6-6-6-6"></path>
+    </svg>`;
 
   let imageViewer = null;
   let tocController = null;
   let historyCalendar = null;
   let historyManifestPromise = null;
   let modifiedDateController = null;
+  let updatesDrawer = null;
+  let browserTabsController = null;
+  let galleryManifestPromise = null;
+  let galleryController = null;
 
   const historyManifestUrl = "/admin/static/projectzaman-history.json";
+  const galleryManifestUrl = "/admin/static/projectzaman-gallery.json";
 
   function loadHistoryManifest() {
     if (!historyManifestPromise) {
@@ -56,6 +70,36 @@
         });
     }
     return historyManifestPromise;
+  }
+
+  function loadGalleryManifest() {
+    if (!galleryManifestPromise) {
+      galleryManifestPromise = fetch(galleryManifestUrl, {
+        credentials: "same-origin",
+        cache: "force-cache",
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(`Gallery request failed: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then((manifest) => {
+          if (
+            manifest?.version !== 1 ||
+            !Array.isArray(manifest.images) ||
+            manifest.images.length === 0
+          ) {
+            throw new Error("Gallery manifest is invalid");
+          }
+          return manifest;
+        })
+        .catch((error) => {
+          galleryManifestPromise = null;
+          throw error;
+        });
+    }
+    return galleryManifestPromise;
   }
 
   function historyDateLabel(day) {
@@ -239,7 +283,9 @@
     );
     root.addEventListener("mouseenter", cancelHistoryClose);
     root.addEventListener("mouseleave", scheduleHistoryClose);
-    window.addEventListener("resize", positionHistoryCalendar, { passive: true });
+    window.addEventListener("resize", positionHistoryCalendar, {
+      passive: true,
+    });
     window.addEventListener("scroll", positionHistoryCalendar, {
       capture: true,
       passive: true,
@@ -255,7 +301,10 @@
     anchor.classList.add("projectzaman-loading");
     try {
       const manifest = await loadHistoryManifest();
-      if (!requestAnchor.isConnected || calendar.pendingAnchor !== requestAnchor) {
+      if (
+        !requestAnchor.isConnected ||
+        calendar.pendingAnchor !== requestAnchor
+      ) {
         return;
       }
       const record =
@@ -272,7 +321,8 @@
       requestAnchor.setAttribute("aria-expanded", "true");
       renderHistoryCalendar();
     } catch {
-      requestAnchor.title = "Modification history could not load. Activate to retry.";
+      requestAnchor.title =
+        "Modification history could not load. Activate to retry.";
     } finally {
       if (calendar.pendingAnchor === requestAnchor) {
         calendar.pendingAnchor = null;
@@ -328,6 +378,349 @@
     modifiedDateController = { anchor, handlers };
   }
 
+  function karachiDateKey(value) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone: "Asia/Karachi",
+      year: "numeric",
+    }).formatToParts(value);
+    const values = Object.fromEntries(
+      parts
+        .filter(({ type }) => type !== "literal")
+        .map(({ type, value }) => [type, value]),
+    );
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+
+  function currentWeek() {
+    const end = karachiDateKey(new Date());
+    const endDate = new Date(`${end}T12:00:00Z`);
+    const day = endDate.getUTCDay();
+    const offset = day === 0 ? 6 : day - 1;
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(startDate.getUTCDate() - offset);
+    return { end, start: startDate.toISOString().slice(0, 10) };
+  }
+
+  function ensureUpdatesDrawer() {
+    if (updatesDrawer?.root.isConnected) return updatesDrawer;
+
+    const root = document.createElement("div");
+    root.className = "projectzaman-updates-drawer";
+    root.hidden = true;
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-labelledby", "projectzaman-updates-title");
+
+    const backdrop = document.createElement("button");
+    backdrop.type = "button";
+    backdrop.className = "projectzaman-updates-backdrop";
+    backdrop.setAttribute("aria-label", "Close recent updates");
+
+    const panel = document.createElement("section");
+    panel.className = "projectzaman-updates-panel";
+
+    const header = document.createElement("header");
+    header.className = "projectzaman-updates-header";
+    const headingGroup = document.createElement("div");
+    const eyebrow = document.createElement("span");
+    eyebrow.textContent = "Project Zaman";
+    const title = document.createElement("h2");
+    title.id = "projectzaman-updates-title";
+    title.textContent = "Recently updated";
+    headingGroup.append(eyebrow, title);
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "projectzaman-updates-close";
+    close.setAttribute("aria-label", "Close recent updates");
+    close.innerHTML = closeIcon;
+    header.append(headingGroup, close);
+
+    const summary = document.createElement("p");
+    summary.className = "projectzaman-updates-summary";
+    const content = document.createElement("div");
+    content.className = "projectzaman-updates-content";
+    content.setAttribute("aria-live", "polite");
+    panel.append(header, summary, content);
+    root.append(backdrop, panel);
+    document.body.appendChild(root);
+
+    close.addEventListener("click", () => closeUpdatesDrawer(true));
+    backdrop.addEventListener("click", () => closeUpdatesDrawer(true));
+    updatesDrawer = { close, content, launcher: null, panel, root, summary };
+    return updatesDrawer;
+  }
+
+  function closeUpdatesDrawer(restoreFocus = false) {
+    if (!updatesDrawer || updatesDrawer.root.hidden) return;
+    const launcher = updatesDrawer.launcher;
+    updatesDrawer.root.classList.remove("is-open");
+    updatesDrawer.root.hidden = true;
+    launcher?.setAttribute("aria-expanded", "false");
+    document.documentElement.classList.remove("projectzaman-updates-open");
+    const quartzRoot = document.querySelector("#quartz-root");
+    if (quartzRoot) quartzRoot.inert = false;
+    if (restoreFocus && launcher?.isConnected)
+      launcher.focus({ preventScroll: true });
+  }
+
+  async function openUpdatesDrawer(launcher) {
+    closeImageViewer(false);
+    closeHistoryCalendar();
+    const drawer = ensureUpdatesDrawer();
+    drawer.launcher = launcher;
+    drawer.root.hidden = false;
+    launcher.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("projectzaman-updates-open");
+    const quartzRoot = document.querySelector("#quartz-root");
+    if (quartzRoot) quartzRoot.inert = true;
+    requestAnimationFrame(() => {
+      drawer.root.classList.add("is-open");
+      drawer.close.focus({ preventScroll: true });
+    });
+
+    drawer.summary.textContent = "Loading this week’s page changes…";
+    drawer.content.replaceChildren();
+    try {
+      const manifest = await loadHistoryManifest();
+      if (drawer.root.hidden) return;
+      const week = currentWeek();
+      const records = Object.entries(manifest.records)
+        .filter(([, record]) => record.kind === "page")
+        .map(([slug, record]) => ({
+          day: karachiDateKey(new Date(record.latest)),
+          latest: record.latest,
+          slug,
+          title: record.title,
+        }))
+        .filter(({ day }) => day >= week.start && day <= week.end)
+        .sort(
+          (a, b) =>
+            b.latest.localeCompare(a.latest) || a.title.localeCompare(b.title),
+        );
+
+      drawer.summary.textContent = `${historyDateLabel(week.start)}–${historyDateLabel(week.end)} · ${records.length} ${records.length === 1 ? "page" : "pages"}`;
+      if (records.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "projectzaman-updates-empty";
+        empty.textContent = "No pages have been updated this week yet.";
+        drawer.content.appendChild(empty);
+        return;
+      }
+
+      let activeDay = "";
+      let list = null;
+      for (const record of records) {
+        if (record.day !== activeDay) {
+          activeDay = record.day;
+          const group = document.createElement("section");
+          group.className = "projectzaman-updates-day";
+          const heading = document.createElement("h3");
+          heading.textContent = historyDateLabel(activeDay);
+          list = document.createElement("ul");
+          group.append(heading, list);
+          drawer.content.appendChild(group);
+        }
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        link.href = `/admin/${record.slug}`;
+        link.textContent = record.title;
+        link.addEventListener("click", () => closeUpdatesDrawer());
+        item.appendChild(link);
+        list.appendChild(item);
+      }
+    } catch {
+      drawer.summary.textContent =
+        "Recent updates are temporarily unavailable.";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", () => openUpdatesDrawer(launcher));
+      drawer.content.replaceChildren(retry);
+    }
+  }
+
+  function initializeRightPanel() {
+    const sidebar = document.querySelector(".sidebar.right");
+    if (!sidebar) return;
+    const toc = sidebar.querySelector(":scope > .toc");
+    const graph = sidebar.querySelector(":scope > .graph");
+    if (toc) sidebar.prepend(toc);
+    if (graph) toc ? toc.after(graph) : sidebar.prepend(graph);
+
+    sidebar.querySelector(":scope > .projectzaman-updates-card")?.remove();
+    const card = document.createElement("section");
+    card.className = "projectzaman-updates-card";
+    const launcher = document.createElement("button");
+    launcher.type = "button";
+    launcher.className = "projectzaman-updates-launcher";
+    launcher.setAttribute("aria-haspopup", "dialog");
+    launcher.setAttribute("aria-expanded", "false");
+    launcher.innerHTML = `<span class="projectzaman-updates-icon">${updatesIcon}</span><span><strong>Recent updates</strong><small>This week</small></span><span class="projectzaman-updates-arrow">${arrowIcon}</span>`;
+    launcher.addEventListener("click", () => openUpdatesDrawer(launcher));
+    card.appendChild(launcher);
+    if (graph) graph.after(card);
+    else if (toc) toc.after(card);
+    else sidebar.prepend(card);
+  }
+
+  function closeGallery({ restoreFocus = false } = {}) {
+    if (!galleryController) return;
+    const { explorerTab, galleryTab, panel } = galleryController;
+    document.documentElement.classList.remove("projectzaman-gallery-mode");
+    explorerTab.setAttribute("aria-selected", "true");
+    explorerTab.tabIndex = 0;
+    galleryTab.setAttribute("aria-selected", "false");
+    galleryTab.tabIndex = -1;
+    panel?.remove();
+    if (restoreFocus && explorerTab.isConnected) explorerTab.focus();
+    galleryController.panel = null;
+  }
+
+  async function openGallery() {
+    if (!galleryController) return;
+    const { explorerTab, galleryTab } = galleryController;
+    explorerTab.setAttribute("aria-selected", "false");
+    explorerTab.tabIndex = -1;
+    galleryTab.setAttribute("aria-selected", "true");
+    galleryTab.tabIndex = 0;
+    document.documentElement.classList.add("projectzaman-gallery-mode");
+
+    const center = document.querySelector(".center");
+    if (!center) return;
+    galleryController.panel?.remove();
+    const panel = document.createElement("section");
+    panel.className = "projectzaman-gallery-panel";
+    panel.setAttribute("aria-labelledby", "projectzaman-gallery-title");
+    const header = document.createElement("header");
+    const titleGroup = document.createElement("div");
+    const eyebrow = document.createElement("span");
+    eyebrow.textContent = "Project Zaman archive";
+    const title = document.createElement("h1");
+    title.id = "projectzaman-gallery-title";
+    title.textContent = "Image Gallery";
+    const status = document.createElement("p");
+    status.textContent = "Preparing optimized previews…";
+    titleGroup.append(eyebrow, title, status);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "Back to page";
+    close.addEventListener("click", () => closeGallery({ restoreFocus: true }));
+    header.append(titleGroup, close);
+    const grid = document.createElement("div");
+    grid.className = "projectzaman-gallery-grid";
+    panel.append(header, grid);
+    center.appendChild(panel);
+    galleryController.panel = panel;
+
+    try {
+      const manifest = await loadGalleryManifest();
+      if (galleryController?.panel !== panel || !panel.isConnected) return;
+      status.textContent = `${manifest.images.length} optimized previews · originals load only when opened`;
+      const fragment = document.createDocumentFragment();
+      for (const entry of manifest.images) {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "projectzaman-gallery-card";
+        card.setAttribute("aria-label", `Open ${entry.title}`);
+        const image = document.createElement("img");
+        image.className = "projectzaman-viewable-image";
+        image.src = entry.thumbnail;
+        image.alt = entry.title;
+        image.loading = "lazy";
+        image.decoding = "async";
+        image.dataset.projectzamanFullSrc = entry.full;
+        image.setAttribute("aria-hidden", "true");
+        const label = document.createElement("span");
+        label.textContent = entry.title;
+        card.append(image, label);
+        card.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openImageViewer(image);
+        });
+        fragment.appendChild(card);
+      }
+      grid.replaceChildren(fragment);
+    } catch {
+      status.textContent = "The image gallery could not load.";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", openGallery);
+      grid.replaceChildren(retry);
+    }
+  }
+
+  function initializeBrowserTabs() {
+    document.documentElement.classList.remove("projectzaman-gallery-mode");
+    document.querySelector(".projectzaman-gallery-panel")?.remove();
+    browserTabsController = null;
+    galleryController = null;
+
+    const explorer = document.querySelector(".sidebar.left .explorer");
+    if (!explorer) return;
+    for (const existing of explorer.querySelectorAll(
+      ":scope > .projectzaman-browser-tabs",
+    )) {
+      existing.remove();
+    }
+    explorer.classList.add("projectzaman-browser-enhanced");
+    const tablist = document.createElement("div");
+    tablist.className = "projectzaman-browser-tabs";
+    tablist.setAttribute("role", "tablist");
+    tablist.setAttribute("aria-label", "Project Zaman browser");
+
+    const explorerTab = document.createElement("button");
+    explorerTab.type = "button";
+    explorerTab.className = "projectzaman-browser-tab";
+    explorerTab.textContent = "Explorer";
+    explorerTab.setAttribute("role", "tab");
+    explorerTab.setAttribute("aria-selected", "true");
+    const explorerContent = explorer.querySelector(
+      ":scope > .explorer-content",
+    );
+    const mobileExplorerToggle = explorer.querySelector(
+      ":scope > .mobile-explorer.explorer-toggle",
+    );
+    if (explorerContent?.id)
+      explorerTab.setAttribute("aria-controls", explorerContent.id);
+
+    const galleryTab = document.createElement("button");
+    galleryTab.type = "button";
+    galleryTab.className = "projectzaman-browser-tab";
+    galleryTab.textContent = "Gallery";
+    galleryTab.setAttribute("role", "tab");
+    galleryTab.setAttribute("aria-selected", "false");
+    galleryTab.tabIndex = -1;
+    tablist.append(explorerTab, galleryTab);
+    explorer.prepend(tablist);
+
+    galleryController = { explorerTab, galleryTab, panel: null };
+    browserTabsController = { explorer, tablist };
+    explorerTab.addEventListener("click", () => {
+      closeGallery();
+      if (
+        isConstrained() &&
+        explorerContent?.getAttribute("aria-expanded") !== "true"
+      ) {
+        mobileExplorerToggle?.click();
+      }
+    });
+    galleryTab.addEventListener("click", openGallery);
+    tablist.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
+        return;
+      event.preventDefault();
+      const useGallery = event.key === "ArrowRight" || event.key === "End";
+      const target = useGallery ? galleryTab : explorerTab;
+      target.focus();
+      target.click();
+    });
+  }
+
   function normalizedText(value) {
     return value.replace(/\s+/g, " ").trim().toLocaleLowerCase();
   }
@@ -361,17 +754,17 @@
     window.removeEventListener("scroll", tocController.onScroll);
     window.removeEventListener("resize", tocController.onResize);
     window.removeEventListener("hashchange", tocController.onHashChange);
-    tocController.header?.removeEventListener("click", tocController.onHeaderClick);
+    tocController.header?.removeEventListener(
+      "click",
+      tocController.onHeaderClick,
+    );
     tocController.before.remove();
     tocController.after.remove();
     tocController.toc.classList.remove("projectzaman-toc-enhanced");
     tocController.list.classList.remove("projectzaman-toc-window");
     for (const { item, link } of tocController.entries) {
       item.hidden = false;
-      item.classList.remove(
-        "projectzaman-toc-active",
-        "projectzaman-toc-near",
-      );
+      item.classList.remove("projectzaman-toc-active", "projectzaman-toc-near");
       link.removeAttribute("aria-current");
     }
     tocController = null;
@@ -412,10 +805,7 @@
       "projectzaman-toc-gap-before",
       "Show earlier sections",
     );
-    const after = makeGap(
-      "projectzaman-toc-gap-after",
-      "Show later sections",
-    );
+    const after = makeGap("projectzaman-toc-gap-after", "Show later sections");
     list.insertBefore(before.item, entries[0].item);
     list.insertBefore(after.item, list.querySelector(":scope > .overflow-end"));
     toc.classList.add("projectzaman-toc-enhanced");
@@ -457,7 +847,8 @@
       for (let index = 0; index < entries.length; index += 1) {
         const heading = entries[index].heading;
         if (!heading) continue;
-        if (heading.getBoundingClientRect().top <= activationLine) active = index;
+        if (heading.getBoundingClientRect().top <= activationLine)
+          active = index;
         else break;
       }
       return active;
@@ -484,9 +875,7 @@
           if (direction === "left" && !leftBlocked) {
             if (start === 0) {
               leftBlocked = true;
-            } else if (
-              rangeHeight(start - 1, end) <= state.availableHeight
-            ) {
+            } else if (rangeHeight(start - 1, end) <= state.availableHeight) {
               start -= 1;
               added = true;
               break;
@@ -497,9 +886,7 @@
           if (direction === "right" && !rightBlocked) {
             if (end === entries.length - 1) {
               rightBlocked = true;
-            } else if (
-              rangeHeight(start, end + 1) <= state.availableHeight
-            ) {
+            } else if (rangeHeight(start, end + 1) <= state.availableHeight) {
               end += 1;
               added = true;
               break;
@@ -523,7 +910,10 @@
       ) {
         end += 1;
       }
-      while (start > 0 && rangeHeight(start - 1, end) <= state.availableHeight) {
+      while (
+        start > 0 &&
+        rangeHeight(start - 1, end) <= state.availableHeight
+      ) {
         start -= 1;
       }
       return [start, end];
@@ -570,7 +960,10 @@
     function fitWindow() {
       renderWindow();
       for (let attempt = 0; attempt < 8; attempt += 1) {
-        if (list.scrollHeight <= list.clientHeight + 1 || list.clientHeight <= 0) {
+        if (
+          list.scrollHeight <= list.clientHeight + 1 ||
+          list.clientHeight <= 0
+        ) {
           break;
         }
         const nextHeight = Math.max(
@@ -681,7 +1074,9 @@
 
   function markRedundantMetadata() {
     const articleTitle = document.querySelector(".article-title");
-    const article = document.querySelector(".center article .markdown-preview-view");
+    const article = document.querySelector(
+      ".center article .markdown-preview-view",
+    );
     if (!article) return;
 
     const firstHeading = article.querySelector(":scope > h1");
@@ -707,7 +1102,9 @@
   }
 
   function initializeProperties() {
-    for (const details of document.querySelectorAll("details.note-properties")) {
+    for (const details of document.querySelectorAll(
+      "details.note-properties",
+    )) {
       if (details.dataset.projectzamanMobileInitialized) continue;
       details.dataset.projectzamanMobileInitialized = "true";
       if (isConstrained()) details.open = false;
@@ -716,9 +1113,10 @@
 
   function isViewableImage(image) {
     return Boolean(
-      image.closest(".center article .markdown-preview-view") &&
-        !image.closest("pre, code, .mermaid, .mermaid-content") &&
-        !image.classList.contains("projectzaman-no-viewer"),
+      (image.closest(".center article .markdown-preview-view") ||
+        image.closest(".projectzaman-gallery-card")) &&
+      !image.closest("pre, code, .mermaid, .mermaid-content") &&
+      !image.classList.contains("projectzaman-no-viewer"),
     );
   }
 
@@ -956,11 +1354,13 @@
   }
 
   function openImageViewer(source) {
+    closeUpdatesDrawer(false);
     const viewer = ensureImageViewer();
     viewer.state.origin = source;
     viewer.caption.textContent = source.alt || "";
     viewer.caption.hidden = !source.alt;
-    viewer.media.src = source.currentSrc || source.src;
+    viewer.media.src =
+      source.dataset.projectzamanFullSrc || source.currentSrc || source.src;
     viewer.media.alt = source.alt || "Expanded image";
     viewer.overlay.hidden = false;
     document.documentElement.classList.add("projectzaman-image-open");
@@ -980,7 +1380,8 @@
     document.documentElement.classList.remove("projectzaman-image-open");
     const quartzRoot = document.querySelector("#quartz-root");
     if (quartzRoot) quartzRoot.inert = false;
-    if (restoreFocus && origin?.isConnected) origin.focus({ preventScroll: true });
+    if (restoreFocus && origin?.isConnected)
+      origin.focus({ preventScroll: true });
     imageViewer.state.origin = null;
   }
 
@@ -1231,6 +1632,7 @@
 
   function initialize() {
     closeImageViewer(false);
+    closeUpdatesDrawer(false);
     initializeBrandTitle();
     markRedundantMetadata();
     initializeProperties();
@@ -1238,6 +1640,8 @@
     initializeModifiedDate();
     initializeToc();
     initializeGraph();
+    initializeRightPanel();
+    initializeBrowserTabs();
     globalThis.__projectZamanMarkReady?.();
   }
 
@@ -1265,6 +1669,22 @@
       return;
     }
 
+    if (updatesDrawer && !updatesDrawer.root.hidden && event.key === "Tab") {
+      const focusable = [
+        ...updatesDrawer.panel.querySelectorAll(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ];
+      if (focusable.length === 0) return;
+      const index = focusable.indexOf(document.activeElement);
+      const next = event.shiftKey
+        ? (index - 1 + focusable.length) % focusable.length
+        : (index + 1) % focusable.length;
+      event.preventDefault();
+      focusable[next].focus();
+      return;
+    }
+
     if (!imageViewer?.overlay.hidden && event.key === "Tab") {
       const focusable = [...imageViewer.overlay.querySelectorAll("button")];
       if (focusable.length === 0) return;
@@ -1283,6 +1703,11 @@
       closeHistoryCalendar({ restoreFocus: true });
       return;
     }
+    if (updatesDrawer && !updatesDrawer.root.hidden) {
+      event.preventDefault();
+      closeUpdatesDrawer(true);
+      return;
+    }
     if (imageViewer && !imageViewer.overlay.hidden) {
       event.preventDefault();
       closeImageViewer(true);
@@ -1290,7 +1715,9 @@
     }
 
     const outer = document.querySelector(".global-graph-outer.active");
-    const launcher = document.querySelector(".projectzaman-mobile-graph-button");
+    const launcher = document.querySelector(
+      ".projectzaman-mobile-graph-button",
+    );
     const nativeLauncher = document.querySelector(".global-graph-icon");
     if (!outer || !nativeLauncher) return;
     event.preventDefault();
@@ -1310,7 +1737,8 @@
 
   window.addEventListener("projectzaman:graph-press-cancel", () => {
     const status = activeGraphStatus();
-    if (status?.classList.contains("is-pressing")) setDefaultGraphStatus(status);
+    if (status?.classList.contains("is-pressing"))
+      setDefaultGraphStatus(status);
   });
 
   window.addEventListener("projectzaman:graph-node-selected", (event) => {
@@ -1320,11 +1748,14 @@
     status.classList.add("has-selection");
     status.replaceChildren();
     const title = document.createElement("strong");
-    title.textContent = event.detail?.title || event.detail?.id || "Selected node";
+    title.textContent =
+      event.detail?.title || event.detail?.id || "Selected node";
     const link = document.createElement("a");
     link.href = graphPath(event.detail?.id);
     link.textContent = "Open page";
-    link.addEventListener("click", (clickEvent) => clickEvent.stopPropagation());
+    link.addEventListener("click", (clickEvent) =>
+      clickEvent.stopPropagation(),
+    );
     status.append(title, link);
   });
 
@@ -1343,7 +1774,9 @@
     const graph = document.querySelector(".sidebar.right .graph");
     const outer = graph?.querySelector(".global-graph-outer");
     const container = outer?.querySelector(".global-graph-container");
-    const launcher = document.querySelector(".projectzaman-mobile-graph-button");
+    const launcher = document.querySelector(
+      ".projectzaman-mobile-graph-button",
+    );
     const nativeLauncher = graph?.querySelector(".global-graph-icon");
     if (!outer || !container || !launcher || !nativeLauncher) return;
     showGraphFailure(container, outer, launcher, nativeLauncher);

@@ -401,17 +401,11 @@ time.projectzaman-modified-date.projectzaman-loading {
     opacity 180ms ease;
 }
 
-.toc.projectzaman-toc-enhanced
-  .toc-content
-  > li.projectzaman-toc-near
-  > a {
+.toc.projectzaman-toc-enhanced .toc-content > li.projectzaman-toc-near > a {
   opacity: 0.58;
 }
 
-.toc.projectzaman-toc-enhanced
-  .toc-content
-  > li.projectzaman-toc-active
-  > a {
+.toc.projectzaman-toc-enhanced .toc-content > li.projectzaman-toc-active > a {
   color: var(--secondary);
   font-weight: 600;
   opacity: 1;
@@ -736,6 +730,400 @@ html.projectzaman-graph-open body {
   background: color-mix(in srgb, var(--dark) 22%, transparent);
 }
 
+.explorer.projectzaman-browser-enhanced > .desktop-explorer {
+  display: none;
+}
+
+.explorer.projectzaman-browser-enhanced > .mobile-explorer {
+  display: none;
+}
+
+.projectzaman-browser-tabs {
+  background: color-mix(in srgb, var(--lightgray) 46%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lightgray) 80%, transparent);
+  border-radius: 0.7rem;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-block: 0.7rem 0.55rem;
+  padding: 0.2rem;
+}
+
+.projectzaman-browser-tab {
+  background: transparent;
+  border: 0;
+  border-radius: 0.5rem;
+  color: var(--gray);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  min-height: 2rem;
+  padding: 0.55rem 0.65rem;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
+}
+
+.projectzaman-browser-tab[aria-selected="true"] {
+  background: var(--light);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--dark) 9%, transparent);
+  color: var(--dark);
+}
+
+.projectzaman-browser-tab:hover {
+  color: var(--secondary);
+}
+
+.projectzaman-browser-tab:focus-visible,
+.projectzaman-updates-launcher:focus-visible,
+.projectzaman-updates-close:focus-visible,
+.projectzaman-gallery-card:focus-visible,
+.projectzaman-gallery-panel > header > button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+html.projectzaman-gallery-mode .explorer-content {
+  display: none !important;
+}
+
+html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
+  display: none !important;
+}
+
+.projectzaman-gallery-panel {
+  box-sizing: border-box;
+  min-height: min(72vh, 48rem);
+  padding-block: 0.5rem 3rem;
+  width: 100%;
+}
+
+.projectzaman-gallery-panel > header {
+  align-items: end;
+  border-bottom: 1px solid var(--lightgray);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+}
+
+.projectzaman-gallery-panel > header span,
+.projectzaman-updates-header span {
+  color: var(--secondary);
+  display: block;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  margin-bottom: 0.22rem;
+  text-transform: uppercase;
+}
+
+.projectzaman-gallery-panel > header h1,
+.projectzaman-updates-header h2 {
+  margin: 0;
+}
+
+.projectzaman-gallery-panel > header p {
+  color: var(--gray);
+  font-size: 0.75rem;
+  margin: 0.3rem 0 0;
+}
+
+.projectzaman-gallery-panel > header > button,
+.projectzaman-gallery-grid > button:not(.projectzaman-gallery-card),
+.projectzaman-updates-content > button {
+  background: color-mix(in srgb, var(--secondary) 10%, var(--light));
+  border: 1px solid color-mix(in srgb, var(--secondary) 34%, var(--lightgray));
+  border-radius: 999px;
+  color: var(--secondary);
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 0.5rem 0.75rem;
+}
+
+.projectzaman-gallery-grid {
+  display: grid;
+  gap: clamp(0.85rem, 1.5vw, 1.25rem);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.projectzaman-gallery-card {
+  aspect-ratio: 16 / 10.5;
+  background: color-mix(in srgb, var(--lightgray) 38%, var(--light));
+  border: 1px solid color-mix(in srgb, var(--lightgray) 85%, transparent);
+  border-radius: 0.8rem;
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--dark) 7%, transparent);
+  color: var(--dark);
+  cursor: zoom-in;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  text-align: left;
+}
+
+.projectzaman-gallery-card img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 220ms ease;
+  width: 100%;
+}
+
+.projectzaman-gallery-card > span {
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--dark) 78%, transparent)
+  );
+  bottom: 0;
+  box-sizing: border-box;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  left: 0;
+  overflow: hidden;
+  padding: 1.65rem 0.7rem 0.6rem;
+  position: absolute;
+  right: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectzaman-gallery-card:hover img {
+  transform: scale(1.025);
+}
+
+.projectzaman-updates-card {
+  border-top: 1px solid color-mix(in srgb, var(--lightgray) 78%, transparent);
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  padding-top: 0.75rem;
+}
+
+.projectzaman-updates-launcher {
+  align-items: center;
+  background: color-mix(in srgb, var(--secondary) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--secondary) 22%, var(--lightgray));
+  border-radius: 0.7rem;
+  color: var(--darkgray);
+  cursor: pointer;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 0.62rem;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+  width: 100%;
+}
+
+.projectzaman-updates-launcher:hover {
+  background: color-mix(in srgb, var(--secondary) 11%, transparent);
+  border-color: color-mix(in srgb, var(--secondary) 42%, var(--lightgray));
+  transform: translateX(-1px);
+}
+
+.projectzaman-updates-launcher strong,
+.projectzaman-updates-launcher small {
+  display: block;
+}
+
+.projectzaman-updates-launcher strong {
+  color: var(--dark);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.projectzaman-updates-launcher small {
+  color: var(--gray);
+  font-size: 0.66rem;
+  margin-top: 0.08rem;
+}
+
+.projectzaman-updates-icon {
+  align-items: center;
+  background: color-mix(in srgb, var(--secondary) 13%, transparent);
+  border-radius: 0.48rem;
+  color: var(--secondary);
+  display: flex;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+
+.projectzaman-updates-icon svg {
+  height: 1.05rem;
+  width: 1.05rem;
+}
+
+.projectzaman-updates-arrow {
+  color: var(--gray);
+  display: flex;
+}
+
+.projectzaman-updates-arrow svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+html.projectzaman-updates-open,
+html.projectzaman-updates-open body {
+  overflow: hidden;
+}
+
+.projectzaman-updates-drawer[hidden] {
+  display: none;
+}
+
+.projectzaman-updates-drawer {
+  inset: 0;
+  position: fixed;
+  z-index: 1100;
+}
+
+.projectzaman-updates-backdrop {
+  background: color-mix(in srgb, var(--dark) 25%, transparent);
+  border: 0;
+  inset: 0;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  transition: opacity 200ms ease;
+  width: 100%;
+}
+
+.projectzaman-updates-panel {
+  background: var(--light);
+  border-left: 1px solid var(--lightgray);
+  box-shadow: -18px 0 48px color-mix(in srgb, var(--dark) 15%, transparent);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 27rem;
+  padding: max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    1.1rem;
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translateX(102%);
+  transition: transform 220ms ease;
+  width: min(92vw, 27rem);
+}
+
+.projectzaman-updates-drawer.is-open .projectzaman-updates-backdrop {
+  opacity: 1;
+}
+
+.projectzaman-updates-drawer.is-open .projectzaman-updates-panel {
+  transform: translateX(0);
+}
+
+.projectzaman-updates-header {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--lightgray);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.25rem 0 0.9rem;
+}
+
+.projectzaman-updates-header h2 {
+  font-size: 1.35rem;
+}
+
+.projectzaman-updates-close {
+  align-items: center;
+  background: color-mix(in srgb, var(--lightgray) 52%, transparent);
+  border: 1px solid var(--lightgray);
+  border-radius: 999px;
+  color: var(--darkgray);
+  display: flex;
+  flex: 0 0 auto;
+  height: 2.25rem;
+  justify-content: center;
+  padding: 0;
+  width: 2.25rem;
+}
+
+.projectzaman-updates-close svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.projectzaman-updates-summary {
+  color: var(--gray);
+  font-size: 0.72rem;
+  margin: 0;
+  padding: 0.8rem 0;
+}
+
+.projectzaman-updates-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+}
+
+.projectzaman-updates-day + .projectzaman-updates-day {
+  border-top: 1px solid color-mix(in srgb, var(--lightgray) 70%, transparent);
+  margin-top: 0.95rem;
+  padding-top: 0.85rem;
+}
+
+.projectzaman-updates-day h3 {
+  color: var(--gray);
+  font-size: 0.69rem;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.38rem;
+  text-transform: uppercase;
+}
+
+.projectzaman-updates-day ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.projectzaman-updates-day li + li {
+  margin-top: 0.18rem;
+}
+
+.projectzaman-updates-day a {
+  border-radius: 0.45rem;
+  color: var(--darkgray);
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  padding: 0.48rem 0.55rem;
+  text-decoration: none;
+}
+
+.projectzaman-updates-day a:hover {
+  background: color-mix(in srgb, var(--secondary) 9%, transparent);
+  color: var(--secondary);
+}
+
+.projectzaman-updates-empty {
+  background: color-mix(in srgb, var(--lightgray) 34%, transparent);
+  border: 1px dashed var(--lightgray);
+  border-radius: 0.7rem;
+  color: var(--gray);
+  font-size: 0.8rem;
+  padding: 1rem;
+}
+
 @media (max-width: 800px) {
   :root:root {
     --pz-pattern-opacity: 0.022;
@@ -809,6 +1197,26 @@ html.projectzaman-graph-open body {
 
   .projectzaman-mobile-graph-slot {
     display: flex;
+  }
+
+  .projectzaman-browser-tabs {
+    margin-block-start: 0.45rem;
+  }
+
+  .projectzaman-gallery-panel > header {
+    align-items: flex-start;
+  }
+
+  .projectzaman-gallery-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .projectzaman-gallery-card {
+    border-radius: 0.72rem;
+  }
+
+  .projectzaman-updates-panel {
+    width: min(calc(100dvw - 0.65rem), 27rem);
   }
 
   .sidebar.right .graph > h3,
@@ -962,6 +1370,14 @@ html.projectzaman-graph-open body {
     transition: none;
   }
 
+  .projectzaman-browser-tab,
+  .projectzaman-gallery-card img,
+  .projectzaman-updates-backdrop,
+  .projectzaman-updates-launcher,
+  .projectzaman-updates-panel {
+    transition: none;
+  }
+
   .projectzaman-mobile-graph-button.is-loading svg {
     animation: none;
   }
@@ -978,5 +1394,12 @@ html.projectzaman-graph-open body {
   .projectzaman-graph-close,
   .projectzaman-image-viewer {
     display: none;
+  }
+
+  .projectzaman-browser-tabs,
+  .projectzaman-gallery-panel,
+  .projectzaman-updates-card,
+  .projectzaman-updates-drawer {
+    display: none !important;
   }
 }
