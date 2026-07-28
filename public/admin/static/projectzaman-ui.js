@@ -655,14 +655,16 @@
   }
 
   function initializeBrowserTabs() {
+    browserTabsController?.cleanup?.();
     document.documentElement.classList.remove("projectzaman-gallery-mode");
     document.querySelector(".projectzaman-gallery-panel")?.remove();
     browserTabsController = null;
     galleryController = null;
 
-    const explorer = document.querySelector(".sidebar.left .explorer");
-    if (!explorer) return;
-    for (const existing of explorer.querySelectorAll(
+    const leftSidebar = document.querySelector(".sidebar.left");
+    const explorer = leftSidebar?.querySelector(":scope > .explorer");
+    if (!leftSidebar || !explorer) return;
+    for (const existing of leftSidebar.querySelectorAll(
       ":scope > .projectzaman-browser-tabs",
     )) {
       existing.remove();
@@ -682,6 +684,12 @@
     const explorerContent = explorer.querySelector(
       ":scope > .explorer-content",
     );
+    const explorerList = explorerContent?.querySelector(
+      ":scope > .explorer-ul",
+    );
+    const desktopExplorerToggle = explorer.querySelector(
+      ":scope > .desktop-explorer.explorer-toggle",
+    );
     const mobileExplorerToggle = explorer.querySelector(
       ":scope > .mobile-explorer.explorer-toggle",
     );
@@ -696,20 +704,81 @@
     galleryTab.setAttribute("aria-selected", "false");
     galleryTab.tabIndex = -1;
     tablist.append(explorerTab, galleryTab);
-    explorer.prepend(tablist);
+    explorer.before(tablist);
+
+    const mobileLayout = window.matchMedia("(max-width: 800px)");
+    const hasExplorerTree = () =>
+      Boolean(explorerList?.querySelector(":scope > li:not(.overflow-end)"));
+    let explorerRequestFrame = 0;
+    if (!hasExplorerTree()) {
+      explorer.dataset.projectzamanTabLoadRequested = "false";
+    }
+    const setExplorerOpen = (open) => {
+      explorer.classList.toggle("collapsed", !open);
+      explorer.setAttribute("aria-expanded", String(open));
+      if (!open) document.documentElement.classList.remove("mobile-no-scroll");
+    };
+    const revealDesktopExplorer = () => {
+      if (mobileLayout.matches || !explorer.isConnected) return;
+      if (hasExplorerTree()) {
+        setExplorerOpen(true);
+        explorer.dataset.projectzamanTabLoadRequested = "false";
+        return;
+      }
+      if (explorer.dataset.projectzamanTabLoadRequested === "true") return;
+      const nativeToggle = desktopExplorerToggle || mobileExplorerToggle;
+      if (!nativeToggle) return;
+      explorer.dataset.projectzamanTabLoadRequested = "true";
+      explorerRequestFrame = requestAnimationFrame(() => {
+        explorerRequestFrame = 0;
+        if (!hasExplorerTree() && !nativeToggle.disabled) nativeToggle.click();
+      });
+    };
+    const afterExplorerReady = () =>
+      requestAnimationFrame(revealDesktopExplorer);
+    const afterLayoutChange = () => {
+      if (!mobileLayout.matches) revealDesktopExplorer();
+    };
+    const explorerObserver = new MutationObserver(() => {
+      if (hasExplorerTree()) revealDesktopExplorer();
+    });
+    if (explorerList) {
+      explorerObserver.observe(explorerList, { childList: true });
+    }
+    window.addEventListener("projectzaman:explorer-ready", afterExplorerReady);
+    mobileLayout.addEventListener?.("change", afterLayoutChange);
 
     galleryController = { explorerTab, galleryTab, panel: null };
-    browserTabsController = { explorer, tablist };
+    browserTabsController = {
+      cleanup: () => {
+        cancelAnimationFrame(explorerRequestFrame);
+        explorerObserver.disconnect();
+        window.removeEventListener(
+          "projectzaman:explorer-ready",
+          afterExplorerReady,
+        );
+        mobileLayout.removeEventListener?.("change", afterLayoutChange);
+      },
+      explorer,
+      tablist,
+    };
     explorerTab.addEventListener("click", () => {
+      const returningFromGallery = document.documentElement.classList.contains(
+        "projectzaman-gallery-mode",
+      );
       closeGallery();
-      if (
-        isConstrained() &&
-        explorerContent?.getAttribute("aria-expanded") !== "true"
-      ) {
-        mobileExplorerToggle?.click();
+      if (!mobileLayout.matches) {
+        revealDesktopExplorer();
+        return;
       }
+      if (returningFromGallery && !explorer.classList.contains("collapsed"))
+        return;
+      mobileExplorerToggle?.click();
     });
-    galleryTab.addEventListener("click", openGallery);
+    galleryTab.addEventListener("click", () => {
+      if (mobileLayout.matches) setExplorerOpen(false);
+      openGallery();
+    });
     tablist.addEventListener("keydown", (event) => {
       if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key))
         return;
@@ -719,6 +788,7 @@
       target.focus();
       target.click();
     });
+    revealDesktopExplorer();
   }
 
   function normalizedText(value) {

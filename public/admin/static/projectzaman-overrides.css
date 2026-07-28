@@ -739,8 +739,8 @@ html.projectzaman-graph-open body {
 }
 
 .projectzaman-browser-tabs {
-  background: color-mix(in srgb, var(--lightgray) 46%, transparent);
-  border: 1px solid color-mix(in srgb, var(--lightgray) 80%, transparent);
+  background: color-mix(in srgb, var(--gray) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gray) 28%, transparent);
   border-radius: 0.7rem;
   display: grid;
   flex: 0 0 auto;
@@ -748,13 +748,16 @@ html.projectzaman-graph-open body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-block: 0.7rem 0.55rem;
   padding: 0.2rem;
+  position: relative;
+  width: 100%;
+  z-index: 101;
 }
 
 .projectzaman-browser-tab {
-  background: transparent;
+  background: color-mix(in srgb, var(--gray) 12%, transparent);
   border: 0;
   border-radius: 0.5rem;
-  color: var(--gray);
+  color: color-mix(in srgb, var(--gray) 82%, transparent);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 600;
@@ -768,13 +771,21 @@ html.projectzaman-graph-open body {
 }
 
 .projectzaman-browser-tab[aria-selected="true"] {
-  background: var(--light);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--dark) 9%, transparent);
-  color: var(--dark);
+  background: #fff;
+  box-shadow: 0 1px 5px color-mix(in srgb, #000 18%, transparent);
+  color: #20252a;
 }
 
-.projectzaman-browser-tab:hover {
+.projectzaman-browser-tab:not([aria-selected="true"]):hover {
+  background: color-mix(in srgb, var(--gray) 20%, transparent);
   color: var(--secondary);
+}
+
+@media (min-width: 801px) {
+  .explorer.projectzaman-browser-enhanced > .explorer-content {
+    display: flex !important;
+    visibility: visible !important;
+  }
 }
 
 .projectzaman-browser-tab:focus-visible,
@@ -1125,6 +1136,27 @@ html.projectzaman-updates-open body {
 }
 
 @media (max-width: 800px) {
+  .sidebar.left {
+    flex-wrap: wrap;
+  }
+
+  .sidebar.left > .projectzaman-browser-tabs {
+    flex: 1 0 100%;
+    order: 1;
+  }
+
+  .sidebar.left > .explorer.projectzaman-browser-enhanced {
+    flex: 0 0 0;
+    height: 0;
+    order: 2;
+    overflow: visible;
+    width: 0;
+  }
+
+  .explorer.projectzaman-browser-enhanced > .explorer-content {
+    padding-top: 6.5rem;
+  }
+
   :root:root {
     --pz-pattern-opacity: 0.022;
   }
