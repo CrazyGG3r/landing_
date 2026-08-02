@@ -51,7 +51,7 @@
   let galleryController = null;
 
   const historyManifestUrl = "/admin/static/projectzaman-history.json";
-  const galleryManifestUrl = "/admin/static/projectzaman-gallery.json";
+  const galleryManifestUrl = "/admin/static/projectzaman-gallery-v2.json";
 
   function loadHistoryManifest() {
     if (!historyManifestPromise) {
@@ -83,7 +83,7 @@
     if (!galleryManifestPromise) {
       galleryManifestPromise = fetch(galleryManifestUrl, {
         credentials: "same-origin",
-        cache: "force-cache",
+        cache: "no-store",
       })
         .then((response) => {
           if (!response.ok) {
@@ -746,7 +746,8 @@
         filterButtons.push(filter);
         filters.appendChild(filter);
       }
-    } catch {
+    } catch (error) {
+      console.error("[Project Zaman] Media gallery failed to load", error);
       status.textContent = "The media gallery could not load.";
       const retry = document.createElement("button");
       retry.type = "button";
