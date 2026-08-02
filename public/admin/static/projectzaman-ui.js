@@ -32,8 +32,15 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       <path d="m9 18 6-6-6-6"></path>
     </svg>`;
+  const galleryMediaIcons = {
+    image: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m4.5 17 4.8-4.7 3.2 3 2.2-2 4.8 4.7"></path></svg>`,
+    audio: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 18V6l10-2v12"></path><circle cx="6" cy="18" r="3"></circle><circle cx="16" cy="16" r="3"></circle></svg>`,
+    video: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m10 9 5 3-5 3Z"></path></svg>`,
+    pdf: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M6 2h8l4 4v16H6Z"></path><path d="M14 2v5h5M8.5 16.5h7M8.5 13h7"></path></svg>`,
+  };
 
   let imageViewer = null;
+  let mediaViewer = null;
   let tocController = null;
   let historyCalendar = null;
   let historyManifestPromise = null;
@@ -86,9 +93,10 @@
         })
         .then((manifest) => {
           if (
-            manifest?.version !== 1 ||
-            !Array.isArray(manifest.images) ||
-            manifest.images.length === 0
+            manifest?.version !== 2 ||
+            !Array.isArray(manifest.categories) ||
+            !Array.isArray(manifest.media) ||
+            manifest.media.length === 0
           ) {
             throw new Error("Gallery manifest is invalid");
           }
@@ -579,6 +587,31 @@
     galleryController.panel = null;
   }
 
+  function galleryTypeLabel(type, count = 1) {
+    const labels = {
+      image: count === 1 ? "image" : "images",
+      audio: count === 1 ? "audio file" : "audio files",
+      video: count === 1 ? "video" : "videos",
+      pdf: count === 1 ? "PDF" : "PDFs",
+    };
+    return labels[type] ?? (count === 1 ? "file" : "files");
+  }
+
+  function formatMediaSize(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 1) return "";
+    if (bytes < 1024 * 1024) {
+      return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  }
+
+  function gallerySummary(categories) {
+    return categories
+      .filter(({ count }) => count > 0)
+      .map(({ type, count }) => `${count} ${galleryTypeLabel(type, count)}`)
+      .join(" · ");
+  }
+
   async function openGallery() {
     if (!galleryController) return;
     const { explorerTab, galleryTab } = galleryController;
@@ -600,7 +633,7 @@
     eyebrow.textContent = "Project Zaman archive";
     const title = document.createElement("h1");
     title.id = "projectzaman-gallery-title";
-    title.textContent = "Image Gallery";
+    title.textContent = "Media Gallery";
     const status = document.createElement("p");
     status.textContent = "Preparing optimized previews…";
     titleGroup.append(eyebrow, title, status);
@@ -609,43 +642,112 @@
     close.textContent = "Back to page";
     close.addEventListener("click", () => closeGallery({ restoreFocus: true }));
     header.append(titleGroup, close);
+    const filters = document.createElement("div");
+    filters.className = "projectzaman-gallery-filters";
+    filters.setAttribute("role", "group");
+    filters.setAttribute("aria-label", "Filter media gallery");
     const grid = document.createElement("div");
     grid.className = "projectzaman-gallery-grid";
-    panel.append(header, grid);
+    panel.append(header, filters, grid);
     center.appendChild(panel);
     galleryController.panel = panel;
 
     try {
       const manifest = await loadGalleryManifest();
       if (galleryController?.panel !== panel || !panel.isConnected) return;
-      status.textContent = `${manifest.images.length} optimized previews · originals load only when opened`;
+      status.textContent = `${gallerySummary(manifest.categories)} · media loads only when opened`;
       const fragment = document.createDocumentFragment();
-      for (const entry of manifest.images) {
+      const cards = [];
+      for (const entry of manifest.media) {
         const card = document.createElement("button");
         card.type = "button";
         card.className = "projectzaman-gallery-card";
-        card.setAttribute("aria-label", `Open ${entry.title}`);
-        const image = document.createElement("img");
-        image.className = "projectzaman-viewable-image";
-        image.src = entry.thumbnail;
-        image.alt = entry.title;
-        image.loading = "lazy";
-        image.decoding = "async";
-        image.dataset.projectzamanFullSrc = entry.full;
-        image.setAttribute("aria-hidden", "true");
+        card.dataset.mediaType = entry.type;
+        card.setAttribute(
+          "aria-label",
+          `Open ${entry.title} ${galleryTypeLabel(entry.type)}`,
+        );
+        const preview = document.createElement("span");
+        preview.className = `projectzaman-gallery-preview is-${entry.type}`;
+        let image = null;
+        if (entry.type === "image") {
+          image = document.createElement("img");
+          image.className = "projectzaman-viewable-image";
+          image.src = entry.thumbnail;
+          image.alt = entry.title;
+          image.loading = "lazy";
+          image.decoding = "async";
+          image.dataset.projectzamanFullSrc = entry.full;
+          image.setAttribute("aria-hidden", "true");
+          preview.appendChild(image);
+        } else {
+          preview.innerHTML = galleryMediaIcons[entry.type] ?? "";
+          const typeMark = document.createElement("small");
+          typeMark.textContent = galleryTypeLabel(entry.type).toUpperCase();
+          preview.appendChild(typeMark);
+        }
         const label = document.createElement("span");
-        label.textContent = entry.title;
-        card.append(image, label);
+        label.className = "projectzaman-gallery-label";
+        const name = document.createElement("strong");
+        name.textContent = entry.title;
+        const details = document.createElement("small");
+        details.textContent = [
+          entry.extension?.slice(1).toUpperCase(),
+          formatMediaSize(entry.bytes),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        label.append(name, details);
+        card.append(preview, label);
         card.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          openImageViewer(image);
+          if (image) openImageViewer(image);
+          else openMediaViewer(entry, card);
         });
+        cards.push(card);
         fragment.appendChild(card);
       }
       grid.replaceChildren(fragment);
+
+      const definitions = [
+        { type: "all", label: "All", count: manifest.media.length },
+        ...manifest.categories,
+      ];
+      const filterButtons = [];
+      const activateFilter = (type) => {
+        const count =
+          type === "all"
+            ? manifest.media.length
+            : manifest.media.filter((entry) => entry.type === type).length;
+        for (const card of cards) {
+          card.hidden = type !== "all" && card.dataset.mediaType !== type;
+        }
+        for (const button of filterButtons) {
+          button.setAttribute(
+            "aria-pressed",
+            String(button.dataset.mediaType === type),
+          );
+        }
+        status.textContent = `${count} ${type === "all" ? (count === 1 ? "media file" : "media files") : galleryTypeLabel(type, count)} · loads only when opened`;
+      };
+      for (const definition of definitions) {
+        const filter = document.createElement("button");
+        filter.type = "button";
+        filter.dataset.mediaType = definition.type;
+        filter.setAttribute("aria-pressed", String(definition.type === "all"));
+        filter.disabled = definition.type !== "all" && definition.count === 0;
+        const filterLabel = document.createElement("span");
+        filterLabel.textContent = definition.label;
+        const count = document.createElement("small");
+        count.textContent = String(definition.count);
+        filter.append(filterLabel, count);
+        filter.addEventListener("click", () => activateFilter(definition.type));
+        filterButtons.push(filter);
+        filters.appendChild(filter);
+      }
     } catch {
-      status.textContent = "The image gallery could not load.";
+      status.textContent = "The media gallery could not load.";
       const retry = document.createElement("button");
       retry.type = "button";
       retry.textContent = "Try again";
@@ -1425,6 +1527,7 @@
 
   function openImageViewer(source) {
     closeUpdatesDrawer(false);
+    closeMediaViewer(false);
     const viewer = ensureImageViewer();
     viewer.state.origin = source;
     viewer.caption.textContent = source.alt || "";
@@ -1453,6 +1556,131 @@
     if (restoreFocus && origin?.isConnected)
       origin.focus({ preventScroll: true });
     imageViewer.state.origin = null;
+  }
+
+  function ensureMediaViewer() {
+    if (mediaViewer?.overlay.isConnected) return mediaViewer;
+
+    const overlay = document.createElement("div");
+    overlay.className = "projectzaman-media-viewer";
+    overlay.hidden = true;
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-labelledby", "projectzaman-media-viewer-title");
+
+    const panel = document.createElement("section");
+    panel.className = "projectzaman-media-panel";
+    const header = document.createElement("header");
+    const heading = document.createElement("div");
+    const eyebrow = document.createElement("span");
+    eyebrow.textContent = "Project Zaman media";
+    const title = document.createElement("h2");
+    title.id = "projectzaman-media-viewer-title";
+    heading.append(eyebrow, title);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "projectzaman-media-close";
+    close.setAttribute("aria-label", "Close media viewer");
+    close.innerHTML = closeIcon;
+    header.append(heading, close);
+
+    const stage = document.createElement("div");
+    stage.className = "projectzaman-media-stage";
+    const footer = document.createElement("footer");
+    const note = document.createElement("p");
+    note.textContent =
+      "Playback and PDF display depend on your browser. The original file always remains available.";
+    const original = document.createElement("a");
+    original.target = "_blank";
+    original.rel = "noopener";
+    original.textContent = "Open original";
+    footer.append(note, original);
+    panel.append(header, stage, footer);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    close.addEventListener("click", () => closeMediaViewer(true));
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeMediaViewer(true);
+    });
+
+    mediaViewer = {
+      overlay,
+      panel,
+      title,
+      close,
+      stage,
+      original,
+      origin: null,
+    };
+    return mediaViewer;
+  }
+
+  function openMediaViewer(entry, origin) {
+    closeUpdatesDrawer(false);
+    closeImageViewer(false);
+    const viewer = ensureMediaViewer();
+    viewer.origin = origin;
+    viewer.title.textContent = entry.title;
+    viewer.original.href = entry.full;
+    viewer.stage.className = `projectzaman-media-stage is-${entry.type}`;
+    viewer.stage.replaceChildren();
+
+    if (entry.type === "video") {
+      const video = document.createElement("video");
+      video.controls = true;
+      video.preload = "metadata";
+      video.playsInline = true;
+      const source = document.createElement("source");
+      source.src = entry.full;
+      source.type = entry.mime;
+      video.append(source, "This browser cannot play this video format.");
+      viewer.stage.appendChild(video);
+    } else if (entry.type === "audio") {
+      const shell = document.createElement("div");
+      shell.className = "projectzaman-media-audio";
+      const icon = document.createElement("span");
+      icon.innerHTML = galleryMediaIcons.audio;
+      const audio = document.createElement("audio");
+      audio.controls = true;
+      audio.preload = "metadata";
+      const source = document.createElement("source");
+      source.src = entry.full;
+      source.type = entry.mime;
+      audio.append(source, "This browser cannot play this audio format.");
+      shell.append(icon, audio);
+      viewer.stage.appendChild(shell);
+    } else if (entry.type === "pdf") {
+      const frame = document.createElement("iframe");
+      frame.src = entry.full;
+      frame.title = entry.title;
+      frame.loading = "lazy";
+      viewer.stage.appendChild(frame);
+    }
+
+    viewer.overlay.hidden = false;
+    document.documentElement.classList.add("projectzaman-media-open");
+    const quartzRoot = document.querySelector("#quartz-root");
+    if (quartzRoot) quartzRoot.inert = true;
+    requestAnimationFrame(() => viewer.close.focus({ preventScroll: true }));
+  }
+
+  function closeMediaViewer(restoreFocus = false) {
+    if (!mediaViewer || mediaViewer.overlay.hidden) return;
+    const origin = mediaViewer.origin;
+    for (const player of mediaViewer.stage.querySelectorAll("audio, video")) {
+      player.pause();
+      player.removeAttribute("src");
+    }
+    mediaViewer.stage.replaceChildren();
+    mediaViewer.overlay.hidden = true;
+    mediaViewer.original.removeAttribute("href");
+    document.documentElement.classList.remove("projectzaman-media-open");
+    const quartzRoot = document.querySelector("#quartz-root");
+    if (quartzRoot) quartzRoot.inert = false;
+    if (restoreFocus && origin?.isConnected)
+      origin.focus({ preventScroll: true });
+    mediaViewer.origin = null;
   }
 
   function setGraphOpen(outer, launcher, open, restoreFocus = false) {
@@ -1702,6 +1930,7 @@
 
   function initialize() {
     closeImageViewer(false);
+    closeMediaViewer(false);
     closeUpdatesDrawer(false);
     initializeBrandTitle();
     markRedundantMetadata();
@@ -1767,6 +1996,22 @@
       return;
     }
 
+    if (!mediaViewer?.overlay.hidden && event.key === "Tab") {
+      const focusable = [
+        ...mediaViewer.panel.querySelectorAll(
+          "a[href], button:not([disabled]), audio[controls], video[controls]",
+        ),
+      ];
+      if (focusable.length === 0) return;
+      const index = focusable.indexOf(document.activeElement);
+      const next = event.shiftKey
+        ? (index - 1 + focusable.length) % focusable.length
+        : (index + 1) % focusable.length;
+      event.preventDefault();
+      focusable[next].focus();
+      return;
+    }
+
     if (event.key !== "Escape") return;
     if (historyCalendar && !historyCalendar.root.hidden) {
       event.preventDefault();
@@ -1781,6 +2026,11 @@
     if (imageViewer && !imageViewer.overlay.hidden) {
       event.preventDefault();
       closeImageViewer(true);
+      return;
+    }
+    if (mediaViewer && !mediaViewer.overlay.hidden) {
+      event.preventDefault();
+      closeMediaViewer(true);
       return;
     }
 

@@ -654,6 +654,168 @@ html.projectzaman-image-open body {
   outline-offset: -3px;
 }
 
+html.projectzaman-media-open,
+html.projectzaman-media-open body {
+  overflow: hidden;
+}
+
+.projectzaman-media-viewer[hidden] {
+  display: none;
+}
+
+.projectzaman-media-viewer {
+  align-items: center;
+  background: color-mix(in srgb, #050708 90%, transparent);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: max(1rem, env(safe-area-inset-top))
+    max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  position: fixed;
+  z-index: 2050;
+}
+
+.projectzaman-media-panel {
+  background: var(--light);
+  border: 1px solid color-mix(in srgb, var(--lightgray) 84%, transparent);
+  border-radius: 0.9rem;
+  box-shadow: 0 24px 70px color-mix(in srgb, #000 42%, transparent);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: min(88dvh, 52rem);
+  max-width: 70rem;
+  overflow: hidden;
+  width: min(92dvw, 70rem);
+}
+
+.projectzaman-media-panel > header {
+  align-items: center;
+  border-bottom: 1px solid var(--lightgray);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem 0.85rem 0.75rem 1rem;
+}
+
+.projectzaman-media-panel > header span {
+  color: var(--secondary);
+  display: block;
+  font-size: 0.61rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.projectzaman-media-panel > header h2 {
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  margin: 0.08rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectzaman-media-close {
+  align-items: center;
+  background: color-mix(in srgb, var(--lightgray) 38%, transparent);
+  border: 1px solid var(--lightgray);
+  border-radius: 999px;
+  color: var(--darkgray);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2.35rem;
+  justify-content: center;
+  padding: 0;
+  width: 2.35rem;
+}
+
+.projectzaman-media-close svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+.projectzaman-media-stage {
+  align-items: center;
+  background: color-mix(in srgb, var(--dark) 5%, var(--light));
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+.projectzaman-media-stage video {
+  background: #000;
+  border-radius: 0.55rem;
+  max-height: 100%;
+  max-width: 100%;
+}
+
+.projectzaman-media-stage iframe {
+  background: #fff;
+  border: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.projectzaman-media-audio {
+  align-items: center;
+  display: grid;
+  gap: 1.2rem;
+  justify-items: center;
+  max-width: 40rem;
+  width: 100%;
+}
+
+.projectzaman-media-audio > span {
+  align-items: center;
+  background: color-mix(in srgb, var(--secondary) 12%, var(--light));
+  border: 1px solid color-mix(in srgb, var(--secondary) 24%, var(--lightgray));
+  border-radius: 999px;
+  color: var(--secondary);
+  display: inline-flex;
+  height: 7rem;
+  justify-content: center;
+  width: 7rem;
+}
+
+.projectzaman-media-audio svg {
+  height: 3.2rem;
+  width: 3.2rem;
+}
+
+.projectzaman-media-audio audio {
+  max-width: 34rem;
+  width: 100%;
+}
+
+.projectzaman-media-panel > footer {
+  align-items: center;
+  border-top: 1px solid var(--lightgray);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.72rem 1rem;
+}
+
+.projectzaman-media-panel > footer p {
+  color: var(--gray);
+  font-size: 0.7rem;
+  margin: 0;
+}
+
+.projectzaman-media-panel > footer a {
+  background: color-mix(in srgb, var(--secondary) 10%, var(--light));
+  border: 1px solid color-mix(in srgb, var(--secondary) 30%, var(--lightgray));
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.42rem 0.62rem;
+  text-decoration: none;
+}
+
 .projectzaman-mobile-graph-slot {
   align-items: center;
   display: none;
@@ -786,13 +948,22 @@ html.projectzaman-graph-open body {
     display: flex !important;
     visibility: visible !important;
   }
+
+  html.projectzaman-gallery-mode
+    .explorer.projectzaman-browser-enhanced
+    > .explorer-content {
+    display: none !important;
+  }
 }
 
 .projectzaman-browser-tab:focus-visible,
 .projectzaman-updates-launcher:focus-visible,
 .projectzaman-updates-close:focus-visible,
 .projectzaman-gallery-card:focus-visible,
-.projectzaman-gallery-panel > header > button:focus-visible {
+.projectzaman-gallery-panel > header > button:focus-visible,
+.projectzaman-gallery-filters > button:focus-visible,
+.projectzaman-media-close:focus-visible,
+.projectzaman-media-panel > footer a:focus-visible {
   outline: 2px solid var(--secondary);
   outline-offset: 2px;
 }
@@ -858,6 +1029,54 @@ html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
   padding: 0.5rem 0.75rem;
 }
 
+.projectzaman-gallery-filters {
+  display: flex;
+  gap: 0.42rem;
+  margin: -0.15rem 0 1.15rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.15rem 0 0.35rem;
+  scrollbar-width: thin;
+}
+
+.projectzaman-gallery-filters > button {
+  align-items: center;
+  background: color-mix(in srgb, var(--lightgray) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lightgray) 82%, transparent);
+  border-radius: 999px;
+  color: var(--gray);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  gap: 0.4rem;
+  padding: 0.42rem 0.62rem;
+}
+
+.projectzaman-gallery-filters > button[aria-pressed="true"] {
+  background: var(--light);
+  border-color: color-mix(in srgb, var(--secondary) 48%, var(--lightgray));
+  color: var(--secondary);
+}
+
+.projectzaman-gallery-filters > button:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.projectzaman-gallery-filters > button small {
+  align-items: center;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.62rem;
+  justify-content: center;
+  min-width: 1.15rem;
+  padding: 0.08rem 0.25rem;
+}
+
 .projectzaman-gallery-grid {
   display: grid;
   gap: clamp(0.85rem, 1.5vw, 1.25rem);
@@ -871,7 +1090,7 @@ html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
   border-radius: 0.8rem;
   box-shadow: 0 5px 18px color-mix(in srgb, var(--dark) 7%, transparent);
   color: var(--dark);
-  cursor: zoom-in;
+  cursor: pointer;
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -880,7 +1099,31 @@ html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
   text-align: left;
 }
 
-.projectzaman-gallery-card img {
+.projectzaman-gallery-card[hidden] {
+  display: none;
+}
+
+.projectzaman-gallery-card[data-media-type="image"] {
+  cursor: zoom-in;
+}
+
+.projectzaman-gallery-preview {
+  align-items: center;
+  background:
+    radial-gradient(
+      circle at 50% 35%,
+      color-mix(in srgb, var(--secondary) 17%, transparent),
+      transparent 48%
+    ),
+    color-mix(in srgb, var(--lightgray) 46%, var(--light));
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  position: absolute;
+}
+
+.projectzaman-gallery-preview img {
   display: block;
   height: 100%;
   object-fit: cover;
@@ -888,7 +1131,26 @@ html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
   width: 100%;
 }
 
-.projectzaman-gallery-card > span {
+.projectzaman-gallery-preview > svg {
+  color: color-mix(in srgb, var(--secondary) 74%, var(--darkgray));
+  height: clamp(2.8rem, 7vw, 4.2rem);
+  width: clamp(2.8rem, 7vw, 4.2rem);
+}
+
+.projectzaman-gallery-preview > small {
+  background: color-mix(in srgb, var(--dark) 72%, transparent);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.57rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.42rem;
+  position: absolute;
+  right: 0.6rem;
+  top: 0.6rem;
+}
+
+.projectzaman-gallery-label {
   background: linear-gradient(
     transparent,
     color-mix(in srgb, var(--dark) 78%, transparent)
@@ -896,8 +1158,6 @@ html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
   bottom: 0;
   box-sizing: border-box;
   color: #fff;
-  font-size: 0.72rem;
-  font-weight: 600;
   left: 0;
   overflow: hidden;
   padding: 1.65rem 0.7rem 0.6rem;
@@ -907,7 +1167,26 @@ html.projectzaman-gallery-mode .center > :not(.projectzaman-gallery-panel) {
   white-space: nowrap;
 }
 
-.projectzaman-gallery-card:hover img {
+.projectzaman-gallery-label > strong,
+.projectzaman-gallery-label > small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projectzaman-gallery-label > strong {
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.projectzaman-gallery-label > small {
+  color: color-mix(in srgb, #fff 75%, transparent);
+  font-size: 0.59rem;
+  font-weight: 550;
+  margin-top: 0.12rem;
+}
+
+.projectzaman-gallery-card:hover .projectzaman-gallery-preview img {
   transform: scale(1.025);
 }
 
@@ -1239,12 +1518,47 @@ html.projectzaman-updates-open body {
     align-items: flex-start;
   }
 
+  .projectzaman-gallery-filters {
+    flex-wrap: wrap;
+    margin-inline: -0.1rem;
+    overflow: visible;
+    padding-inline: 0.1rem;
+  }
+
   .projectzaman-gallery-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .projectzaman-gallery-card {
     border-radius: 0.72rem;
+  }
+
+  .projectzaman-media-viewer {
+    padding: max(0.35rem, env(safe-area-inset-top))
+      max(0.35rem, env(safe-area-inset-right))
+      max(0.35rem, env(safe-area-inset-bottom))
+      max(0.35rem, env(safe-area-inset-left));
+  }
+
+  .projectzaman-media-panel {
+    border-radius: 0.65rem;
+    height: calc(100dvh - 0.7rem);
+    width: calc(100dvw - 0.7rem);
+  }
+
+  .projectzaman-media-stage {
+    padding: 0.45rem;
+  }
+
+  .projectzaman-media-panel > footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .projectzaman-media-panel > footer a {
+    align-self: stretch;
+    text-align: center;
   }
 
   .projectzaman-updates-panel {
@@ -1424,7 +1738,8 @@ html.projectzaman-updates-open body {
   .center::before,
   .projectzaman-mobile-graph-slot,
   .projectzaman-graph-close,
-  .projectzaman-image-viewer {
+  .projectzaman-image-viewer,
+  .projectzaman-media-viewer {
     display: none;
   }
 
