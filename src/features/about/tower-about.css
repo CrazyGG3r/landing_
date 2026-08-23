@@ -11,6 +11,8 @@
 }
 
 .about-page {
+  --field-x: 50%;
+  --field-y: 24%;
   position: relative;
   width: 100%;
   height: 100svh;
@@ -51,6 +53,7 @@
   position: absolute;
   inset: 0;
   z-index: 3;
+  overflow: hidden;
   pointer-events: none;
   opacity: 0.38;
   background:
@@ -64,14 +67,59 @@
   mix-blend-mode: screen;
 }
 
-.about-atmosphere::after {
+.about-field-overlay {
   position: absolute;
-  inset: -40%;
+  inset: 0;
+  z-index: 8;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.about-field-overlay::after {
+  position: absolute;
+  inset: 0;
   content: '';
-  opacity: 0.065;
-  background-image: url('/images/blendBG/torn_.png');
-  background-size: 620px;
-  animation: about-noise-drift 12s steps(2) infinite;
+  opacity: 0;
+  background: linear-gradient(90deg, rgba(67, 218, 234, 0.018), transparent 42%, rgba(224, 38, 76, 0.014));
+  mix-blend-mode: screen;
+  backdrop-filter: blur(0.25px) saturate(0.9) contrast(1.035) hue-rotate(-2deg);
+  -webkit-backdrop-filter: blur(0.25px) saturate(0.9) contrast(1.035) hue-rotate(-2deg);
+  animation: about-field-presence 4.2s ease-out both;
+}
+
+.about-field-overlay__wave,
+.about-field-overlay__veil {
+  position: absolute;
+  top: var(--field-y);
+  left: var(--field-x);
+  width: clamp(64px, 6.8vw, 88px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.18);
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.about-field-overlay__wave {
+  background: radial-gradient(circle, transparent 38%, rgba(75, 222, 233, 0.055) 49%, rgba(238, 255, 255, 0.1) 59%, rgba(220, 42, 79, 0.065) 67%, transparent 84%);
+  filter: blur(5px) contrast(1.04);
+  backdrop-filter: blur(0.3px) saturate(0.86) contrast(1.04) hue-rotate(-3deg);
+  -webkit-backdrop-filter: blur(0.3px) saturate(0.86) contrast(1.04) hue-rotate(-3deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 37%, rgba(0, 0, 0, 0.22) 48%, #000 58%, rgba(0, 0, 0, 0.28) 71%, transparent 86%);
+  mask-image: radial-gradient(circle, transparent 37%, rgba(0, 0, 0, 0.22) 48%, #000 58%, rgba(0, 0, 0, 0.28) 71%, transparent 86%);
+  animation:
+    about-field-wave-hold 4.2s cubic-bezier(0.08, 0.68, 0.2, 1) both,
+    about-field-wave-vibration 2.6s 4.2s ease-in-out infinite;
+}
+
+.about-field-overlay__veil {
+  background: radial-gradient(circle, transparent 35%, rgba(47, 187, 204, 0.02) 47%, rgba(28, 123, 143, 0.032) 61%, rgba(103, 25, 54, 0.018) 78%, transparent 100%);
+  backdrop-filter: saturate(0.74) contrast(1.06) hue-rotate(-4deg);
+  -webkit-backdrop-filter: saturate(0.74) contrast(1.06) hue-rotate(-4deg);
+  animation:
+    about-field-veil-hold 4.2s cubic-bezier(0.08, 0.68, 0.2, 1) both,
+    about-field-veil-vibration 3.2s 4.2s ease-in-out infinite;
 }
 
 .about-header {
@@ -96,13 +144,20 @@
   gap: 12px;
   color: inherit;
   text-decoration: none;
-  transition: color 180ms ease;
+  transition: color 180ms ease, text-shadow 180ms ease, transform 120ms ease;
 }
 
 .about-home-link:hover,
 .about-home-link:focus-visible {
   color: #fff;
+  text-shadow: -2px 0 rgba(59, 224, 239, 0.5), 2px 0 rgba(218, 32, 69, 0.4);
   outline: none;
+}
+
+.about-home-link:active {
+  color: #8fe7f3;
+  text-shadow: -4px 0 rgba(59, 224, 239, 0.7), 4px 0 rgba(218, 32, 69, 0.55);
+  transform: translate3d(1px, 1px, 0);
 }
 
 .about-home-mark {
@@ -115,47 +170,21 @@
   font-family: 'BF Display', sans-serif;
   font-size: 12px;
   letter-spacing: 0.04em;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
-.about-intro {
-  position: absolute;
-  top: 96px;
-  left: 28px;
-  z-index: 6;
-  width: min(360px, 28vw);
-  pointer-events: none;
+.about-home-link:hover .about-home-mark,
+.about-home-link:focus-visible .about-home-mark {
+  border-color: rgba(181, 244, 252, 0.78);
+  background: rgba(64, 185, 205, 0.12);
+  box-shadow: 0 0 18px rgba(72, 208, 225, 0.18);
 }
 
-.about-eyebrow {
-  margin: 0 0 12px;
-  color: rgba(174, 226, 239, 0.62);
-  font-family: 'BF Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 0.22em;
-}
-
-.about-intro h1 {
-  margin: 0;
-  color: #f3fbff;
-  font-family: 'BF Display', sans-serif;
-  font-size: clamp(36px, 4.05vw, 68px);
-  font-weight: 800;
-  line-height: 0.83;
-  letter-spacing: -0.035em;
-  text-shadow:
-    0 0 26px rgba(179, 231, 244, 0.13),
-    1px 0 rgba(150, 225, 245, 0.32),
-    -1px 0 rgba(170, 90, 90, 0.17);
-}
-
-.about-deck {
-  max-width: 300px;
-  margin: 20px 0 0;
-  color: rgba(226, 242, 247, 0.54);
-  font-family: 'BF Mono', monospace;
-  font-size: 11px;
-  line-height: 1.65;
-  letter-spacing: 0.06em;
+.about-page--field-active .about-header,
+.about-page--field-active .about-tier-nav,
+.about-page--field-active .about-instruction {
+  filter: brightness(1.03) saturate(0.88);
+  text-shadow: -1px 0 rgba(54, 225, 241, 0.34), 1px 0 rgba(229, 26, 65, 0.26);
 }
 
 .about-tier-nav {
@@ -195,13 +224,19 @@
   right: 28px;
   bottom: 27px;
   z-index: 6;
-  display: flex;
-  align-items: center;
-  gap: 11px;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
   color: rgba(195, 224, 231, 0.43);
   font-family: 'BF Mono', monospace;
   font-size: 8px;
   letter-spacing: 0.19em;
+}
+
+.about-instruction-copy {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   pointer-events: none;
 }
 
@@ -209,6 +244,40 @@
   width: 38px;
   height: 1px;
   background: rgba(168, 223, 237, 0.32);
+}
+
+.about-field-trigger {
+  min-width: 152px;
+  padding: 11px 14px 10px;
+  border: 1px solid rgba(231, 253, 255, 0.72);
+  border-radius: 0;
+  color: #061014;
+  font-family: 'BF Mono', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  background: rgba(213, 236, 236, 0.9);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.32);
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.about-field-trigger:hover,
+.about-field-trigger:focus-visible {
+  color: #eaffff;
+  background: #081318;
+  outline: 1px solid rgba(180, 240, 250, 0.5);
+  outline-offset: 3px;
+  transform: translateY(-1px);
+}
+
+.about-field-trigger:active {
+  color: #061014;
+  background: #8ddbe7;
+  box-shadow:
+    -4px 0 rgba(46, 220, 237, 0.58),
+    4px 0 rgba(218, 31, 68, 0.46),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: translate3d(1px, 1px, 0);
 }
 
 .about-access-roster {
@@ -234,6 +303,8 @@
 }
 
 .about-record-window {
+  position: relative;
+  isolation: isolate;
   width: min(980px, calc(100vw - 64px));
   height: min(570px, calc(100svh - 64px));
   min-height: 470px;
@@ -241,15 +312,30 @@
   border: 1px solid rgba(174, 230, 243, 0.28);
   color: #edfaff;
   background:
-    linear-gradient(135deg, rgba(12, 23, 29, 0.96), rgba(3, 7, 10, 0.98) 58%),
-    #05090c;
+    linear-gradient(135deg, rgba(12, 23, 29, 0.74), rgba(3, 7, 10, 0.82) 58%),
+    rgba(3, 9, 12, 0.72);
+  backdrop-filter: blur(20px) saturate(1.15);
   box-shadow:
     0 42px 120px rgba(0, 0, 0, 0.72),
     inset 0 0 58px rgba(78, 176, 199, 0.035);
   animation: record-window-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.about-record-shader {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.about-record-shader canvas {
+  display: block;
+}
+
 .about-record-header {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -260,6 +346,8 @@
   font-family: 'BF Mono', monospace;
   font-size: 9px;
   letter-spacing: 0.17em;
+  background: rgba(2, 10, 14, 0.38);
+  backdrop-filter: blur(8px);
 }
 
 .about-record-header button {
@@ -281,17 +369,22 @@
 }
 
 .about-record-content {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(330px, 0.95fr);
   height: calc(100% - 53px);
 }
 
 .about-record-information {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: clamp(34px, 5vw, 72px);
   border-right: 1px solid rgba(171, 226, 240, 0.13);
+  background: rgba(3, 11, 15, 0.46);
+  container-type: inline-size;
 }
 
 .about-record-kicker,
@@ -309,14 +402,17 @@
 }
 
 .about-record-information h2 {
-  max-width: 520px;
+  max-width: 100%;
   margin: 0;
   color: #f5fcff;
   font-family: 'BF Display', sans-serif;
-  font-size: clamp(46px, 6vw, 82px);
+  font-size: clamp(42px, 13.2cqi, 74px);
   line-height: 0.82;
   letter-spacing: -0.035em;
+  overflow-wrap: normal;
+  text-wrap: balance;
   text-transform: uppercase;
+  word-break: keep-all;
 }
 
 .about-record-role {
@@ -391,7 +487,7 @@
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 56%, rgba(68, 147, 167, 0.16), transparent 42%),
-    #05090c;
+    linear-gradient(135deg, rgba(3, 9, 12, 0.56), rgba(2, 7, 10, 0.3));
 }
 
 .about-record-model::after {
@@ -416,12 +512,31 @@
   letter-spacing: 0.13em;
 }
 
-@keyframes about-noise-drift {
-  0% { transform: translate3d(-3%, -2%, 0); }
-  25% { transform: translate3d(2%, -4%, 0); }
-  50% { transform: translate3d(-1%, 3%, 0); }
-  75% { transform: translate3d(4%, 1%, 0); }
-  100% { transform: translate3d(-3%, -2%, 0); }
+@keyframes about-field-wave-hold {
+  0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.18); }
+  72% { opacity: 0.22; }
+  100% { opacity: 0.11; transform: translate(-50%, -50%) scale(12.2); }
+}
+
+@keyframes about-field-veil-hold {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.18); }
+  26% { opacity: 0.11; }
+  100% { opacity: 0.05; transform: translate(-50%, -50%) scale(12.2); }
+}
+
+@keyframes about-field-wave-vibration {
+  0%, 100% { transform: translate(-50%, -50%) scale(12.2); }
+  50% { transform: translate(calc(-50% + 0.5px), calc(-50% - 0.5px)) scale(12.34); }
+}
+
+@keyframes about-field-veil-vibration {
+  0%, 100% { transform: translate(-50%, -50%) scale(12.2); }
+  50% { transform: translate(calc(-50% - 0.35px), calc(-50% + 0.35px)) scale(12.3); }
+}
+
+@keyframes about-field-presence {
+  0%, 58% { opacity: 0; }
+  100% { opacity: 0.12; }
 }
 
 @keyframes record-backdrop-in {
@@ -438,11 +553,6 @@
   .about-build-label,
   .about-tier-nav {
     display: none;
-  }
-
-  .about-intro {
-    top: 82px;
-    width: 290px;
   }
 
   .about-record-content {
@@ -468,19 +578,13 @@
     padding: 16px;
   }
 
-  .about-intro {
-    top: 70px;
-    left: 16px;
-    width: 250px;
-  }
-
-  .about-intro h1 {
-    font-size: 36px;
-  }
-
-  .about-deck,
-  .about-instruction {
+  .about-instruction-copy {
     display: none;
+  }
+
+  .about-instruction {
+    right: 16px;
+    bottom: 16px;
   }
 
   .about-record-backdrop {
@@ -506,7 +610,7 @@
   }
 
   .about-record-information h2 {
-    font-size: 42px;
+    font-size: clamp(34px, 13.2cqi, 48px);
   }
 
   .about-record-rule {
@@ -524,8 +628,27 @@
 
 @media (prefers-reduced-motion: reduce) {
   .about-atmosphere::after,
+  .about-page--field-active .about-header,
+  .about-page--field-active .about-tier-nav,
+  .about-page--field-active .about-instruction,
   .about-record-backdrop,
   .about-record-window {
     animation: none;
+  }
+
+  .about-field-overlay__wave,
+  .about-field-overlay__veil {
+    animation: none;
+    opacity: 0.1;
+    transform: translate(-50%, -50%) scale(7.5);
+  }
+
+  .about-field-overlay::after {
+    animation: none;
+    opacity: 0.12;
+  }
+
+  .about-record-shader {
+    opacity: 0.68;
   }
 }

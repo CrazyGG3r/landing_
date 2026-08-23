@@ -1,9 +1,20 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Center, OrbitControls, Text3D, useGLTF, useTexture } from '@react-three/drei'
+import {
+  CameraShake,
+  Center,
+  MeshTransmissionMaterial,
+  OrbitControls,
+  Text3D,
+  useGLTF,
+  useTexture,
+} from '@react-three/drei'
+import { EffectComposer } from '@react-three/postprocessing'
+import { ChromaticAberrationEffect } from 'postprocessing'
 import { Link } from 'react-router-dom'
 import {
   AnimationMixer,
+  AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -13,6 +24,7 @@ import {
   MathUtils,
   RepeatWrapping,
   SRGBColorSpace,
+  Vector2,
   Vector3,
 } from 'three'
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
@@ -23,6 +35,12 @@ import './tower-about.css'
 const AVATAR_URL = '/models/about/crazygger-rigged.glb'
 const PYRAMID_PATTERN_URL = '/images/about/tilemaps/boltforged-pattern-neutral.png'
 const RING_PATTERN_URL = '/images/about/tilemaps/boltforged-pattern-steel-blue.png'
+const FIELD_SOURCE_PERSON = ABOUT_PEOPLE_BY_ID['shaheer-ul-islam']
+const FIELD_SOURCE_POSITION = [
+  FIELD_SOURCE_PERSON.position[0],
+  FIELD_SOURCE_PERSON.position[1] + 0.78,
+  FIELD_SOURCE_PERSON.position[2],
+]
 
 const towerVertexShader = /* glsl */ `
   varying vec3 vNormal;
@@ -77,6 +95,164 @@ const towerFragmentShader = /* glsl */ `
     gl_FragColor = vec4(base + signal, 1.0);
   }
 `
+
+const fieldVertexShader = /* glsl */ `
+  varying vec3 vNormal;
+  varying vec3 vViewDirection;
+  varying vec3 vWorldPosition;
+
+  void main() {
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vNormal = normalize(mat3(modelMatrix) * normal);
+    vViewDirection = cameraPosition - worldPosition.xyz;
+    vWorldPosition = worldPosition.xyz;
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  }
+`
+
+const fieldFragmentShader = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uOpacity;
+  uniform float uTime;
+  varying vec3 vNormal;
+  varying vec3 vViewDirection;
+  varying vec3 vWorldPosition;
+
+  float hash31(vec3 point) {
+    point = fract(point * 0.1031);
+    point += dot(point, point.yzx + 33.33);
+    return fract((point.x + point.y) * point.z);
+  }
+
+  void main() {
+    vec3 normal = normalize(vNormal);
+    vec3 viewDirection = normalize(vViewDirection);
+    float rim = pow(1.0 - abs(dot(normal, viewDirection)), 2.7);
+    float innerVeil = pow(1.0 - abs(dot(normal, viewDirection)), 0.7) * 0.035;
+    float grain = hash31(floor(vWorldPosition * 15.0) + floor(uTime * 4.0));
+    float movingBreakup = 0.5 + 0.5 * sin(
+      dot(vWorldPosition, vec3(5.7, 8.3, 4.9)) + uTime * 2.4
+    );
+    float dissolve = smoothstep(0.46, 0.78, grain * 0.68 + movingBreakup * 0.32);
+    float surface = mix(0.3, 1.0, dissolve);
+    float alpha = (rim * 0.92 + innerVeil) * uOpacity * surface;
+
+    if (alpha < 0.0015) discard;
+    gl_FragColor = vec4(uColor * (0.92 + rim * 1.75), alpha);
+  }
+`
+
+const recordDitherVertexShader = /* glsl */ `
+  void main() {
+    gl_Position = vec4(position.xy, 0.0, 1.0);
+  }
+`
+
+const recordDitherFragmentShader = /* glsl */ `
+  uniform float uTime;
+  uniform vec2 uResolution;
+
+  float bayer4(vec2 pixel) {
+    vec2 cell = mod(floor(pixel), 4.0);
+
+    if (cell.y < 1.0) {
+      if (cell.x < 1.0) return 0.0 / 16.0;
+      if (cell.x < 2.0) return 8.0 / 16.0;
+      if (cell.x < 3.0) return 2.0 / 16.0;
+      return 10.0 / 16.0;
+    }
+
+    if (cell.y < 2.0) {
+      if (cell.x < 1.0) return 12.0 / 16.0;
+      if (cell.x < 2.0) return 4.0 / 16.0;
+      if (cell.x < 3.0) return 14.0 / 16.0;
+      return 6.0 / 16.0;
+    }
+
+    if (cell.y < 3.0) {
+      if (cell.x < 1.0) return 3.0 / 16.0;
+      if (cell.x < 2.0) return 11.0 / 16.0;
+      if (cell.x < 3.0) return 1.0 / 16.0;
+      return 9.0 / 16.0;
+    }
+
+    if (cell.x < 1.0) return 15.0 / 16.0;
+    if (cell.x < 2.0) return 7.0 / 16.0;
+    if (cell.x < 3.0) return 13.0 / 16.0;
+    return 5.0 / 16.0;
+  }
+
+  float hash21(vec2 point) {
+    point = fract(point * vec2(123.34, 456.21));
+    point += dot(point, point + 45.32);
+    return fract(point.x * point.y);
+  }
+
+  void main() {
+    vec2 resolution = max(uResolution, vec2(1.0));
+    vec2 uv = gl_FragCoord.xy / resolution;
+    vec2 centered = uv - 0.5;
+    float aspect = resolution.x / resolution.y;
+    centered.x *= aspect;
+
+    float slowBand = 0.5 + 0.5 * sin(uv.y * 12.0 - uTime * 0.62);
+    float crossBand = 0.5 + 0.5 * sin((uv.x + uv.y) * 18.0 + uTime * 0.34);
+    float bloom = exp(-3.2 * dot(centered, centered));
+    float field = 0.11 + slowBand * 0.055 + crossBand * 0.035 + bloom * 0.105;
+
+    vec2 ditherOffset = floor(vec2(uTime * 5.0, uTime * 2.5));
+    float orderedDither = step(bayer4(gl_FragCoord.xy + ditherOffset), field);
+    float grain = hash21(floor(gl_FragCoord.xy * 0.5) + floor(uTime * 3.0));
+    float flicker = step(0.986, grain) * (0.35 + bloom * 0.65);
+    float edge = smoothstep(0.78, 1.0, abs(uv.x * 2.0 - 1.0));
+
+    vec3 cyan = vec3(0.18, 0.66, 0.79);
+    vec3 deepBlue = vec3(0.035, 0.16, 0.22);
+    vec3 color = mix(deepBlue, cyan, slowBand * 0.44 + bloom * 0.3);
+    color *= 0.4 + orderedDither * 0.9 + flicker * 1.8;
+
+    float alpha = 0.035 + orderedDither * (0.12 + bloom * 0.08) + flicker * 0.16 + edge * 0.025;
+    gl_FragColor = vec4(color, alpha);
+  }
+`
+
+function RecordWindowShader() {
+  const materialRef = useRef(null)
+  const { gl, size } = useThree()
+  const uniforms = useMemo(
+    () => ({
+      uTime: { value: 0 },
+      uResolution: { value: new Vector2(1, 1) },
+    }),
+    [],
+  )
+
+  useEffect(() => {
+    const pixelRatio = gl.getPixelRatio()
+    uniforms.uResolution.value.set(size.width * pixelRatio, size.height * pixelRatio)
+  }, [gl, size.height, size.width, uniforms])
+
+  useFrame((_, delta) => {
+    if (materialRef.current) materialRef.current.uniforms.uTime.value += delta
+  })
+
+  return (
+    <mesh frustumCulled={false}>
+      <planeGeometry args={[2, 2]} />
+      <shaderMaterial
+        ref={materialRef}
+        uniforms={uniforms}
+        vertexShader={recordDitherVertexShader}
+        fragmentShader={recordDitherFragmentShader}
+        transparent
+        depthTest={false}
+        depthWrite={false}
+        blending={AdditiveBlending}
+        toneMapped={false}
+      />
+    </mesh>
+  )
+}
 
 function useTiledTexture(url) {
   const { gl } = useThree()
@@ -163,6 +339,64 @@ function TowerCrown() {
   )
 }
 
+function BackdropTeamTitle() {
+  const groupRef = useRef(null)
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const liveNoise = Math.sin(clock.elapsedTime * 0.72) * 0.004
+
+    groupRef.current.position.x = liveNoise
+    groupRef.current.position.y = 4.4
+    groupRef.current.rotation.z = liveNoise * 0.035
+  })
+
+  const material = (
+    <meshStandardMaterial
+      color="#9ff5ff"
+      emissive="#4bb9c9"
+      emissiveIntensity={1.35}
+      metalness={0.5}
+      roughness={0.24}
+      depthTest
+      toneMapped={false}
+    />
+  )
+
+  return (
+    <group ref={groupRef} position={[0, 4.4, -4.2]} renderOrder={-2}>
+      <Center position={[0, 1.55, 0]}>
+        <Text3D
+          font={helvetiker}
+          size={4.1}
+          height={0.12}
+          curveSegments={3}
+          bevelEnabled
+          bevelSize={0.016}
+          bevelThickness={0.02}
+        >
+          OUR
+          {material}
+        </Text3D>
+      </Center>
+      <Center position={[0, -1.55, 0]}>
+        <Text3D
+          font={helvetiker}
+          size={4.1}
+          height={0.12}
+          curveSegments={3}
+          bevelEnabled
+          bevelSize={0.016}
+          bevelThickness={0.02}
+        >
+          TEAM
+          {material}
+        </Text3D>
+      </Center>
+    </group>
+  )
+}
+
 function createSpiralGeometry() {
   const geometry = new BufferGeometry()
   const positions = []
@@ -237,6 +471,154 @@ function SpiralRamp() {
         side={DoubleSide}
       />
     </mesh>
+  )
+}
+
+function PsionicField({ pulseId, onScreenOrigin }) {
+  const liquidShellRef = useRef(null)
+  const spectralShellRefs = useRef([])
+  const startedAtRef = useRef(-10000)
+  const projectedOriginRef = useRef(new Vector3())
+  const lastScreenOriginRef = useRef({ x: -1000, y: -1000 })
+
+  const spectralUniforms = useMemo(
+    () => ['#ff3157', '#55eaff'].map(color => ({
+      uColor: { value: new Color(color) },
+      uOpacity: { value: 0 },
+      uTime: { value: 0 },
+    })),
+    [],
+  )
+
+  useEffect(() => {
+    if (pulseId === 0) return undefined
+    startedAtRef.current = performance.now()
+    return undefined
+  }, [pulseId])
+
+  useFrame(({ camera, clock, size }) => {
+    const elapsed = (performance.now() - startedAtRef.current) / 1000
+    const local = elapsed / 4.2
+    const progress = MathUtils.clamp(local, 0, 1)
+    const eased = 1 - Math.pow(1 - progress, 2)
+    const waveScale = MathUtils.lerp(0.2, 8.5, eased)
+    const isReleased = pulseId > 0 && local > 0
+    const isSettled = local >= 1
+    const liquidVibration = isSettled
+      ? 1 + Math.sin(clock.elapsedTime * 1.55) * 0.009
+      : 1
+
+    if (liquidShellRef.current) {
+      liquidShellRef.current.scale.setScalar(waveScale * liquidVibration)
+      liquidShellRef.current.rotation.y = progress * 0.12
+        + (isSettled ? Math.sin(clock.elapsedTime * 0.82) * 0.008 : 0)
+      liquidShellRef.current.rotation.z = isSettled
+        ? Math.sin(clock.elapsedTime * 1.12) * 0.01
+        : 0
+    }
+
+    projectedOriginRef.current.fromArray(FIELD_SOURCE_POSITION).project(camera)
+    const screenX = (projectedOriginRef.current.x * 0.5 + 0.5) * size.width
+    const screenY = (-projectedOriginRef.current.y * 0.5 + 0.5) * size.height
+    const lastOrigin = lastScreenOriginRef.current
+    if (
+      onScreenOrigin
+      && (Math.abs(screenX - lastOrigin.x) > 0.5 || Math.abs(screenY - lastOrigin.y) > 0.5)
+    ) {
+      lastOrigin.x = screenX
+      lastOrigin.y = screenY
+      onScreenOrigin(screenX, screenY)
+    }
+
+    spectralShellRefs.current.forEach((shell, index) => {
+      if (!shell) return
+      const spectralVibration = isSettled
+        ? 1 + Math.sin(clock.elapsedTime * (1.85 + index * 0.16) + index * 1.7) * 0.012
+        : 1
+      const spectralScale = waveScale
+        * spectralVibration
+        * (index === 0 ? 0.992 : 1.012)
+      shell.visible = isReleased
+      shell.scale.setScalar(spectralScale)
+      shell.rotation.y = progress * 0.08
+        + (isSettled ? Math.sin(clock.elapsedTime * 0.68 + index) * 0.01 : 0)
+      shell.rotation.z = isSettled
+        ? Math.cos(clock.elapsedTime * 0.74 + index) * 0.008
+        : 0
+      shell.position.x = (index === 0 ? -0.024 : 0.024)
+        + (isSettled ? Math.sin(clock.elapsedTime * 1.32 + index) * 0.01 : 0)
+      shell.material.uniforms.uOpacity.value = isReleased ? 0.024 : 0
+      shell.material.uniforms.uTime.value = Math.max(elapsed, 0) * 0.18
+    })
+  })
+
+  return (
+    <group position={FIELD_SOURCE_POSITION}>
+      <pointLight color="#73dce8" intensity={3.2} distance={7.2} decay={2} />
+
+      {pulseId > 0 && (
+        <mesh ref={liquidShellRef} renderOrder={8}>
+          <sphereGeometry args={[1, 96, 64]} />
+          <MeshTransmissionMaterial
+            samples={6}
+            resolution={512}
+            transmission={1}
+            roughness={0.04}
+            thickness={0.14}
+            ior={1.1}
+            chromaticAberration={0.15}
+            anisotropicBlur={0.04}
+            distortion={0.08}
+            distortionScale={0.35}
+            temporalDistortion={0.02}
+            attenuationDistance={15}
+            attenuationColor="#c7eff0"
+            side={DoubleSide}
+            backside
+            backsideThickness={0.11}
+            transparent
+          />
+        </mesh>
+      )}
+
+      {[0, 1].map(index => (
+        <mesh
+          key={index}
+          ref={element => { spectralShellRefs.current[index] = element }}
+          visible={false}
+          renderOrder={9 + index}
+        >
+          <sphereGeometry args={[1, 72, 44]} />
+          <shaderMaterial
+            uniforms={spectralUniforms[index]}
+            vertexShader={fieldVertexShader}
+            fragmentShader={fieldFragmentShader}
+            transparent
+            depthWrite={false}
+            blending={AdditiveBlending}
+          />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+function PulsePostEffects() {
+  const chromaticEffect = useMemo(
+    () => new ChromaticAberrationEffect({
+      offset: new Vector2(0.00035, -0.000195),
+      radialModulation: false,
+      modulationOffset: 0.15,
+    }),
+    [],
+  )
+
+  useEffect(() => () => chromaticEffect.dispose(), [chromaticEffect])
+
+  return (
+    <EffectComposer multisampling={0}>
+      <primitive object={chromaticEffect} />
+    </EffectComposer>
   )
 }
 
@@ -408,11 +790,22 @@ function TowerAvatar({ person, highlighted, onHover, onOpen }) {
   )
 }
 
-function PyramidControls() {
+function PyramidControls({ pulseId }) {
   const controlsRef = useRef(null)
   const { camera, size } = useThree()
   const compactView = size.width < 760
   const focusY = compactView ? 3.05 : 3.52
+  const fieldStartedAtRef = useRef(-10000)
+
+  useEffect(() => {
+    fieldStartedAtRef.current = performance.now()
+  }, [pulseId])
+
+  useFrame(() => {
+    if (!controlsRef.current) return
+    const elapsed = (performance.now() - fieldStartedAtRef.current) / 1000
+    controlsRef.current.autoRotate = elapsed > 4.2
+  })
 
   useEffect(() => {
     camera.fov = compactView ? 53 : 41
@@ -434,22 +827,32 @@ function PyramidControls() {
       enableRotate
       rotateSpeed={0.45}
       enableZoom
-      zoomSpeed={0.9}
+      zoomSpeed={0.45}
       enablePan={false}
-      minDistance={8.75}
-      maxDistance={27}
-      minPolarAngle={0.18}
-      maxPolarAngle={Math.PI * 0.72}
+      minDistance={compactView ? 12.8 : 9.7}
+      maxDistance={compactView ? 15.4 : 12.4}
+      minPolarAngle={Math.PI * 0.32}
+      maxPolarAngle={Math.PI * 0.64}
     />
   )
 }
 
-function TowerScene({ hoveredId, onHover, onOpen }) {
+function TowerScene({ hoveredId, onHover, onOpen, pulseId, onFieldOrigin }) {
   return (
     <>
       <color attach="background" args={['#020305']} />
       <fog attach="fog" args={['#020305', 14, 31]} />
-      <PyramidControls />
+      <PyramidControls pulseId={pulseId} />
+      <CameraShake
+        maxYaw={0.00055}
+        maxPitch={0.0004}
+        maxRoll={0.00022}
+        yawFrequency={0.16}
+        pitchFrequency={0.19}
+        rollFrequency={0.13}
+        intensity={1}
+        decay={false}
+      />
 
       <ambientLight intensity={0.5} color="#b5d8e2" />
       <hemisphereLight
@@ -474,6 +877,8 @@ function TowerScene({ hoveredId, onHover, onOpen }) {
       />
       <pointLight position={[0, 1, 6]} intensity={8} distance={18} color="#153b49" />
 
+      <BackdropTeamTitle />
+
       <group>
         {ABOUT_TIERS.map(tier => <TowerTier key={tier.id} tier={tier} />)}
         <TowerCrown />
@@ -490,6 +895,9 @@ function TowerScene({ hoveredId, onHover, onOpen }) {
           </Suspense>
         ))}
       </group>
+
+      <PsionicField pulseId={pulseId} onScreenOrigin={onFieldOrigin} />
+      <PulsePostEffects />
 
       <gridHelper
         args={[34, 34, '#18323b', '#091317']}
@@ -508,7 +916,6 @@ function RotatingRecordModel({ person }) {
 
   return (
     <>
-      <color attach="background" args={['#05090c']} />
       <ambientLight intensity={0.5} color="#c9f3ff" />
       <directionalLight position={[-3, 6, 5]} intensity={3.5} color="#e9fcff" />
       <pointLight position={[3, 2, 3]} intensity={9} distance={8} color="#4cacc6" />
@@ -526,6 +933,30 @@ function RotatingRecordModel({ person }) {
         />
       </mesh>
     </>
+  )
+}
+
+function RecordModelAberration() {
+  const effect = useMemo(
+    () => new ChromaticAberrationEffect({
+      offset: new Vector2(0.0035, -0.0019),
+      radialModulation: false,
+      modulationOffset: 0.15,
+    }),
+    [],
+  )
+
+  useEffect(() => () => effect.dispose(), [effect])
+
+  useFrame(({ clock }) => {
+    const drift = 0.0032 + (0.5 + 0.5 * Math.sin(clock.elapsedTime * 1.35)) * 0.0016
+    effect.offset.set(drift, -drift * 0.54)
+  })
+
+  return (
+    <EffectComposer multisampling={0}>
+      <primitive object={effect} />
+    </EffectComposer>
   )
 }
 
@@ -555,6 +986,17 @@ function PersonRecordWindow({ person, onClose }) {
         aria-modal="true"
         aria-labelledby="about-record-name"
       >
+        <div className="about-record-shader" aria-hidden="true">
+          <Canvas
+            orthographic
+            camera={{ position: [0, 0, 1], zoom: 1 }}
+            dpr={[1, 1.25]}
+            gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
+          >
+            <RecordWindowShader />
+          </Canvas>
+        </div>
+
         <header className="about-record-header">
           <span>CONTRIBUTOR RECORD / {tier.index}</span>
           <button ref={closeRef} type="button" onClick={onClose} aria-label="Close contributor record">
@@ -590,11 +1032,12 @@ function PersonRecordWindow({ person, onClose }) {
             <Canvas
               camera={{ position: [0, 0.5, 11], fov: 34, near: 0.1, far: 40 }}
               dpr={[1, 1.5]}
-              gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+              gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
             >
               <Suspense fallback={null}>
                 <RotatingRecordModel person={person} />
               </Suspense>
+              <RecordModelAberration />
             </Canvas>
             <span>ROTATION / RIGHT · 0.48 RAD/S</span>
           </div>
@@ -607,14 +1050,35 @@ function PersonRecordWindow({ person, onClose }) {
 export default function TowerAbout() {
   const [hoveredId, setHoveredId] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
+  const [pulseId, setPulseId] = useState(0)
+  const [fieldActive, setFieldActive] = useState(false)
+  const pageRef = useRef(null)
+  const fieldFrameRef = useRef(null)
   const selectedPerson = selectedId ? ABOUT_PEOPLE_BY_ID[selectedId] : null
 
+  const releaseField = useCallback(() => {
+    window.cancelAnimationFrame(fieldFrameRef.current)
+    setFieldActive(false)
+
+    fieldFrameRef.current = window.requestAnimationFrame(() => {
+      setPulseId(value => value + 1)
+      setFieldActive(true)
+    })
+  }, [])
+
+  const updateFieldOrigin = useCallback((x, y) => {
+    if (!pageRef.current) return
+    pageRef.current.style.setProperty('--field-x', `${x}px`)
+    pageRef.current.style.setProperty('--field-y', `${y}px`)
+  }, [])
+
   useEffect(() => () => {
+    window.cancelAnimationFrame(fieldFrameRef.current)
     document.body.style.cursor = ''
   }, [])
 
   return (
-    <main className="about-page">
+    <main ref={pageRef} className={`about-page${fieldActive ? ' about-page--field-active' : ''}`}>
       <div className="about-canvas" aria-hidden="true">
         <Canvas
           camera={{ position: [0, 3.25, 16.5], fov: 41, near: 0.1, far: 80 }}
@@ -627,11 +1091,20 @@ export default function TowerAbout() {
             hoveredId={hoveredId}
             onHover={setHoveredId}
             onOpen={setSelectedId}
+            pulseId={pulseId}
+            onFieldOrigin={updateFieldOrigin}
           />
         </Canvas>
       </div>
 
       <div className="about-atmosphere" aria-hidden="true" />
+
+      {fieldActive && (
+        <div key={pulseId} className="about-field-overlay" aria-hidden="true">
+          <span className="about-field-overlay__veil" />
+          <span className="about-field-overlay__wave" />
+        </div>
+      )}
 
       <header className="about-header">
         <Link to="/" className="about-home-link" aria-label="Return to BOLTFORGED home">
@@ -640,14 +1113,6 @@ export default function TowerAbout() {
         </Link>
         <span className="about-build-label">BABEL STRUCTURE · LIVE LEDGER</span>
       </header>
-
-      <section className="about-intro" aria-labelledby="about-title">
-        <p className="about-eyebrow">MEET THE PEOPLE BEHIND THE STRUCTURE</p>
-        <h1 id="about-title">OUR<br />TEAM</h1>
-        <p className="about-deck">
-          The people behind the work. Every name remains visible.
-        </p>
-      </section>
 
       <nav className="about-tier-nav" aria-label="Tower hierarchy">
         {ABOUT_TIERS.map(tier => (
@@ -659,8 +1124,13 @@ export default function TowerAbout() {
       </nav>
 
       <div className="about-instruction">
-        <span className="about-instruction-line" />
-        SLOW ORBIT · DRAG TO INSPECT · SCROLL TO ZOOM
+        <div className="about-instruction-copy">
+          <span className="about-instruction-line" />
+          FIELD HELD FROM SHAHEER · DRAG TO INSPECT
+        </div>
+        <button type="button" className="about-field-trigger" onClick={releaseField}>
+          RELEASE FIELD
+        </button>
       </div>
 
       <div className="about-access-roster">
