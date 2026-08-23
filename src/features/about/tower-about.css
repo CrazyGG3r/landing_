@@ -87,7 +87,6 @@
   animation: about-field-presence 4.2s ease-out both;
 }
 
-.about-field-overlay__wave,
 .about-field-overlay__veil {
   position: absolute;
   top: var(--field-y);
@@ -101,25 +100,13 @@
   will-change: transform, opacity;
 }
 
-.about-field-overlay__wave {
-  background: radial-gradient(circle, transparent 38%, rgba(75, 222, 233, 0.055) 49%, rgba(238, 255, 255, 0.1) 59%, rgba(220, 42, 79, 0.065) 67%, transparent 84%);
-  filter: blur(5px) contrast(1.04);
-  backdrop-filter: blur(0.3px) saturate(0.86) contrast(1.04) hue-rotate(-3deg);
-  -webkit-backdrop-filter: blur(0.3px) saturate(0.86) contrast(1.04) hue-rotate(-3deg);
-  -webkit-mask-image: radial-gradient(circle, transparent 37%, rgba(0, 0, 0, 0.22) 48%, #000 58%, rgba(0, 0, 0, 0.28) 71%, transparent 86%);
-  mask-image: radial-gradient(circle, transparent 37%, rgba(0, 0, 0, 0.22) 48%, #000 58%, rgba(0, 0, 0, 0.28) 71%, transparent 86%);
-  animation:
-    about-field-wave-hold 4.2s cubic-bezier(0.08, 0.68, 0.2, 1) both,
-    about-field-wave-vibration 2.6s 4.2s ease-in-out infinite;
-}
-
 .about-field-overlay__veil {
   background: radial-gradient(circle, transparent 35%, rgba(47, 187, 204, 0.02) 47%, rgba(28, 123, 143, 0.032) 61%, rgba(103, 25, 54, 0.018) 78%, transparent 100%);
   backdrop-filter: saturate(0.74) contrast(1.06) hue-rotate(-4deg);
   -webkit-backdrop-filter: saturate(0.74) contrast(1.06) hue-rotate(-4deg);
   animation:
     about-field-veil-hold 4.2s cubic-bezier(0.08, 0.68, 0.2, 1) both,
-    about-field-veil-vibration 3.2s 4.2s ease-in-out infinite;
+    about-field-veil-vibration 0.29s 4.2s linear infinite;
 }
 
 .about-header {
@@ -512,26 +499,17 @@
   letter-spacing: 0.13em;
 }
 
-@keyframes about-field-wave-hold {
-  0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.18); }
-  72% { opacity: 0.22; }
-  100% { opacity: 0.11; transform: translate(-50%, -50%) scale(12.2); }
-}
-
 @keyframes about-field-veil-hold {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.18); }
   26% { opacity: 0.11; }
   100% { opacity: 0.05; transform: translate(-50%, -50%) scale(12.2); }
 }
 
-@keyframes about-field-wave-vibration {
-  0%, 100% { transform: translate(-50%, -50%) scale(12.2); }
-  50% { transform: translate(calc(-50% + 0.5px), calc(-50% - 0.5px)) scale(12.34); }
-}
-
 @keyframes about-field-veil-vibration {
-  0%, 100% { transform: translate(-50%, -50%) scale(12.2); }
-  50% { transform: translate(calc(-50% - 0.35px), calc(-50% + 0.35px)) scale(12.3); }
+  0%, 100% { transform: translate(-50%, -50%) scale(12.26); }
+  25% { transform: translate(calc(-50% - 0.25px), calc(-50% + 0.3px)) scale(12.14); }
+  50% { transform: translate(calc(-50% + 0.32px), calc(-50% - 0.18px)) scale(12.27); }
+  75% { transform: translate(calc(-50% - 0.16px), calc(-50% - 0.26px)) scale(12.13); }
 }
 
 @keyframes about-field-presence {
@@ -636,7 +614,6 @@
     animation: none;
   }
 
-  .about-field-overlay__wave,
   .about-field-overlay__veil {
     animation: none;
     opacity: 0.1;

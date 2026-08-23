@@ -35,12 +35,14 @@ import './tower-about.css'
 const AVATAR_URL = '/models/about/crazygger-rigged.glb'
 const PYRAMID_PATTERN_URL = '/images/about/tilemaps/boltforged-pattern-neutral.png'
 const RING_PATTERN_URL = '/images/about/tilemaps/boltforged-pattern-steel-blue.png'
+
+function getFieldSourcePosition(person) {
+  if (!person) return [0, 0, 0]
+  return [person.position[0], person.position[1] + 0.78, person.position[2]]
+}
+
 const FIELD_SOURCE_PERSON = ABOUT_PEOPLE_BY_ID['shaheer-ul-islam']
-const FIELD_SOURCE_POSITION = [
-  FIELD_SOURCE_PERSON.position[0],
-  FIELD_SOURCE_PERSON.position[1] + 0.78,
-  FIELD_SOURCE_PERSON.position[2],
-]
+const FIELD_SOURCE_POSITION = getFieldSourcePosition(FIELD_SOURCE_PERSON)
 
 const towerVertexShader = /* glsl */ `
   varying vec3 vNormal;
@@ -118,23 +120,19 @@ const fieldFragmentShader = /* glsl */ `
   varying vec3 vViewDirection;
   varying vec3 vWorldPosition;
 
-  float hash31(vec3 point) {
-    point = fract(point * 0.1031);
-    point += dot(point, point.yzx + 33.33);
-    return fract((point.x + point.y) * point.z);
-  }
-
   void main() {
     vec3 normal = normalize(vNormal);
     vec3 viewDirection = normalize(vViewDirection);
     float rim = pow(1.0 - abs(dot(normal, viewDirection)), 2.7);
     float innerVeil = pow(1.0 - abs(dot(normal, viewDirection)), 0.7) * 0.035;
-    float grain = hash31(floor(vWorldPosition * 15.0) + floor(uTime * 4.0));
-    float movingBreakup = 0.5 + 0.5 * sin(
-      dot(vWorldPosition, vec3(5.7, 8.3, 4.9)) + uTime * 2.4
+    float broadCurrent = 0.5 + 0.5 * sin(
+      dot(vWorldPosition, vec3(2.7, 3.9, 2.3)) + uTime * 0.72
     );
-    float dissolve = smoothstep(0.46, 0.78, grain * 0.68 + movingBreakup * 0.32);
-    float surface = mix(0.3, 1.0, dissolve);
+    float fineCurrent = 0.5 + 0.5 * sin(
+      dot(vWorldPosition, vec3(7.1, 5.3, 6.7)) - uTime * 0.48
+    );
+    float dissolve = smoothstep(0.18, 0.86, broadCurrent * 0.72 + fineCurrent * 0.28);
+    float surface = mix(0.52, 1.0, dissolve);
     float alpha = (rim * 0.92 + innerVeil) * uOpacity * surface;
 
     if (alpha < 0.0015) discard;
@@ -339,58 +337,28 @@ function TowerCrown() {
   )
 }
 
-function BackdropTeamTitle() {
+function TowerTeamTitle() {
   const groupRef = useRef(null)
 
-  useFrame(({ clock }) => {
+  useFrame(({ camera, clock }) => {
     if (!groupRef.current) return
-    const liveNoise = Math.sin(clock.elapsedTime * 0.72) * 0.004
-
-    groupRef.current.position.x = liveNoise
-    groupRef.current.position.y = 4.4
-    groupRef.current.rotation.z = liveNoise * 0.035
+    groupRef.current.position.y = 6.72 + Math.sin(clock.elapsedTime * 0.72) * 0.012
+    groupRef.current.lookAt(camera.position)
   })
 
-  const material = (
-    <meshStandardMaterial
-      color="#9ff5ff"
-      emissive="#4bb9c9"
-      emissiveIntensity={1.35}
-      metalness={0.5}
-      roughness={0.24}
-      depthTest
-      toneMapped={false}
-    />
-  )
-
   return (
-    <group ref={groupRef} position={[0, 4.4, -4.2]} renderOrder={-2}>
-      <Center position={[0, 1.55, 0]}>
+    <group ref={groupRef} position={[0, 6.72, 0.08]} renderOrder={7}>
+      <Center>
         <Text3D
           font={helvetiker}
-          size={4.1}
-          height={0.12}
-          curveSegments={3}
-          bevelEnabled
-          bevelSize={0.016}
-          bevelThickness={0.02}
+          size={0.62}
+          height={0.045}
+          letterSpacing={0.055}
+          curveSegments={5}
+          bevelEnabled={false}
         >
-          OUR
-          {material}
-        </Text3D>
-      </Center>
-      <Center position={[0, -1.55, 0]}>
-        <Text3D
-          font={helvetiker}
-          size={4.1}
-          height={0.12}
-          curveSegments={3}
-          bevelEnabled
-          bevelSize={0.016}
-          bevelThickness={0.02}
-        >
-          TEAM
-          {material}
+          OUR TEAM
+          <meshBasicMaterial color="#9ff5ff" depthTest depthWrite toneMapped={false} />
         </Text3D>
       </Center>
     </group>
@@ -504,16 +472,24 @@ function PsionicField({ pulseId, onScreenOrigin }) {
     const waveScale = MathUtils.lerp(0.2, 8.5, eased)
     const isReleased = pulseId > 0 && local > 0
     const isSettled = local >= 1
-    const liquidVibration = isSettled
-      ? 1 + Math.sin(clock.elapsedTime * 1.55) * 0.009
-      : 1
+    const pulsePhase = pulseId * 1.37
+    const vibrationStrength = MathUtils.smoothstep(progress, 0.04, 0.22)
+    const shakeNoise = Math.sin(clock.elapsedTime * 6.3 + pulsePhase * 1.9) * 0.62
+      + Math.sin(clock.elapsedTime * 10.7 - pulsePhase * 0.6) * 0.38
+    const radialShake = Math.sin(
+      clock.elapsedTime * 48 + pulsePhase + shakeNoise * 0.48
+    )
+      * 0.055
+      * (0.9 + shakeNoise * 0.1)
+      * vibrationStrength
+    const vibratingWaveScale = Math.max(0.08, waveScale + radialShake)
 
     if (liquidShellRef.current) {
-      liquidShellRef.current.scale.setScalar(waveScale * liquidVibration)
+      liquidShellRef.current.scale.setScalar(vibratingWaveScale)
       liquidShellRef.current.rotation.y = progress * 0.12
-        + (isSettled ? Math.sin(clock.elapsedTime * 0.82) * 0.008 : 0)
+        + (isSettled ? Math.sin(clock.elapsedTime * 0.82 + pulsePhase) * 0.008 : 0)
       liquidShellRef.current.rotation.z = isSettled
-        ? Math.sin(clock.elapsedTime * 1.12) * 0.01
+        ? Math.sin(clock.elapsedTime * 1.12 + pulsePhase) * 0.01
         : 0
     }
 
@@ -532,21 +508,17 @@ function PsionicField({ pulseId, onScreenOrigin }) {
 
     spectralShellRefs.current.forEach((shell, index) => {
       if (!shell) return
-      const spectralVibration = isSettled
-        ? 1 + Math.sin(clock.elapsedTime * (1.85 + index * 0.16) + index * 1.7) * 0.012
-        : 1
-      const spectralScale = waveScale
-        * spectralVibration
+      const spectralScale = vibratingWaveScale
         * (index === 0 ? 0.992 : 1.012)
       shell.visible = isReleased
       shell.scale.setScalar(spectralScale)
       shell.rotation.y = progress * 0.08
-        + (isSettled ? Math.sin(clock.elapsedTime * 0.68 + index) * 0.01 : 0)
+        + (isSettled ? Math.sin(clock.elapsedTime * 0.68 + index + pulsePhase) * 0.01 : 0)
       shell.rotation.z = isSettled
-        ? Math.cos(clock.elapsedTime * 0.74 + index) * 0.008
+        ? Math.cos(clock.elapsedTime * 0.74 + index + pulsePhase) * 0.008
         : 0
       shell.position.x = (index === 0 ? -0.024 : 0.024)
-        + (isSettled ? Math.sin(clock.elapsedTime * 1.32 + index) * 0.01 : 0)
+        + (isSettled ? Math.sin(clock.elapsedTime * 1.32 + index + pulsePhase) * 0.01 : 0)
       shell.material.uniforms.uOpacity.value = isReleased ? 0.024 : 0
       shell.material.uniforms.uTime.value = Math.max(elapsed, 0) * 0.18
     })
@@ -554,14 +526,19 @@ function PsionicField({ pulseId, onScreenOrigin }) {
 
   return (
     <group position={FIELD_SOURCE_POSITION}>
-      <pointLight color="#73dce8" intensity={3.2} distance={7.2} decay={2} />
+      <pointLight
+        color="#73dce8"
+        intensity={3.2}
+        distance={7.2}
+        decay={2}
+      />
 
       {pulseId > 0 && (
-        <mesh ref={liquidShellRef} renderOrder={8}>
-          <sphereGeometry args={[1, 96, 64]} />
+        <mesh ref={liquidShellRef} renderOrder={8 + pulseId * 3}>
+          <sphereGeometry args={[1, 144, 104]} />
           <MeshTransmissionMaterial
-            samples={6}
-            resolution={512}
+            samples={10}
+            resolution={1024}
             transmission={1}
             roughness={0.04}
             thickness={0.14}
@@ -586,9 +563,9 @@ function PsionicField({ pulseId, onScreenOrigin }) {
           key={index}
           ref={element => { spectralShellRefs.current[index] = element }}
           visible={false}
-          renderOrder={9 + index}
+          renderOrder={9 + pulseId * 3 + index}
         >
-          <sphereGeometry args={[1, 72, 44]} />
+          <sphereGeometry args={[1, 128, 88]} />
           <shaderMaterial
             uniforms={spectralUniforms[index]}
             vertexShader={fieldVertexShader}
@@ -616,7 +593,7 @@ function PulsePostEffects() {
   useEffect(() => () => chromaticEffect.dispose(), [chromaticEffect])
 
   return (
-    <EffectComposer multisampling={0}>
+    <EffectComposer multisampling={4}>
       <primitive object={chromaticEffect} />
     </EffectComposer>
   )
@@ -829,7 +806,7 @@ function PyramidControls({ pulseId }) {
       enableZoom
       zoomSpeed={0.45}
       enablePan={false}
-      minDistance={compactView ? 12.8 : 9.7}
+      minDistance={compactView ? 13.45 : 10.45}
       maxDistance={compactView ? 15.4 : 12.4}
       minPolarAngle={Math.PI * 0.32}
       maxPolarAngle={Math.PI * 0.64}
@@ -837,12 +814,14 @@ function PyramidControls({ pulseId }) {
   )
 }
 
-function TowerScene({ hoveredId, onHover, onOpen, pulseId, onFieldOrigin }) {
+function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin }) {
+  const latestPulseId = pulses.at(-1)?.id ?? 0
+
   return (
     <>
       <color attach="background" args={['#020305']} />
       <fog attach="fog" args={['#020305', 14, 31]} />
-      <PyramidControls pulseId={pulseId} />
+      <PyramidControls pulseId={latestPulseId} />
       <CameraShake
         maxYaw={0.00055}
         maxPitch={0.0004}
@@ -877,7 +856,7 @@ function TowerScene({ hoveredId, onHover, onOpen, pulseId, onFieldOrigin }) {
       />
       <pointLight position={[0, 1, 6]} intensity={8} distance={18} color="#153b49" />
 
-      <BackdropTeamTitle />
+      <TowerTeamTitle />
 
       <group>
         {ABOUT_TIERS.map(tier => <TowerTier key={tier.id} tier={tier} />)}
@@ -896,7 +875,13 @@ function TowerScene({ hoveredId, onHover, onOpen, pulseId, onFieldOrigin }) {
         ))}
       </group>
 
-      <PsionicField pulseId={pulseId} onScreenOrigin={onFieldOrigin} />
+      {pulses.map(pulse => (
+        <PsionicField
+          key={pulse.id}
+          pulseId={pulse.id}
+          onScreenOrigin={onFieldOrigin}
+        />
+      ))}
       <PulsePostEffects />
 
       <gridHelper
@@ -1050,21 +1035,24 @@ function PersonRecordWindow({ person, onClose }) {
 export default function TowerAbout() {
   const [hoveredId, setHoveredId] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
-  const [pulseId, setPulseId] = useState(0)
-  const [fieldActive, setFieldActive] = useState(false)
+  const [pulses, setPulses] = useState([])
   const pageRef = useRef(null)
-  const fieldFrameRef = useRef(null)
+  const pulsesRef = useRef([])
+  const nextPulseIdRef = useRef(0)
   const selectedPerson = selectedId ? ABOUT_PEOPLE_BY_ID[selectedId] : null
 
-  const releaseField = useCallback(() => {
-    window.cancelAnimationFrame(fieldFrameRef.current)
-    setFieldActive(false)
-
-    fieldFrameRef.current = window.requestAnimationFrame(() => {
-      setPulseId(value => value + 1)
-      setFieldActive(true)
-    })
+  const commitPulses = useCallback(nextPulses => {
+    pulsesRef.current = nextPulses
+    setPulses(nextPulses)
   }, [])
+
+  const releaseField = useCallback(() => {
+    if (pulsesRef.current.length > 0) return
+
+    const nextPulse = { id: nextPulseIdRef.current + 1 }
+    nextPulseIdRef.current = nextPulse.id
+    commitPulses([nextPulse])
+  }, [commitPulses])
 
   const updateFieldOrigin = useCallback((x, y) => {
     if (!pageRef.current) return
@@ -1073,16 +1061,15 @@ export default function TowerAbout() {
   }, [])
 
   useEffect(() => () => {
-    window.cancelAnimationFrame(fieldFrameRef.current)
     document.body.style.cursor = ''
   }, [])
 
   return (
-    <main ref={pageRef} className={`about-page${fieldActive ? ' about-page--field-active' : ''}`}>
+    <main ref={pageRef} className={`about-page${pulses.length > 0 ? ' about-page--field-active' : ''}`}>
       <div className="about-canvas" aria-hidden="true">
         <Canvas
           camera={{ position: [0, 3.25, 16.5], fov: 41, near: 0.1, far: 80 }}
-          dpr={[1, 1.5]}
+          dpr={[1.25, 2]}
           shadows
           gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
           onPointerMissed={() => setHoveredId(null)}
@@ -1091,7 +1078,7 @@ export default function TowerAbout() {
             hoveredId={hoveredId}
             onHover={setHoveredId}
             onOpen={setSelectedId}
-            pulseId={pulseId}
+            pulses={pulses}
             onFieldOrigin={updateFieldOrigin}
           />
         </Canvas>
@@ -1099,12 +1086,15 @@ export default function TowerAbout() {
 
       <div className="about-atmosphere" aria-hidden="true" />
 
-      {fieldActive && (
-        <div key={pulseId} className="about-field-overlay" aria-hidden="true">
+      {pulses.map(pulse => (
+        <div
+          key={pulse.id}
+          className="about-field-overlay"
+          aria-hidden="true"
+        >
           <span className="about-field-overlay__veil" />
-          <span className="about-field-overlay__wave" />
         </div>
-      )}
+      ))}
 
       <header className="about-header">
         <Link to="/" className="about-home-link" aria-label="Return to BOLTFORGED home">
