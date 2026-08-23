@@ -15,6 +15,7 @@ const Glass = lazy(() => import('../features/portfolio/Glass'))
 const Blur = lazy(() => import('../features/blur'))
 const Blur1 = lazy(() => import('../features/blur-next'))
 const Research = lazy(() => import('../features/research'))
+const About = lazy(() => import('../features/about/TowerAbout'))
 const NotFound = lazy(() => import('./NotFound'))
 const Kitchen = lazy(() => import('../features/animation/Landing'))
 const Scribble = lazy(() => import('../features/model-playground/Landing'))
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/blur" element={<Blur />} />
         <Route path="/blur1" element={<Blur1 />} />
         <Route path="/assignment/research" element={<Research />} />
+        <Route path="/about" element={<About />} />
         <Route path="/animation" element={<Kitchen />} />
         <Route path="/test" element={<Scribble />} />
         <Route path="/pi_dashboard" element={<Dashboard />} />

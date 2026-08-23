@@ -1,0 +1,152 @@
+const polarPosition = (radius, angleDegrees, y) => {
+  const angle = angleDegrees * Math.PI / 180
+  return {
+    position: [Math.sin(angle) * radius, y, Math.cos(angle) * radius],
+    rotation: [0, angle, 0],
+  }
+}
+
+export const ABOUT_TIERS = Object.freeze([
+  {
+    id: 'capital',
+    index: '01',
+    label: 'Capital',
+    description: 'Ownership, risk, and long-range stewardship.',
+    centerY: 4.55,
+    height: 0.86,
+    radiusTop: 1.88,
+    radiusBottom: 2.25,
+    accent: '#f3f7ff',
+  },
+  {
+    id: 'direction',
+    index: '02',
+    label: 'Direction',
+    description: 'The people who translate intent into direction.',
+    centerY: 3.12,
+    height: 0.76,
+    radiusTop: 3.02,
+    radiusBottom: 3.42,
+    accent: '#c9edf7',
+  },
+  {
+    id: 'systems',
+    index: '03',
+    label: 'Systems',
+    description: 'Production, coordination, and the machinery between ideas.',
+    centerY: 1.72,
+    height: 0.72,
+    radiusTop: 4.12,
+    radiusBottom: 4.52,
+    accent: '#8ec9d8',
+  },
+  {
+    id: 'fabrication',
+    index: '04',
+    label: 'Fabrication',
+    description: 'The makers whose labor gives the structure its form.',
+    centerY: 0.34,
+    height: 0.68,
+    radiusTop: 5.08,
+    radiusBottom: 5.48,
+    accent: '#63a8ba',
+  },
+])
+
+const PEOPLE = [
+  {
+    id: 'shaheer-ul-islam',
+    name: 'SHAHEER UL ISLAM',
+    role: 'Capital Steward',
+    tier: 'capital',
+    contribution: 'Long-range stewardship, partnerships, and keeping the forge funded.',
+    poseClip: 'POSE_00_STEWARD',
+    ...polarPosition(1.25, 0, 5.0),
+  },
+  {
+    id: 'muhammad-uzair',
+    name: 'Muhammad Uzair',
+    role: 'Creative Director',
+    tier: 'direction',
+    contribution: 'Creative direction, interactive systems, and visual worldbuilding.',
+    poseClip: 'POSE_01_OPEN',
+    ...polarPosition(2.42, -27, 3.52),
+  },
+  {
+    id: 'ayaan-mir',
+    name: 'Ayaan Mir',
+    role: 'Technical Director',
+    tier: 'direction',
+    contribution: 'Realtime architecture, rendering systems, and technical strategy.',
+    poseClip: 'POSE_02_WAVE',
+    ...polarPosition(2.42, 27, 3.52),
+  },
+  {
+    id: 'sana-noor',
+    name: 'Sana Noor',
+    role: 'Producer',
+    tier: 'systems',
+    contribution: 'Production planning, communication, and keeping moving parts aligned.',
+    poseClip: 'POSE_03_POINT',
+    ...polarPosition(3.46, -43, 2.09),
+  },
+  {
+    id: 'haris-qureshi',
+    name: 'Haris Qureshi',
+    role: 'Pipeline Engineer',
+    tier: 'systems',
+    contribution: 'Tools, asset pipelines, automation, and technical reliability.',
+    poseClip: 'POSE_04_READY',
+    ...polarPosition(3.46, 0, 2.09),
+  },
+  {
+    id: 'iman-ali',
+    name: 'Iman Ali',
+    role: 'Art Lead',
+    tier: 'systems',
+    contribution: 'Art direction, visual continuity, and production review.',
+    poseClip: 'POSE_05_SALUTE',
+    ...polarPosition(3.46, 43, 2.09),
+  },
+  {
+    id: 'rida-shah',
+    name: 'Rida Shah',
+    role: '3D Artist',
+    tier: 'fabrication',
+    contribution: 'Characters, environments, materials, and final-scene assembly.',
+    poseClip: 'POSE_06_LEAN',
+    ...polarPosition(4.38, -58, 0.69),
+  },
+  {
+    id: 'daniyal-rehman',
+    name: 'Daniyal Rehman',
+    role: 'Realtime Engineer',
+    tier: 'fabrication',
+    contribution: 'Interaction, performance, rendering, and systems implementation.',
+    poseClip: 'POSE_07_SIGNAL',
+    ...polarPosition(4.38, -19, 0.69),
+  },
+  {
+    id: 'meher-fatima',
+    name: 'Meher Fatima',
+    role: 'Narrative Designer',
+    tier: 'fabrication',
+    contribution: 'Narrative structure, writing, research, and contextual design.',
+    poseClip: 'POSE_08_THINK',
+    ...polarPosition(4.38, 19, 0.69),
+  },
+  {
+    id: 'sami-raza',
+    name: 'Sami Raza',
+    role: 'Sound Designer',
+    tier: 'fabrication',
+    contribution: 'Sound identity, atmosphere, music systems, and final audio.',
+    poseClip: 'POSE_09_PRESENT',
+    ...polarPosition(4.38, 58, 0.69),
+  },
+]
+
+export const ABOUT_PEOPLE = Object.freeze(PEOPLE)
+export const ABOUT_PEOPLE_BY_ID = Object.freeze(
+  Object.fromEntries(PEOPLE.map(person => [person.id, person])),
+)
