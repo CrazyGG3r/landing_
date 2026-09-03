@@ -11,9 +11,9 @@ export function getPortfolioPerformanceProfile() {
       antialias: true,
       shadowMapSize: 512,
       shadowCasters: 3,
-      idResolution: 640,
       pickingFps: 30,
       animateComposite: true,
+      vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
     }
   }
 
@@ -42,9 +42,9 @@ export function getPortfolioPerformanceProfile() {
       antialias: false,
       shadowMapSize: 512,
       shadowCasters: 1,
-      idResolution: 384,
       pickingFps: 24,
       animateComposite: false,
+      vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
     }
   }
 
@@ -56,9 +56,9 @@ export function getPortfolioPerformanceProfile() {
       antialias: true,
       shadowMapSize: 512,
       shadowCasters: 3,
-      idResolution: 640,
       pickingFps: 30,
       animateComposite: true,
+      vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
     }
   }
 
@@ -68,8 +68,12 @@ export function getPortfolioPerformanceProfile() {
     antialias: true,
     shadowMapSize: 1024,
     shadowCasters: Number.POSITIVE_INFINITY,
-    idResolution: 1024,
     pickingFps: 60,
     animateComposite: true,
+    vhsModelPath: 'models/vhs/VHSUnit.high.glb',
   }
+}
+
+export function getPortfolioVhsModelPath() {
+  return getPortfolioPerformanceProfile().vhsModelPath
 }

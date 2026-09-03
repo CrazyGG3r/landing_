@@ -72,8 +72,7 @@ const CFG_HOVER_TINT_MIX   = 0.78
 const CFG_TRAIL_COLOR      = '#ffffff'
 const CFG_CURSOR_COLOR     = 0xffffff
 
-// Masking & ID resolution
-const CFG_ID_RESOLUTION     = 1024
+// Masking and projection
 const CFG_PROJECTION_MARGIN = 1.1
 
 // Ripples
@@ -95,7 +94,6 @@ export const DEFAULT_CFG = {
   fadeInMs:                CFG_FADE_IN_MS,
   fadeOutMs:               CFG_FADE_OUT_MS,
   reanchorMs:              CFG_REANCHOR_MS,
-  idRes:                   CFG_ID_RESOLUTION,
   margin:                  CFG_PROJECTION_MARGIN,
   pulseScale:              CFG_PULSE_SCALE,
   pulseDuration:           CFG_PULSE_DURATION_MS,
@@ -253,23 +251,6 @@ export function buildMetaballObjects(meshes) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // GLSL SHADERS  —  verbatim originals, no structural changes
 // ═══════════════════════════════════════════════════════════════════════════════
-
-const _idVert = `
-  uniform mat4 modelViewMatrix;
-  uniform mat4 projectionMatrix;
-  attribute vec3 position;
-  void main() {
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`
-
-const _idFrag = `
-  precision mediump float;
-  uniform float u_id;
-  void main() {
-    gl_FragColor = vec4(u_id, 0.0, 0.0, 1.0);
-  }
-`
 
 const _blobVert = `void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }`
 
@@ -586,6 +567,10 @@ void main() {
 }
 `
 
+// Retained as shader documentation while the formerly rendered mask output is
+// no longer allocated: no consumer ever sampled that texture.
+void _maskFrag
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CURSOR STATE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -862,36 +847,12 @@ function createProjector(stride = 3) {
 // BLOB RENDER PIPELINE
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// The ID buffer used to be rendered at a fixed square resolution (idRes x
-// idRes) using the scene's real (non-square-aspect) perspective camera, then
-// sampled with screen-aspect-correct UVs (uv / u_res). Whenever the canvas
-// wasn't itself square, that mismatch stretched the ID buffer's content
-// relative to the real screen — so every object's hover/mask footprint was
-// systematically shifted/distorted from its true on-screen shape (worse the
-// further an object sat from screen center). Sizing the ID target to match
-// the canvas's own aspect ratio (same total resolution budget, just
-// distributed correctly across width/height) keeps the mapping 1:1.
-function computeIdTargetSize(pixelWidth, pixelHeight, targetRes) {
-  const aspect = pixelHeight > 0 ? pixelWidth / pixelHeight : 1
-  if (aspect >= 1) {
-    return { width: Math.max(1, Math.round(targetRes * aspect)), height: targetRes }
-  }
-  return { width: targetRes, height: Math.max(1, Math.round(targetRes / aspect)) }
-}
-
 function createBlobPipeline(renderer, camera, objects, cfg) {
   const el = renderer.domElement
   let rW = el.width, rH = el.height
   const activeCaptureLayer = 31
 
   // ── Render targets ────────────────────────────────────────────────────────
-  const idSize = computeIdTargetSize(rW, rH, cfg.idRes)
-  const rtID = new THREE.WebGLRenderTarget(idSize.width, idSize.height, {
-    minFilter: THREE.NearestFilter,
-    magFilter: THREE.NearestFilter,
-    type:      THREE.UnsignedByteType,
-  })
-
   const rtScene = new THREE.WebGLRenderTarget(rW, rH, {
     minFilter: THREE.LinearFilter,
     magFilter: THREE.LinearFilter,
@@ -907,30 +868,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   rtActive.depthTexture = new THREE.DepthTexture(rW, rH, THREE.UnsignedIntType)
   rtActive.depthTexture.minFilter = THREE.NearestFilter
   rtActive.depthTexture.magFilter = THREE.NearestFilter
-
-  const rtMask = new THREE.WebGLRenderTarget(rW, rH, {
-    minFilter: THREE.LinearFilter,
-    magFilter: THREE.LinearFilter,
-    format:    THREE.RedFormat,
-  })
-
-  // ── ID scene ──────────────────────────────────────────────────────────────
-  const idScene = new THREE.Scene()
-  idScene.background = new THREE.Color(0, 0, 0)
-
-  const idMeshes = objects.map((obj, i) => {
-    const m = new THREE.Mesh(obj.geometry, new THREE.RawShaderMaterial({
-      vertexShader:   _idVert,
-      fragmentShader: _idFrag,
-      uniforms:       { u_id: { value: (i + 1) / 255 } },
-      side:           THREE.DoubleSide,
-      depthTest:      true,
-      depthWrite:     true,
-    }))
-    m.frustumCulled = false
-    idScene.add(m)
-    return m
-  })
 
   // ── Shared uniforms ───────────────────────────────────────────────────────
   const colors8    = Array.from({ length: 8 }, (_, i) =>
@@ -987,7 +924,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
     tActive:              { value: rtActive.texture },
     tSceneDepth:          { value: rtScene.depthTexture },
     tActiveDepth:         { value: rtActive.depthTexture },
-    tID:                  { value: rtID.texture },
     u_trailColor:         { value: new THREE.Color(cfg.trailColor) },
     u_ghostSizeScale:     { value: cfg.ghostSizeScale ?? [1, 1, 1, 1] },
     u_ghostSeed:          { value: cfg.ghostSeeds     ?? [0, 1, 2, 3] },
@@ -1012,31 +948,24 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   })
   blobScene.add(new THREE.Mesh(quad, blobMat))
 
-  const maskScene = new THREE.Scene()
-  const maskMat   = new THREE.ShaderMaterial({
-    vertexShader:   _blobVert,
-    fragmentShader: _maskFrag,
-    uniforms:       sharedUniforms,
-    depthTest:      false,
-    depthWrite:     false,
-  })
-  maskScene.add(new THREE.Mesh(quad, maskMat))
-
   // ── Per-object projection state ───────────────────────────────────────────
   const projectors = objects.map((o) => createProjector(o.stride ?? 3))
   const smoothProj = objects.map(() => ({ cx: 0, cy: 0, r: 0, init: false }))
   let   lastProj   = { cx: 0, cy: 0, r: 0, id: 0 }
-  const pixBuf     = new Uint8Array(4)
   const tmpColor   = new THREE.Color()
+  const raycaster = new THREE.Raycaster()
+  const pointerNdc = new THREE.Vector2()
+  const pickMeshes = objects.map((object) => object.mesh)
+  const pickIds = new WeakMap(pickMeshes.map((mesh, index) => [mesh, index + 1]))
   const savedClearColor = new THREE.Color()
   const lastPickCameraMatrix = new THREE.Matrix4()
-  const lastPickProjectionMatrix = new THREE.Matrix4()
   const activeLayerObjects = new Map()
   let cachedLights = null
   let hasPickCameraMatrix = false
   let lastPickAt = -Infinity
   let lastPickX = Number.NaN
   let lastPickY = Number.NaN
+  let activeLayerHasContent = true
 
   objects.forEach((object) => {
     const root = object.renderRoot
@@ -1049,8 +978,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   return {
     projectors,
     smoothProj,
-    maskTexture: rtMask.texture,
-    rtMask,
     get lastProj() { return lastProj },
     getCommitPoint() {
       const dpr = renderer.getPixelRatio()
@@ -1075,55 +1002,41 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       if (Math.abs(rtScene.width - rW2) > 1 || Math.abs(rtScene.height - rH2) > 1) {
         rtScene.setSize(rW2, rH2)
         rtActive.setSize(rW2, rH2)
-        rtMask.setSize(rW2, rH2)
         sharedUniforms.u_res.value.set(rW2, rH2)
 
-        const newIdSize = computeIdTargetSize(rW2, rH2, cfg.idRes)
-        rtID.setSize(newIdSize.width, newIdSize.height)
       }
 
-      // GPU picking is intentionally event-driven. A synchronous pixel read can
-      // stall both CPU and GPU, so do it only while the pointer/camera/active
-      // target is changing, and cap its rate independently from visual FPS.
+      // Exact geometry raycasting replaces the former ID-buffer render and
+      // synchronous readRenderTargetPixels call. It uses the same static proxy
+      // meshes, preserving hit accuracy without stalling the GPU on hover.
       const pointerInside =
         curPx.x >= 0 && curPx.y >= 0 && curPx.x <= cW && curPx.y <= cH
       camera.updateMatrixWorld()
       const cameraChanged =
-        !hasPickCameraMatrix ||
-        !camera.matrixWorld.equals(lastPickCameraMatrix) ||
-        !camera.projectionMatrix.equals(lastPickProjectionMatrix)
+        !hasPickCameraMatrix || !camera.matrixWorld.equals(lastPickCameraMatrix)
       const pointerChanged =
         pickDirty || curPx.x !== lastPickX || curPx.y !== lastPickY
-      const activeTargetAnimating = cs.activeId > 0
       const pickIntervalMs = 1000 / Math.max(1, cfg.pickingFps || 30)
       const shouldPick =
         pointerInside &&
         now - lastPickAt >= pickIntervalMs &&
-        (pointerChanged || cameraChanged || activeTargetAnimating)
+        (pointerChanged || cameraChanged)
 
       if (!pointerInside) {
         if (cs.activeId > 0 || pointerChanged) cs.setHoveredId(0)
       } else if (shouldPick) {
-        idMeshes.forEach((m, i) => {
-          objects[i].mesh.updateWorldMatrix(true, false)
-          m.matrixAutoUpdate = false
-          m.matrix.copy(objects[i].mesh.matrixWorld)
-          m.matrixWorld.copy(objects[i].mesh.matrixWorld)
-        })
-
-        renderer.setRenderTarget(rtID)
-        renderer.clear()
-        renderer.render(idScene, camera)
-
-        const sx = Math.max(0, Math.min(rtID.width - 1, Math.round((curPx.x / cW) * rtID.width)))
-        const sy = Math.max(0, Math.min(rtID.height - 1, Math.round((1 - curPx.y / cH) * rtID.height)))
-        renderer.readRenderTargetPixels(rtID, sx, sy, 1, 1, pixBuf)
-        cs.setHoveredId(pixBuf[0])
+        pickMeshes.forEach((mesh) => mesh.updateWorldMatrix(true, false))
+        pointerNdc.set(
+          (curPx.x / cW) * 2 - 1,
+          -(curPx.y / cH) * 2 + 1,
+        )
+        raycaster.setFromCamera(pointerNdc, camera)
+        const hit = raycaster.intersectObjects(pickMeshes, false)[0]
+        cs.setHoveredId(hit ? pickIds.get(hit.object) ?? 0 : 0)
         lastPickAt = now
         lastPickX = curPx.x
         lastPickY = curPx.y
         lastPickCameraMatrix.copy(camera.matrixWorld)
-        lastPickProjectionMatrix.copy(camera.projectionMatrix)
         hasPickCameraMatrix = true
       }
 
@@ -1184,13 +1097,16 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         camera.layers.set(activeCaptureLayer)
       }
 
-      renderer.setRenderTarget(rtActive)
-      renderer.setClearColor(0x000000, 0)
-      renderer.clear()
-      if (activeRoot && activeWasVisible !== false) {
-        scene.background = null
-        renderer.shadowMap.autoUpdate = false
-        renderer.render(scene, camera)
+      if (activeRoot || activeLayerHasContent) {
+        renderer.setRenderTarget(rtActive)
+        renderer.setClearColor(0x000000, 0)
+        renderer.clear()
+        if (activeRoot && activeWasVisible !== false) {
+          scene.background = null
+          renderer.shadowMap.autoUpdate = false
+          renderer.render(scene, camera)
+        }
+        activeLayerHasContent = Boolean(activeRoot)
       }
 
       activeLayerStates.forEach(([object, mask]) => {
@@ -1203,11 +1119,6 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       scene.background = previousBackground
       renderer.shadowMap.autoUpdate = previousShadowAutoUpdate
       renderer.setClearColor(savedClearColor, previousClearAlpha)
-
-      // Mask pass
-      renderer.setRenderTarget(rtMask)
-      renderer.clear()
-      renderer.render(maskScene, blobCam)
 
       renderer.setRenderTarget(null)
       renderer.clear()
@@ -1284,22 +1195,15 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       renderer.setSize(w, h)
       rtScene.setSize(w * d, h * d)
       rtActive.setSize(w * d, h * d)
-      rtMask.setSize(w * d, h * d)
       sharedUniforms.u_res.value.set(w * d, h * d)
 
-      const newIdSize = computeIdTargetSize(w * d, h * d, cfg.idRes)
-      rtID.setSize(newIdSize.width, newIdSize.height)
     },
 
     dispose() {
-      rtID.dispose()
       rtScene.dispose()
       rtActive.dispose()
-      rtMask.dispose()
       blobMat.dispose()
-      maskMat.dispose()
       quad.dispose()
-      idMeshes.forEach((m) => m.material.dispose())
     },
   }
 }

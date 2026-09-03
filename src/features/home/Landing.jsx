@@ -529,11 +529,11 @@ export default function Landing({
   useEffect(() => {
     if (!sceneLoaded) return undefined;
 
-    // Once the landing page is stable, warm only the portfolio code. Its large
-    // 3D assets wait for the options view or explicit navigation intent.
+    // Begin a guarded idle warmup once the landing scene is stable. The route
+    // preloader automatically skips this on data-saver/slow/low-memory devices.
     return scheduleRouteWarmup('/portfolio', {
-      includeAssets: false,
-      timeoutMs: 1400,
+      includeAssets: true,
+      timeoutMs: 2400,
     });
   }, [sceneLoaded]);
 

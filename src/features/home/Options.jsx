@@ -150,9 +150,15 @@ const Options = memo(function Options({
               data-cursor-label={label}
               tabIndex={active ? 0 : -1}
               style={{ fontFamily: FONT_LETTERBOX_TITLE }}
-              onPointerEnter={() => showPreview(label)}
+              onPointerEnter={() => {
+                showPreview(label)
+                warmLink(path)
+              }}
               onPointerLeave={hidePreview}
-              onFocus={() => showPreview(label)}
+              onFocus={() => {
+                showPreview(label)
+                warmLink(path)
+              }}
               onBlur={hidePreview}
               onPointerDown={() => warmLink(path)}
             >

@@ -28,7 +28,6 @@ import { getPortfolioPerformanceProfile } from './performanceProfile'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
-  vhsModelPath: 'models/vhs/VHSUnit.glb',
   vhsScale: 9, // uniform scale-up factor applied to every placed VHS unit
   cameraPathObjectName: 'CameraPath',
   startMarkerName: 'Path_Start',
@@ -589,6 +588,37 @@ function VisibilityFrameLoop() {
       setFrameloop('always')
     }
   }, [invalidate, setFrameloop])
+
+  return null
+}
+
+function ShadowUpdateController({ stateRef, maxFps = 15 }) {
+  const { gl } = useThree()
+  const lastUpdateAtRef = useRef(-Infinity)
+  const lastActiveIdRef = useRef(0)
+
+  useEffect(() => {
+    const previousAutoUpdate = gl.shadowMap.autoUpdate
+    gl.shadowMap.autoUpdate = false
+    gl.shadowMap.needsUpdate = true
+    return () => {
+      gl.shadowMap.autoUpdate = previousAutoUpdate
+      gl.shadowMap.needsUpdate = true
+    }
+  }, [gl])
+
+  useFrame(() => {
+    const activeId = stateRef.current?.cs?.activeId ?? 0
+    const now = performance.now()
+    const activeChanged = activeId !== lastActiveIdRef.current
+    const animationDue = activeId > 0 && now - lastUpdateAtRef.current >= 1000 / maxFps
+
+    if (activeChanged || animationDue) {
+      gl.shadowMap.needsUpdate = true
+      lastUpdateAtRef.current = now
+      lastActiveIdRef.current = activeId
+    }
+  }, -1)
 
   return null
 }
@@ -1491,7 +1521,6 @@ export default function Portfolio() {
   const navigate = useNavigate()
   const performanceProfile = useMemo(getPortfolioPerformanceProfile, [])
   const metaballConfig = useMemo(() => ({
-    idRes: performanceProfile.idResolution,
     pickingFps: performanceProfile.pickingFps,
   }), [performanceProfile])
   const postComposite = useMemo(() => ({
@@ -1949,6 +1978,10 @@ export default function Portfolio() {
             }}
           >
             <VisibilityFrameLoop />
+            <ShadowUpdateController
+              stateRef={metaballStateRef}
+              maxFps={performanceProfile.level === 'high' ? 24 : 12}
+            />
             <ScrollControls
               pages={5}
               damping={0.1}
@@ -2040,7 +2073,7 @@ export default function Portfolio() {
                 <Suspense fallback={null}>
                   <VHSInstances
                     emptyTransforms={vhsEmptyTransforms}
-                    modelPath={CONFIG.vhsModelPath}
+                    modelPath={performanceProfile.vhsModelPath}
                     scale={CONFIG.vhsScale}
                     envMapIntensity={CONFIG.vhsEnvMapIntensity}
                     stateRef={metaballStateRef}
@@ -2062,7 +2095,7 @@ export default function Portfolio() {
               <ProgressTracker
                 onProgress={setProgress}
                 logToConsole={CONFIG.logScrollProgress}
-                maxFps={performanceProfile.level === 'high' ? 45 : 30}
+                maxFps={performanceProfile.level === 'high' ? 30 : 20}
               />
 
               {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (

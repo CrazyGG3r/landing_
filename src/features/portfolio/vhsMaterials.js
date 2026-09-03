@@ -6,7 +6,9 @@ import * as THREE from 'three'
 // <EntryScene> (the single selected unit placed at VHSPoint).
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export const DEFAULT_VHS_MODEL_PATH = 'models/vhs/VHSUnit.glb'
+// Same authored 2K textures and animation hierarchy, encoded as WebP to cut
+// the shared payload from 9.6 MB to about 3 MB.
+export const DEFAULT_VHS_MODEL_PATH = 'models/vhs/VHSUnit.high.glb'
 export const VHS_PRIMARY_MASK_PATH = 'models/vhs/masks/VHS_PrimaryMask.png'
 export const VHS_SECONDARY_MASK_PATH = 'models/vhs/masks/VHS_SecondaryMask.png'
 export const VHS_LABEL_DIR = 'models/vhs/label'
