@@ -119,6 +119,7 @@ export default function VHSInstances({
   stateRef,
   onInstancesReady,
   onControllerReady,
+  maxShadowCasters = Number.POSITIVE_INFINITY,
 }) {
   const gltf = useLoader(GLTFLoader, modelPath)
   const groupRef = useRef(null)
@@ -201,7 +202,7 @@ export default function VHSInstances({
         if (!child.isMesh) return
         const authoredName = child.userData?.name ?? child.name
         const isGlass = authoredName === 'VHSGlass'
-        child.castShadow = !isGlass
+        child.castShadow = !isGlass && index < maxShadowCasters
         child.receiveShadow = true
       })
 
@@ -316,7 +317,7 @@ export default function VHSInstances({
       })
       instancesRef.current = []
     }
-  }, [gltf, emptyTransforms, palette, maskUniforms, labelUniforms, scale, envMapIntensity, onInstancesReady, onControllerReady])
+  }, [gltf, emptyTransforms, palette, maskUniforms, labelUniforms, scale, envMapIntensity, maxShadowCasters, onInstancesReady, onControllerReady])
 
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1)
@@ -400,7 +401,15 @@ export default function VHSInstances({
       }
       inst.prevHoverEngaged = isHovered
 
-      inst.mixer.update(delta)
+      const actions = [
+        inst.hoverClickAction,
+        inst.reelAction,
+        inst.vhsPlayAction,
+      ]
+      const hasRunningAction = actions.some((action) => action && !action.paused && action.weight > 0)
+      if (hasRunningAction || isHovered) {
+        inst.mixer.update(delta)
+      }
 
       if (inst.hoverClickAction && !inst.clicked) {
         const hoverAction = inst.hoverClickAction

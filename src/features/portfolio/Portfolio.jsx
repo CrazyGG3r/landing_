@@ -24,6 +24,7 @@ import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import RetroTitle from './RetroTitle'   // adjust path as needed
 import { resolveVhsProjectId } from './vhsProjects'
 import { scheduleRouteWarmup, warmRoute } from '../../shared/performance/routePreloader'
+import { getPortfolioPerformanceProfile } from './performanceProfile'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
@@ -70,7 +71,7 @@ const CONFIG = {
   transitionFadeStartProgress: 0.6,
   transitionFadeMinMs: 500,
   transitionFadeMaxMs: 1000,
-  logScrollProgress: true,
+  logScrollProgress: false,
   debugMode: false,
   useGradientSkybox: true,
   skyboxRadius: 500,
@@ -546,23 +547,48 @@ function MarkerPathCamera({ curve, ready, onInitialPoseApplied }) {
   return null
 }
 
-function ProgressTracker({ onProgress, logToConsole = false }) {
+function ProgressTracker({ onProgress, logToConsole = false, maxFps = 30 }) {
   const scroll = useScroll()
   const lastProgressRef = useRef(-1)
+  const lastUpdateAtRef = useRef(-Infinity)
 
   useFrame(() => {
     if (!scroll || typeof scroll.offset !== 'number') return
 
     const nextProgress = scroll.offset
     if (Math.abs(nextProgress - lastProgressRef.current) < PROGRESS_EPSILON) return
+    const now = performance.now()
+    if (now - lastUpdateAtRef.current < 1000 / Math.max(1, maxFps)) return
 
     lastProgressRef.current = nextProgress
+    lastUpdateAtRef.current = now
     onProgress(nextProgress)
 
     if (logToConsole) {
       console.log(`[portfolio] scroll: ${(nextProgress * 100).toFixed(2)}%`)
     }
   })
+
+  return null
+}
+
+function VisibilityFrameLoop() {
+  const { invalidate, setFrameloop } = useThree()
+
+  useEffect(() => {
+    const sync = () => {
+      const visible = document.visibilityState === 'visible'
+      setFrameloop(visible ? 'always' : 'never')
+      if (visible) invalidate()
+    }
+
+    document.addEventListener('visibilitychange', sync)
+    sync()
+    return () => {
+      document.removeEventListener('visibilitychange', sync)
+      setFrameloop('always')
+    }
+  }, [invalidate, setFrameloop])
 
   return null
 }
@@ -1463,6 +1489,15 @@ function CursorCommitFlash({ point }) {
 
 export default function Portfolio() {
   const navigate = useNavigate()
+  const performanceProfile = useMemo(getPortfolioPerformanceProfile, [])
+  const metaballConfig = useMemo(() => ({
+    idRes: performanceProfile.idResolution,
+    pickingFps: performanceProfile.pickingFps,
+  }), [performanceProfile])
+  const postComposite = useMemo(() => ({
+    ...CONFIG.postComposite,
+    animate: performanceProfile.animateComposite,
+  }), [performanceProfile])
   // Efficient preloader: useProgress taps three.js's DefaultLoadingManager,
   // which every loader in this scene already reports to (GLTFLoader via
   // useLoader, EXRLoader, and the plain TextureLoader calls VHSInstances uses
@@ -1906,11 +1941,14 @@ export default function Portfolio() {
             }}
             frameloop="always"
             shadows
+            dpr={[1, performanceProfile.maxDpr]}
             gl={{
-              antialias: true,
+              antialias: performanceProfile.antialias,
               alpha: CONFIG.useGradientSkybox,
+              powerPreference: 'high-performance',
             }}
           >
+            <VisibilityFrameLoop />
             <ScrollControls
               pages={5}
               damping={0.1}
@@ -1969,7 +2007,10 @@ export default function Portfolio() {
                 intensity={CONFIG.directionalLightIntensity}
                 color={CONFIG.directionalLightColor}
                 castShadow
-                shadow-mapSize={[1024, 1024]}
+                shadow-mapSize={[
+                  performanceProfile.shadowMapSize,
+                  performanceProfile.shadowMapSize,
+                ]}
                 shadow-camera-left={-10}
                 shadow-camera-right={10}
                 shadow-camera-top={12}
@@ -2003,6 +2044,7 @@ export default function Portfolio() {
                     scale={CONFIG.vhsScale}
                     envMapIntensity={CONFIG.vhsEnvMapIntensity}
                     stateRef={metaballStateRef}
+                    maxShadowCasters={performanceProfile.shadowCasters}
                     onInstancesReady={handleVhsInstancesReady}
                     onControllerReady={handleVhsControllerReady}
                   />
@@ -2020,6 +2062,7 @@ export default function Portfolio() {
               <ProgressTracker
                 onProgress={setProgress}
                 logToConsole={CONFIG.logScrollProgress}
+                maxFps={performanceProfile.level === 'high' ? 45 : 30}
               />
 
               {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
@@ -2032,6 +2075,7 @@ export default function Portfolio() {
                     objects={metaballObjects}
                     eventTarget={scrollContainerRef}
                     disabled={metaballCursorDismissed}
+                    config={metaballConfig}
                     onStateReady={handleMetaballReady}
                   />
                 </>
@@ -2063,7 +2107,7 @@ export default function Portfolio() {
             }}
           >
             <PostCompositeOverlay
-              composite={CONFIG.postComposite}
+              composite={postComposite}
               progress={effectiveProgress}
             />
           </div>

@@ -122,6 +122,7 @@ export const DEFAULT_CFG = {
   ghostSizeScale:          CFG_GHOST_SIZE_SCALE,
   ghostSeeds:              CFG_GHOST_SEEDS,
   enableMaterialHighlight: CFG_ENABLE_MATERIAL_HIGHLIGHT,
+  pickingFps:              30,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1027,6 +1028,23 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
   let   lastProj   = { cx: 0, cy: 0, r: 0, id: 0 }
   const pixBuf     = new Uint8Array(4)
   const tmpColor   = new THREE.Color()
+  const savedClearColor = new THREE.Color()
+  const lastPickCameraMatrix = new THREE.Matrix4()
+  const lastPickProjectionMatrix = new THREE.Matrix4()
+  const activeLayerObjects = new Map()
+  let cachedLights = null
+  let hasPickCameraMatrix = false
+  let lastPickAt = -Infinity
+  let lastPickX = Number.NaN
+  let lastPickY = Number.NaN
+
+  objects.forEach((object) => {
+    const root = object.renderRoot
+    if (!root || activeLayerObjects.has(root)) return
+    const descendants = []
+    root.traverse((child) => descendants.push(child))
+    activeLayerObjects.set(root, descendants)
+  })
 
   return {
     projectors,
@@ -1044,7 +1062,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       }
     },
 
-    render(cs, scene, curPx, camera) {
+    render(cs, scene, curPx, camera, pickDirty = false) {
       const now  = performance.now()
       const time = now * 0.001
 
@@ -1064,22 +1082,50 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
         rtID.setSize(newIdSize.width, newIdSize.height)
       }
 
-      // ID pass
-      idMeshes.forEach((m, i) => {
-        objects[i].mesh.updateWorldMatrix(true, false)
-        m.matrixAutoUpdate = false
-        m.matrix.copy(objects[i].mesh.matrixWorld)
-        m.matrixWorld.copy(objects[i].mesh.matrixWorld)
-      })
+      // GPU picking is intentionally event-driven. A synchronous pixel read can
+      // stall both CPU and GPU, so do it only while the pointer/camera/active
+      // target is changing, and cap its rate independently from visual FPS.
+      const pointerInside =
+        curPx.x >= 0 && curPx.y >= 0 && curPx.x <= cW && curPx.y <= cH
+      camera.updateMatrixWorld()
+      const cameraChanged =
+        !hasPickCameraMatrix ||
+        !camera.matrixWorld.equals(lastPickCameraMatrix) ||
+        !camera.projectionMatrix.equals(lastPickProjectionMatrix)
+      const pointerChanged =
+        pickDirty || curPx.x !== lastPickX || curPx.y !== lastPickY
+      const activeTargetAnimating = cs.activeId > 0
+      const pickIntervalMs = 1000 / Math.max(1, cfg.pickingFps || 30)
+      const shouldPick =
+        pointerInside &&
+        now - lastPickAt >= pickIntervalMs &&
+        (pointerChanged || cameraChanged || activeTargetAnimating)
 
-      renderer.setRenderTarget(rtID)
-      renderer.clear()
-      renderer.render(idScene, camera)
+      if (!pointerInside) {
+        if (cs.activeId > 0 || pointerChanged) cs.setHoveredId(0)
+      } else if (shouldPick) {
+        idMeshes.forEach((m, i) => {
+          objects[i].mesh.updateWorldMatrix(true, false)
+          m.matrixAutoUpdate = false
+          m.matrix.copy(objects[i].mesh.matrixWorld)
+          m.matrixWorld.copy(objects[i].mesh.matrixWorld)
+        })
 
-      const sx = Math.max(0, Math.min(rtID.width - 1, Math.round((curPx.x / cW) * rtID.width)))
-      const sy = Math.max(0, Math.min(rtID.height - 1, Math.round((1 - curPx.y / cH) * rtID.height)))
-      renderer.readRenderTargetPixels(rtID, sx, sy, 1, 1, pixBuf)
-      cs.setHoveredId(pixBuf[0])
+        renderer.setRenderTarget(rtID)
+        renderer.clear()
+        renderer.render(idScene, camera)
+
+        const sx = Math.max(0, Math.min(rtID.width - 1, Math.round((curPx.x / cW) * rtID.width)))
+        const sy = Math.max(0, Math.min(rtID.height - 1, Math.round((1 - curPx.y / cH) * rtID.height)))
+        renderer.readRenderTargetPixels(rtID, sx, sy, 1, 1, pixBuf)
+        cs.setHoveredId(pixBuf[0])
+        lastPickAt = now
+        lastPickX = curPx.x
+        lastPickY = curPx.y
+        lastPickCameraMatrix.copy(camera.matrixWorld)
+        lastPickProjectionMatrix.copy(camera.projectionMatrix)
+        hasPickCameraMatrix = true
+      }
 
       // Optional material highlight
       if (cfg.enableMaterialHighlight) {
@@ -1111,7 +1157,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       // Active-only pass: temporarily place the animated VHS root and scene
       // lights on an isolated camera layer. The environment remains available,
       // while the skybox and every other VHS stay out of this transparent FBO.
-      const previousClearColor = renderer.getClearColor(new THREE.Color()).clone()
+      renderer.getClearColor(savedClearColor)
       const previousClearAlpha = renderer.getClearAlpha()
       const previousCameraLayerMask = camera.layers.mask
       const previousBackground = scene.background
@@ -1120,12 +1166,18 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       const lightLayerStates = []
 
       if (activeRoot) {
-        activeRoot.traverse((object) => {
+        const activeObjects = activeLayerObjects.get(activeRoot) ?? [activeRoot]
+        activeObjects.forEach((object) => {
           activeLayerStates.push([object, object.layers.mask])
           object.layers.set(activeCaptureLayer)
         })
-        scene.traverse((object) => {
-          if (!object.isLight) return
+        if (!cachedLights) {
+          cachedLights = []
+          scene.traverse((object) => {
+            if (object.isLight) cachedLights.push(object)
+          })
+        }
+        cachedLights.forEach((object) => {
           lightLayerStates.push([object, object.layers.mask])
           object.layers.enable(activeCaptureLayer)
         })
@@ -1150,7 +1202,7 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
       camera.layers.mask = previousCameraLayerMask
       scene.background = previousBackground
       renderer.shadowMap.autoUpdate = previousShadowAutoUpdate
-      renderer.setClearColor(previousClearColor, previousClearAlpha)
+      renderer.setClearColor(savedClearColor, previousClearAlpha)
 
       // Mask pass
       renderer.setRenderTarget(rtMask)
@@ -1258,11 +1310,12 @@ function createBlobPipeline(renderer, camera, objects, cfg) {
 
 export function MetaballCursorR3F({ objects, eventTarget, config = {}, disabled = false, onStateReady }) {
   const { gl, scene, camera } = useThree()
-  const cfg         = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [])
+  const cfg         = useMemo(() => ({ ...DEFAULT_CFG, ...config }), [config])
   const pipelineRef = useRef(null)
   const csRef       = useRef(null)
   const curPxRef    = useRef({ x: -999, y: -999 })
   const readyRef    = useRef(false)
+  const pickDirtyRef = useRef(true)
 
   // Init / teardown pipeline
   useEffect(() => {
@@ -1280,7 +1333,7 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, disabled 
       pipelineRef.current = null
       csRef.current       = null
     }
-  }, [objects, gl])
+  }, [camera, cfg, gl, objects, onStateReady])
 
   // Mouse tracking
   useEffect(() => {
@@ -1297,9 +1350,15 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, disabled 
       const rect = gl.domElement.getBoundingClientRect()
       curPxRef.current.x = e.clientX - rect.left
       curPxRef.current.y = e.clientY - rect.top
+      pickDirtyRef.current = true
       csRef.current?.moveTo(curPxRef.current.x, curPxRef.current.y)
     }
-    const onLeave = () => csRef.current?.forceLeave()
+    const onLeave = () => {
+      curPxRef.current.x = -999
+      curPxRef.current.y = -999
+      pickDirtyRef.current = true
+      csRef.current?.forceLeave()
+    }
     el.addEventListener('mousemove', onMove,   { passive: true })
     el.addEventListener('mouseleave', onLeave, { passive: true })
     return () => {
@@ -1327,7 +1386,14 @@ export function MetaballCursorR3F({ objects, eventTarget, config = {}, disabled 
   // Per-frame render
   useFrame(() => {
     if (!readyRef.current || !pipelineRef.current || !csRef.current) return
-    pipelineRef.current.render(csRef.current, scene, curPxRef.current, camera)
+    pipelineRef.current.render(
+      csRef.current,
+      scene,
+      curPxRef.current,
+      camera,
+      pickDirtyRef.current,
+    )
+    pickDirtyRef.current = false
   }, 1)
 
   return null
