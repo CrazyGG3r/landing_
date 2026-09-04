@@ -34,6 +34,7 @@ const Options = memo(function Options({
   active,
   prepared = active,
   onTerminalReady,
+  onHoverTarget,
   effectsIntensity = 1,
   emissionFlickerIntensity = 0.6,
   emissionFlickerFrequency = 1,
@@ -79,8 +80,11 @@ const Options = memo(function Options({
   )
 
   useEffect(() => {
-    if (!active) setImageOpacity(0)
-  }, [active])
+    if (!active) {
+      setImageOpacity(0)
+      onHoverTarget?.('default')
+    }
+  }, [active, onHoverTarget])
 
   const showPreview = useCallback((label) => {
     const nextImage = IMAGE_FOR_LABEL[label]
@@ -88,11 +92,13 @@ const Options = memo(function Options({
       previous === nextImage ? previous : nextImage,
     )
     setImageOpacity(1)
-  }, [])
+    onHoverTarget?.(label)
+  }, [onHoverTarget])
 
   const hidePreview = useCallback(() => {
     setImageOpacity(0)
-  }, [])
+    onHoverTarget?.('default')
+  }, [onHoverTarget])
 
   const preloadUrls = prepared ? OPTION_IMAGE_URLS : EMPTY_IMAGE_URLS
 

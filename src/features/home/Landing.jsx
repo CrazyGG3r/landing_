@@ -34,7 +34,8 @@ import { scheduleRouteWarmup } from '../../shared/performance/routePreloader';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
 const BOLTFORGED_ANIMATION = '/animations/boltforged_alpha.webm';
-const BOLTFORGED_REST_FRAME = '/animations/Boltforged0140.png';
+const BOLTFORGED_INITIAL_FRAME = '/animations/Boltforged0001.png';
+const BOLTFORGED_FINAL_FRAME = '/animations/Boltforged0140.png';
 const LOGO_EMISSION_REST = 'brightness(1.1) drop-shadow(0 7px 12px rgba(0,0,0,0.48)) drop-shadow(0 12px 24px rgba(0,0,0,0.3)) drop-shadow(0 0 9px rgba(190,228,255,0.56)) drop-shadow(0 0 18px rgba(125,180,255,0.26))';
 const LOGO_EMISSION_START = 'brightness(1.13) drop-shadow(0 7px 12px rgba(0,0,0,0.46)) drop-shadow(0 12px 24px rgba(0,0,0,0.28)) drop-shadow(-9px 9px 13px rgba(190,230,255,0.7)) drop-shadow(-15px 15px 27px rgba(115,170,255,0.34))';
 const LOGO_EMISSION_PEAK = 'brightness(1.24) drop-shadow(0 9px 16px rgba(0,0,0,0.4)) drop-shadow(0 15px 30px rgba(0,0,0,0.24)) drop-shadow(9px -9px 17px rgba(230,250,255,0.82)) drop-shadow(15px -15px 32px rgba(145,200,255,0.46))';
@@ -93,7 +94,8 @@ export default function Landing({
   const bgCanvasRef = useRef(null);
   const logoRef = useRef(null);
   const logoVideoRef = useRef(null);
-  const logoStillRef = useRef(null);
+  const logoInitialRef = useRef(null);
+  const logoFinalRef = useRef(null);
   const landingLogoSlotRef = useRef(null);
   const optionsLogoSlotRef = useRef(null);
   const titleTextRef = useRef(null);
@@ -111,6 +113,7 @@ export default function Landing({
   const mountedRef = useRef(true);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [scene, setScene] = useState('landing');
+  const [captionTarget, setCaptionTarget] = useState('default');
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [optionsPrepared, setOptionsPrepared] = useState(false);
   const [showMobileShutter, setShowMobileShutter] = useState(false);
@@ -563,7 +566,7 @@ export default function Landing({
   const showLandingText = scene === 'landing' || isTransitioning;
   const revealLandingScene = sceneLoaded || isTransitioning;
   const preloaderAssets = useMemo(() => ({
-    images: [BOLTFORGED_REST_FRAME],
+    images: [BOLTFORGED_INITIAL_FRAME, BOLTFORGED_FINAL_FRAME],
     json: ['/models/manifest.json'],
     binary: [BOLTFORGED_ANIMATION],
     preloaders: [],
@@ -709,7 +712,8 @@ export default function Landing({
         emissionTweenRef.current = null;
         gsap.set(logo, { filter: LOGO_EMISSION_REST });
         gsap.set(logoVideo, { opacity: 0 });
-        if (logoStillRef.current) gsap.set(logoStillRef.current, { opacity: 1 });
+        if (logoInitialRef.current) gsap.set(logoInitialRef.current, { opacity: 0 });
+        if (logoFinalRef.current) gsap.set(logoFinalRef.current, { opacity: 1 });
 
         // Commit the expensive operations behind the fully closed shutter:
         // tear down landing WebGL and compile/draw the terminal once.
@@ -728,10 +732,11 @@ export default function Landing({
       logoVideo.currentTime = 0;
       logoVideo.onended = handleAnimationFinished;
       gsap.set(logoVideo, { opacity: 0 });
-      if (logoStillRef.current) {
-        gsap.set(logoStillRef.current, { opacity: 1 });
-        gsap.to(logoStillRef.current, { opacity: 0, duration: 0.22, ease: 'power2.inOut' });
+      if (logoInitialRef.current) {
+        gsap.set(logoInitialRef.current, { opacity: 1 });
+        gsap.to(logoInitialRef.current, { opacity: 0, duration: 0.22, ease: 'power2.inOut' });
       }
+      if (logoFinalRef.current) gsap.set(logoFinalRef.current, { opacity: 0 });
       gsap.to(logoVideo, { opacity: 1, duration: 0.22, ease: 'power2.inOut' });
       const playbackDuration = Number.isFinite(logoVideo.duration) && logoVideo.duration > 0
         ? logoVideo.duration
@@ -868,8 +873,8 @@ export default function Landing({
           }}
         >
           <img
-            ref={logoStillRef}
-            src={BOLTFORGED_REST_FRAME}
+            ref={logoInitialRef}
+            src={BOLTFORGED_INITIAL_FRAME}
             alt=""
             aria-hidden="true"
             style={{
@@ -880,6 +885,21 @@ export default function Landing({
               display: 'block',
               objectFit: 'contain',
               opacity: 1,
+            }}
+          />
+          <img
+            ref={logoFinalRef}
+            src={BOLTFORGED_FINAL_FRAME}
+            alt=""
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              objectFit: 'contain',
+              opacity: 0,
             }}
           />
           <video
@@ -979,7 +999,13 @@ export default function Landing({
                 <TitleTarget
                   className="landing-title-ignite"
                   onClick={handleTitleClick}
-                  onPointerEnter={() => void loadGsap()}
+                  onPointerEnter={() => {
+                    setCaptionTarget('Boltforged');
+                    void loadGsap();
+                  }}
+                  onPointerLeave={() => setCaptionTarget('default')}
+                  onFocus={() => setCaptionTarget('Boltforged')}
+                  onBlur={() => setCaptionTarget('default')}
                   aria-label="Open site navigation"
                 >
                   <DynamicShadowText level="title" style={{
@@ -1012,6 +1038,7 @@ export default function Landing({
                       display: 'block',
                       textAlign: isCompact ? 'center' : 'left',
                       ...readableGradientPreset,
+                      filter: 'brightness(1.14) drop-shadow(0 0 5px rgba(220,240,255,0.58)) drop-shadow(0 0 12px rgba(135,185,255,0.32))',
                     }}
                   >
                     House of Creatives
@@ -1042,6 +1069,7 @@ export default function Landing({
           showOnMobile={showMobileShutter}
           headerRef={letterboxHeaderRef}
           footerRef={letterboxFooterRef}
+          captionTarget={captionTarget}
         />
 
         <Options
@@ -1050,6 +1078,7 @@ export default function Landing({
           active={scene === 'options'}
           prepared={optionsPrepared || scene === 'options'}
           onTerminalReady={handleTerminalReady}
+          onHoverTarget={setCaptionTarget}
           effectsIntensity={terminalEffectsIntensity}
           emissionFlickerIntensity={terminalEmissionFlickerIntensity}
           emissionFlickerFrequency={terminalEmissionFlickerFrequency}

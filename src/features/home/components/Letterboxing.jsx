@@ -2,16 +2,57 @@ import { memo, useState } from 'react';
 import DecryptedText from './DecryptedText';
 import { FONT_LETTERBOX_SUBTITLE, FONT_LETTERBOX_TITLE } from '../core/constants';
 
+const CAPTIONS = Object.freeze({
+  default: {
+    header: 'BOLTFORGED / CREATIVE SYSTEMS',
+    headerCaption: 'INDEPENDENT DESIGN, TECHNOLOGY & EXPERIMENTATION',
+    footer: 'SELECT A SIGNAL TO CONTINUE',
+    footerCaption: 'PORTFOLIO / ABOUT / NEWS / CONTACT',
+  },
+  Boltforged: {
+    header: 'BOLTFORGED — HOUSE OF CREATIVES',
+    headerCaption: 'DIGITAL WORLDS, IDENTITIES & INTERACTIVE EXPERIENCES',
+    footer: 'ENTER THE BOLTFORGED INDEX',
+    footerCaption: 'CLICK TO OPEN THE PRIMARY NAVIGATION',
+  },
+  Portfolio: {
+    header: 'PORTFOLIO — SELECTED WORK',
+    headerCaption: 'IDENTITIES, INTERFACES & IMMERSIVE EXPERIENCES',
+    footer: 'OPEN THE PROJECT ARCHIVE',
+    footerCaption: 'CASE STUDIES / EXPERIMENTS / COMMERCIAL WORK',
+  },
+  About: {
+    header: 'ABOUT — THE STUDIO & ITS PRACTICE',
+    headerCaption: 'PEOPLE, PROCESS & THE IDEAS BEHIND THE WORK',
+    footer: 'READ THE BOLTFORGED STORY',
+    footerCaption: 'ORIGIN / APPROACH / CAPABILITIES',
+  },
+  News: {
+    header: 'NEWS — TRANSMISSIONS FROM THE STUDIO',
+    headerCaption: 'RELEASES, FIELD NOTES & CURRENT DEVELOPMENTS',
+    footer: 'OPEN THE LATEST SIGNALS',
+    footerCaption: 'UPDATES / ANNOUNCEMENTS / OBSERVATIONS',
+  },
+  Contact: {
+    header: 'CONTACT — START A CONVERSATION',
+    headerCaption: 'PROJECTS, COLLABORATIONS & GENERAL ENQUIRIES',
+    footer: 'ESTABLISH A DIRECT CHANNEL',
+    footerCaption: 'SEND A BRIEF / ASK A QUESTION / SAY HELLO',
+  },
+});
+
 const Letterboxing = memo(function Letterboxing({
   isMobile,
   showOnMobile = false,
   headerRef,
   footerRef,
+  captionTarget = 'default',
   className = '',
   ...props
 }) {
   const [isHeaderHovered, setIsHeaderHovered] = useState(false);
   const [isFooterHovered, setIsFooterHovered] = useState(false);
+  const captions = CAPTIONS[captionTarget] || CAPTIONS.default;
 
   if (isMobile && !showOnMobile) return null;
 
@@ -95,7 +136,8 @@ const Letterboxing = memo(function Letterboxing({
         onMouseLeave={() => setIsHeaderHovered(false)}
       >
         <DecryptedText
-          text="SYSTEM LOG — PLACEHOLDER CONTEXT / TRANSMISSION CHANNEL"
+          key={`header-${captionTarget}`}
+          text={captions.header}
           animateOn="view"
           speed={34}
           maxIterations={6}
@@ -106,7 +148,8 @@ const Letterboxing = memo(function Letterboxing({
           style={textStyle(isHeaderHovered)}
         />
         <DecryptedText
-          text="STATUS: STABLE / ROUTE: BOLTFORGED / SEQ: 0049-A"
+          key={`header-caption-${captionTarget}`}
+          text={captions.headerCaption}
           animateOn="view"
           speed={36}
           maxIterations={6}
@@ -129,7 +172,8 @@ const Letterboxing = memo(function Letterboxing({
         onMouseLeave={() => setIsFooterHovered(false)}
       >
         <DecryptedText
-          text="ARCHIVE FEED — LONG FORM PLACEHOLDER TEXT"
+          key={`footer-${captionTarget}`}
+          text={captions.footer}
           animateOn="view"
           speed={34}
           maxIterations={6}
@@ -140,7 +184,8 @@ const Letterboxing = memo(function Letterboxing({
           style={textStyle(isFooterHovered)}
         />
         <DecryptedText
-          text="SIGNAL QUALITY: STABLE / MODE: PASSIVE / LOCK: ENABLED"
+          key={`footer-caption-${captionTarget}`}
+          text={captions.footerCaption}
           animateOn="view"
           speed={36}
           maxIterations={6}
