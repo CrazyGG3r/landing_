@@ -28,7 +28,7 @@ import { getCachedJson, preloadJson } from './core/assetCache';
 import { scheduleRouteWarmup } from '../performance/routePreloader';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
-const LOGO_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><rect width='400' height='400' fill='%230b0d12'/><rect x='26' y='26' width='348' height='348' fill='none' stroke='%23d9e6ff' stroke-width='10'/><circle cx='200' cy='200' r='84' fill='none' stroke='%23d9e6ff' stroke-width='8'/></svg>";
+const BOLTFORGED_ANIMATION = '/animations/boltforged_alpha.webm';
 
 export default function Landing({
   cbColors = DEFAULT_CB_COLORS,
@@ -65,7 +65,6 @@ export default function Landing({
   const letterboxFooterRef = useRef(null);
   const lockedLogoSizeRef = useRef(null);
   const optionsRef = useRef(null);
-  const shimmerRef = useRef(null);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
   const [scene, setScene] = useState('landing');
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -411,14 +410,54 @@ export default function Landing({
 
     gsap.set(logo, { width: size, height: size, x: startPos.x, y: startPos.y });
 
-    const tl = gsap.timeline({
-      defaults: { ease: 'power3.out' },
-      onComplete: () => {
-        lockedLogoSizeRef.current = null;
-        setIsTransitioning(false);
-        if (isMobile) setShowMobileShutter(false);
-      },
-    });
+    const finishTransition = () => {
+      setScene('options');
+      gsap.to(logo, { filter: 'drop-shadow(0 0 10px rgba(210,240,255,0.35))', duration: 0.3 });
+
+      const exitTimeline = gsap.timeline({
+        defaults: { ease: 'power3.out' },
+        onComplete: () => {
+          lockedLogoSizeRef.current = null;
+          setIsTransitioning(false);
+          if (isMobile) setShowMobileShutter(false);
+        },
+      });
+
+      exitTimeline.to(logo, {
+        x: endPos.x,
+        y: endPos.y,
+        duration: 0.7,
+      }, 0);
+      exitTimeline.to(header, {
+        y: isMobile ? `-${mobileHidden}` : 0,
+        height: headerBaseHeight,
+        duration: 0.7,
+      }, 0);
+      exitTimeline.to(footer, {
+        y: isMobile ? `${mobileHidden}` : 0,
+        height: footerBaseHeight,
+        duration: 0.7,
+      }, 0);
+      exitTimeline.add(() => {
+        if (optionsRef.current) {
+          gsap.to(optionsRef.current, { opacity: 1, duration: 0.6, ease: 'power3.out' });
+        }
+      }, 0.12);
+    };
+
+    const playCenteredAnimation = () => {
+      logo.currentTime = 0;
+      logo.addEventListener('ended', finishTransition, { once: true });
+      const playback = logo.play();
+      if (playback) {
+        playback.catch(() => {
+          logo.removeEventListener('ended', finishTransition);
+          finishTransition();
+        });
+      }
+    };
+
+    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
 
     tl.to(header, {
       y: 0,
@@ -438,52 +477,8 @@ export default function Landing({
       duration: 0.7,
     }, 0);
 
-    tl.add(() => {
-      if (shimmerRef.current) shimmerRef.current.kill();
-      shimmerRef.current = gsap.to(logo, {
-        filter: 'drop-shadow(0 0 26px rgba(210,240,255,0.85))',
-        duration: 1.6,
-        yoyo: true,
-        repeat: -1,
-        ease: 'sine.inOut',
-      });
-    }, '+=0.05');
-
-    tl.to({}, { duration: 1.0 });
-
-    tl.add(() => {
-      setScene('options');
-      if (shimmerRef.current) {
-        shimmerRef.current.kill();
-        shimmerRef.current = null;
-      }
-      gsap.to(logo, { filter: 'drop-shadow(0 0 10px rgba(210,240,255,0.35))', duration: 0.3 });
-    });
-    tl.to({}, { duration: 0.08 });
-
-    tl.to(logo, {
-      x: endPos.x,
-      y: endPos.y,
-      duration: 0.7,
-    }, '<');
-
-    tl.to(header, {
-      y: isMobile ? `-${mobileHidden}` : 0,
-      height: headerBaseHeight,
-      duration: 0.7,
-    }, '<');
-    tl.to(footer, {
-      y: isMobile ? `${mobileHidden}` : 0,
-      height: footerBaseHeight,
-      duration: 0.7,
-    }, '<');
-
-    tl.add(() => {
-      if (optionsRef.current) {
-        gsap.to(optionsRef.current, { opacity: 1, duration: 0.6, ease: 'power3.out' });
-      }
-    }, '<+=0.12');
-  }, [isTransitioning, isMobile, scene, syncLogoToSlot]);
+    tl.add(playCenteredAnimation, '+=0.05');
+  }, [isTransitioning, isMobile, logoSize, scene]);
 
   return (
     <MouseProvider>
@@ -520,10 +515,17 @@ export default function Landing({
           />
         </WebGLErrorBoundary>
 
-        <img
+        <video
           ref={logoRef}
-          src={LOGO_PLACEHOLDER}
-          alt="Boltforged logo placeholder"
+          src={BOLTFORGED_ANIMATION}
+          aria-label="Boltforged animated logo"
+          preload="auto"
+          muted
+          playsInline
+          onLoadedData={(event) => {
+            event.currentTarget.pause();
+            event.currentTarget.currentTime = 0;
+          }}
           style={{
             position: 'fixed',
             top: 0,

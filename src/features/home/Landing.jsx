@@ -33,7 +33,11 @@ import { getCachedJson, preloadJson } from './core/assetCache';
 import { scheduleRouteWarmup } from '../../shared/performance/routePreloader';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
-const LOGO_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400'><rect width='400' height='400' fill='%230b0d12'/><rect x='26' y='26' width='348' height='348' fill='none' stroke='%23d9e6ff' stroke-width='10'/><circle cx='200' cy='200' r='84' fill='none' stroke='%23d9e6ff' stroke-width='8'/></svg>";
+const BOLTFORGED_ANIMATION = '/animations/boltforged_alpha.webm';
+const BOLTFORGED_REST_FRAME = '/animations/Boltforged0140.png';
+const LOGO_EMISSION_REST = 'brightness(1.1) drop-shadow(0 7px 12px rgba(0,0,0,0.48)) drop-shadow(0 12px 24px rgba(0,0,0,0.3)) drop-shadow(0 0 9px rgba(190,228,255,0.56)) drop-shadow(0 0 18px rgba(125,180,255,0.26))';
+const LOGO_EMISSION_START = 'brightness(1.13) drop-shadow(0 7px 12px rgba(0,0,0,0.46)) drop-shadow(0 12px 24px rgba(0,0,0,0.28)) drop-shadow(-9px 9px 13px rgba(190,230,255,0.7)) drop-shadow(-15px 15px 27px rgba(115,170,255,0.34))';
+const LOGO_EMISSION_PEAK = 'brightness(1.24) drop-shadow(0 9px 16px rgba(0,0,0,0.4)) drop-shadow(0 15px 30px rgba(0,0,0,0.24)) drop-shadow(9px -9px 17px rgba(230,250,255,0.82)) drop-shadow(15px -15px 32px rgba(145,200,255,0.46))';
 const FluidGlass = lazy(() => import('./three/FluidGlass'));
 const TargetCursor = lazy(() => import('./components/TargetCursor'));
 
@@ -88,6 +92,8 @@ export default function Landing({
   };
   const bgCanvasRef = useRef(null);
   const logoRef = useRef(null);
+  const logoVideoRef = useRef(null);
+  const logoStillRef = useRef(null);
   const landingLogoSlotRef = useRef(null);
   const optionsLogoSlotRef = useRef(null);
   const titleTextRef = useRef(null);
@@ -95,8 +101,8 @@ export default function Landing({
   const letterboxFooterRef = useRef(null);
   const lockedLogoSizeRef = useRef(null);
   const optionsRef = useRef(null);
-  const shimmerRef = useRef(null);
   const transitionTimelineRef = useRef(null);
+  const emissionTweenRef = useRef(null);
   const transitionLockRef = useRef(false);
   const terminalReadySignalRef = useRef(null);
   const centerHoldMinTimerRef = useRef(0);
@@ -473,6 +479,7 @@ export default function Landing({
 
   useEffect(() => {
     mountedRef.current = true;
+    const logoVideo = logoVideoRef.current;
     return () => {
       mountedRef.current = false;
       if (canvasReadyFrameRef.current) {
@@ -485,8 +492,12 @@ export default function Landing({
       terminalReadySignalRef.current = null;
       window.clearTimeout(centerHoldMinTimerRef.current);
       window.clearTimeout(centerHoldMaxTimerRef.current);
-      shimmerRef.current?.kill();
-      shimmerRef.current = null;
+      emissionTweenRef.current?.kill();
+      emissionTweenRef.current = null;
+      if (logoVideo) {
+        logoVideo.onended = null;
+        logoVideo.pause();
+      }
     };
   }, []);
 
@@ -552,9 +563,9 @@ export default function Landing({
   const showLandingText = scene === 'landing' || isTransitioning;
   const revealLandingScene = sceneLoaded || isTransitioning;
   const preloaderAssets = useMemo(() => ({
-    images: [],
+    images: [BOLTFORGED_REST_FRAME],
     json: ['/models/manifest.json'],
-    binary: [],
+    binary: [BOLTFORGED_ANIMATION],
     preloaders: [],
   }), []);
 
@@ -590,12 +601,13 @@ export default function Landing({
     if (!mountedRef.current) return;
 
     const logo = logoRef.current;
+    const logoVideo = logoVideoRef.current;
     const header = letterboxHeaderRef.current;
     const footer = letterboxFooterRef.current;
     const text = titleTextRef.current;
     const landingSlot = landingLogoSlotRef.current;
     const optionsSlot = optionsLogoSlotRef.current;
-    if (!logo || !header || !footer || !text || !landingSlot || !optionsSlot) {
+    if (!logo || !logoVideo || !header || !footer || !text || !landingSlot || !optionsSlot) {
       transitionLockRef.current = false;
       setIsTransitioning(false);
       setShowMobileShutter(false);
@@ -618,7 +630,6 @@ export default function Landing({
     }
 
     const startRect = landingSlot.getBoundingClientRect();
-    const endRect = optionsSlot.getBoundingClientRect();
     const size = Math.min(startRect.width, startRect.height) || logoSize;
     lockedLogoSizeRef.current = size;
     const startPos = { x: startRect.left, y: startRect.top };
@@ -626,8 +637,6 @@ export default function Landing({
       x: Math.round(window.innerWidth / 2 - size / 2),
       y: Math.round(window.innerHeight / 2 - size / 2),
     };
-    const endPos = { x: endRect.left, y: endRect.top };
-
     gsap.set(logo, { width: size, height: size, x: startPos.x, y: startPos.y });
 
     transitionTimelineRef.current?.kill();
@@ -665,22 +674,15 @@ export default function Landing({
     }, 0);
 
     tl.add(() => {
-      if (shimmerRef.current) shimmerRef.current.kill();
-      shimmerRef.current = gsap.to(logo, {
-        filter: 'drop-shadow(0 0 26px rgba(210,240,255,0.85))',
-        duration: 1.6,
-        yoyo: true,
-        repeat: -1,
-        ease: 'sine.inOut',
-      });
-
       let minimumHoldElapsed = false;
       let terminalReady = false;
+      let animationFinished = false;
       let resumed = false;
       const resumeFromCenter = (force = false) => {
         if (
           resumed ||
           (!force && (
+            !animationFinished ||
             !minimumHoldElapsed ||
             !terminalReady
           ))
@@ -698,36 +700,77 @@ export default function Landing({
         terminalReady = true;
         resumeFromCenter();
       };
-      centerHoldMinTimerRef.current = window.setTimeout(() => {
-        minimumHoldElapsed = true;
-        resumeFromCenter();
-      }, 900);
-      centerHoldMaxTimerRef.current = window.setTimeout(() => {
-        resumeFromCenter(true);
-      }, 2800);
 
-      // Commit the expensive operations behind the fully closed shutter:
-      // tear down landing WebGL and compile/draw the terminal once.
-      setOptionsPrepared(true);
-      setScene('options');
+      const handleAnimationFinished = () => {
+        if (animationFinished) return;
+        animationFinished = true;
+        logoVideo.onended = null;
+        emissionTweenRef.current?.kill();
+        emissionTweenRef.current = null;
+        gsap.set(logo, { filter: LOGO_EMISSION_REST });
+        gsap.set(logoVideo, { opacity: 0 });
+        if (logoStillRef.current) gsap.set(logoStillRef.current, { opacity: 1 });
+
+        // Commit the expensive operations behind the fully closed shutter:
+        // tear down landing WebGL and compile/draw the terminal once.
+        setOptionsPrepared(true);
+        setScene('options');
+
+        centerHoldMinTimerRef.current = window.setTimeout(() => {
+          minimumHoldElapsed = true;
+          resumeFromCenter();
+        }, 900);
+        centerHoldMaxTimerRef.current = window.setTimeout(() => {
+          resumeFromCenter(true);
+        }, 2800);
+      };
+
+      logoVideo.currentTime = 0;
+      logoVideo.onended = handleAnimationFinished;
+      gsap.set(logoVideo, { opacity: 0 });
+      if (logoStillRef.current) {
+        gsap.set(logoStillRef.current, { opacity: 1 });
+        gsap.to(logoStillRef.current, { opacity: 0, duration: 0.22, ease: 'power2.inOut' });
+      }
+      gsap.to(logoVideo, { opacity: 1, duration: 0.22, ease: 'power2.inOut' });
+      const playbackDuration = Number.isFinite(logoVideo.duration) && logoVideo.duration > 0
+        ? logoVideo.duration
+        : 1.6;
+      emissionTweenRef.current?.kill();
+      gsap.set(logo, { filter: LOGO_EMISSION_START });
+      emissionTweenRef.current = gsap.timeline()
+        .to(logo, {
+          filter: LOGO_EMISSION_PEAK,
+          duration: Math.max(0.5, playbackDuration * 0.58),
+          ease: 'sine.inOut',
+        })
+        .to(logo, {
+          filter: LOGO_EMISSION_REST,
+          duration: Math.max(0.4, playbackDuration * 0.42),
+          ease: 'sine.inOut',
+        });
+      logoVideo.play()?.catch(handleAnimationFinished);
     }, '+=0.05');
 
     tl.addPause();
 
     tl.add(() => {
-      if (shimmerRef.current) {
-        shimmerRef.current.kill();
-        shimmerRef.current = null;
-      }
-      gsap.to(logo, { filter: 'drop-shadow(0 0 10px rgba(210,240,255,0.35))', duration: 0.3 });
+      gsap.set(logo, { filter: LOGO_EMISSION_REST });
     });
-    tl.to({}, { duration: 0.08 });
 
     tl.to(logo, {
-      x: endPos.x,
-      y: endPos.y,
+      x: () => optionsSlot.getBoundingClientRect().left,
+      y: () => optionsSlot.getBoundingClientRect().top,
+      width: () => Math.min(
+        optionsSlot.getBoundingClientRect().width,
+        optionsSlot.getBoundingClientRect().height,
+      ),
+      height: () => Math.min(
+        optionsSlot.getBoundingClientRect().width,
+        optionsSlot.getBoundingClientRect().height,
+      ),
       duration: 0.7,
-    }, '<');
+    });
 
     tl.to(header, {
       y: isMobile ? `-${mobileHidden}` : 0,
@@ -808,22 +851,58 @@ export default function Landing({
           </div>
         )}
 
-        <img
+        <div
           ref={logoRef}
           className={`landing-logo-stage ${revealLandingScene ? 'is-visible' : ''}`}
-          src={LOGO_PLACEHOLDER}
-          alt="Boltforged logo placeholder"
           style={{
             position: 'fixed',
             top: 0,
             left: 0,
             zIndex: 10005,
             pointerEvents: 'none',
-            filter: 'drop-shadow(0 0 6px rgba(160,200,255,0.35))',
+            backgroundColor: 'transparent',
+            filter: LOGO_EMISSION_REST,
             willChange: 'transform, filter',
             display: 'block',
+            overflow: 'visible',
           }}
-        />
+        >
+          <img
+            ref={logoStillRef}
+            src={BOLTFORGED_REST_FRAME}
+            alt=""
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              objectFit: 'contain',
+              opacity: 1,
+            }}
+          />
+          <video
+            ref={logoVideoRef}
+            src={BOLTFORGED_ANIMATION}
+            aria-label="Boltforged animated logo"
+            preload="auto"
+            muted
+            playsInline
+            onLoadedData={(event) => {
+              event.currentTarget.pause();
+              event.currentTarget.currentTime = 0;
+            }}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              objectFit: 'contain',
+              opacity: 0,
+              willChange: 'opacity',
+            }}
+          />
+        </div>
 
         {showLandingText && <div style={{
           position: 'absolute',
