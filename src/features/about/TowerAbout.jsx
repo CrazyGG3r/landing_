@@ -7,6 +7,7 @@ import {
   OrbitControls,
   Text3D,
   useGLTF,
+  useProgress,
   useTexture,
 } from '@react-three/drei'
 import { EffectComposer } from '@react-three/postprocessing'
@@ -30,6 +31,7 @@ import {
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import helvetiker from 'three/examples/fonts/helvetiker_bold.typeface.json'
 import { ABOUT_PEOPLE, ABOUT_PEOPLE_BY_ID, ABOUT_TIERS } from './towerTeam'
+import { signalRouteReady } from '../../app/routeTransition'
 import './tower-about.css'
 
 const AVATAR_URL = '/models/about/crazygger-rigged.glb'
@@ -1033,6 +1035,7 @@ function PersonRecordWindow({ person, onClose }) {
 }
 
 export default function TowerAbout() {
+  const { active: assetsLoading, progress: assetsProgress } = useProgress()
   const [hoveredId, setHoveredId] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [pulses, setPulses] = useState([])
@@ -1063,6 +1066,20 @@ export default function TowerAbout() {
   useEffect(() => () => {
     document.body.style.cursor = ''
   }, [])
+
+  useEffect(() => {
+    if (!assetsLoading && assetsProgress >= 100) {
+      let paintedFrame = 0
+      const firstFrame = requestAnimationFrame(() => {
+        paintedFrame = requestAnimationFrame(() => signalRouteReady('/about'))
+      })
+      return () => {
+        cancelAnimationFrame(firstFrame)
+        cancelAnimationFrame(paintedFrame)
+      }
+    }
+    return undefined
+  }, [assetsLoading, assetsProgress])
 
   return (
     <main ref={pageRef} className={`about-page${pulses.length > 0 ? ' about-page--field-active' : ''}`}>

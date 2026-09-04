@@ -50,6 +50,38 @@
   outline: none;
 }
 
+.options-root--committing .options-nav {
+  pointer-events: none;
+}
+
+.options-link--dismissed {
+  animation: options-link-signal-loss 720ms steps(5, end) forwards;
+}
+
+.options-link--selected {
+  z-index: 30;
+  color: #fff;
+  text-shadow:
+    0 0 8px rgba(215, 242, 255, 0.72),
+    0 0 20px rgba(120, 184, 255, 0.38);
+  animation: options-link-selected-hold 4750ms ease-out forwards;
+}
+
+@keyframes options-link-signal-loss {
+  0% { opacity: 1; transform: translate(0); filter: none; }
+  18% { opacity: .82; transform: translate(-3px, 1px); filter: blur(.2px); }
+  34% { opacity: .64; transform: translate(4px, -1px); clip-path: inset(18% 0 42%); }
+  51% { opacity: .42; transform: translate(-5px, 0); clip-path: inset(58% 0 10%); }
+  70% { opacity: .2; transform: translate(3px, 1px); clip-path: inset(7% 0 70%); }
+  100% { opacity: 0; transform: translateY(2px); filter: blur(1.5px); }
+}
+
+@keyframes options-link-selected-hold {
+  0% { opacity: 1; transform: scale(1); }
+  72% { opacity: 1; transform: scale(1.025); }
+  100% { opacity: .62; transform: scale(1.015); text-shadow: 0 0 7px rgba(200,235,255,.42); }
+}
+
 @media (max-width: 760px), (max-height: 560px) {
   .options-layout {
     flex-direction: column;
@@ -88,5 +120,14 @@
 @media (prefers-reduced-motion: reduce) {
   .options-link {
     transition: none;
+  }
+
+  .options-link--dismissed {
+    animation: none;
+    opacity: 0;
+  }
+
+  .options-link--selected {
+    animation: none;
   }
 }

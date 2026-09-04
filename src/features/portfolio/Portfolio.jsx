@@ -25,6 +25,7 @@ import RetroTitle from './RetroTitle'   // adjust path as needed
 import { resolveVhsProjectId } from './vhsProjects'
 import { scheduleRouteWarmup, warmRoute } from '../../shared/performance/routePreloader'
 import { getPortfolioPerformanceProfile } from './performanceProfile'
+import { signalRouteReady } from '../../app/routeTransition'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
@@ -1816,8 +1817,22 @@ export default function Portfolio() {
   const initialRevealReady = cameraReady && !assetsLoading && assetsProgress >= 100
 
   useEffect(() => {
-    if (initialRevealReady) setHasRevealed(true)
+    if (initialRevealReady) {
+      setHasRevealed(true)
+    }
   }, [initialRevealReady])
+
+  useEffect(() => {
+    if (!hasRevealed) return undefined
+    let paintedFrame = 0
+    const firstFrame = requestAnimationFrame(() => {
+      paintedFrame = requestAnimationFrame(() => signalRouteReady('/portfolio'))
+    })
+    return () => {
+      cancelAnimationFrame(firstFrame)
+      cancelAnimationFrame(paintedFrame)
+    }
+  }, [hasRevealed])
 
   useEffect(() => {
     if (!hasRevealed) return undefined
@@ -1965,7 +1980,7 @@ export default function Portfolio() {
               width: '100%',
               height: '100%',
               opacity: revealReady ? 1 : 0,
-              transition: 'opacity 650ms ease',
+              transition: 'none',
               display: 'block',
             }}
             frameloop="always"
@@ -2136,7 +2151,7 @@ export default function Portfolio() {
           <div
             style={{
               opacity: revealReady ? 1 : 0,
-              transition: 'opacity 650ms ease',
+              transition: 'none',
             }}
           >
             <PostCompositeOverlay

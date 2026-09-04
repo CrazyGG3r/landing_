@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FONT_LETTERBOX_TITLE } from './core/constants'
 import FaultyTerminal from './components/FaultyTerminal'
 import WebGLErrorBoundary from './components/WebGLErrorBoundary'
 import { useDeadZonesFromRefs } from './core/useDeadZonesFromRefs'
 import { warmRoute } from '../../shared/performance/routePreloader'
+import { startRouteTransition } from '../../app/routeTransition'
 import './Options.css'
 
 const IMAGE_FOR_LABEL = Object.freeze({
@@ -46,6 +47,7 @@ const Options = memo(function Options({
   lensChromaticIntensity = 1,
   lensChromaticRange = 0.24,
 }) {
+  const navigate = useNavigate()
   const containerRef = useRef(null)
   const portfolioRef = useRef(null)
   const aboutRef = useRef(null)
@@ -64,6 +66,10 @@ const Options = memo(function Options({
 
   const [activeImage, setActiveImage] = useState(null)
   const [imageOpacity, setImageOpacity] = useState(0)
+  const [selectedLabel, setSelectedLabel] = useState(null)
+  const [isShuttingDown, setIsShuttingDown] = useState(false)
+  const shutdownTimerRef = useRef(0)
+  const navigationTimerRef = useRef(0)
 
   const deadZones = useDeadZonesFromRefs(
     containerRef,
@@ -86,6 +92,32 @@ const Options = memo(function Options({
     }
   }, [active, onHoverTarget])
 
+  useEffect(() => () => {
+    window.clearTimeout(shutdownTimerRef.current)
+    window.clearTimeout(navigationTimerRef.current)
+  }, [])
+
+  const beginRouteTransition = useCallback((event, label, path) => {
+    event.preventDefault()
+    if (selectedLabel) return
+
+    setSelectedLabel(label)
+    onHoverTarget?.(label)
+    void warmRoute(path, { includeAssets: true, intent: true })
+
+    shutdownTimerRef.current = window.setTimeout(() => {
+      setIsShuttingDown(true)
+      setImageOpacity(0)
+    }, 650)
+
+    navigationTimerRef.current = window.setTimeout(() => {
+      startRouteTransition({ label, pathname: path })
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => navigate(path))
+      })
+    }, 4750)
+  }, [navigate, onHoverTarget, selectedLabel])
+
   const showPreview = useCallback((label) => {
     const nextImage = IMAGE_FOR_LABEL[label]
     setActiveImage((previous) =>
@@ -105,9 +137,9 @@ const Options = memo(function Options({
   return (
     <div
       ref={setRootRef}
-      className="options-root"
+      className={`options-root${selectedLabel ? ' options-root--committing' : ''}${isShuttingDown ? ' options-root--shutting-down' : ''}`}
       aria-hidden={!active}
-      inert={active ? undefined : ''}
+      inert={!active}
       style={{
         background: active ? '#000' : 'transparent',
         pointerEvents: active ? 'auto' : 'none',
@@ -118,7 +150,8 @@ const Options = memo(function Options({
         <WebGLErrorBoundary>
           <FaultyTerminal
             pause={!active}
-            mouseReact={active}
+            mouseReact={active && !isShuttingDown}
+            shutdownProgress={isShuttingDown ? 1 : 0}
             onReady={onTerminalReady}
             effectsIntensity={effectsIntensity}
             emissionFlickerIntensity={emissionFlickerIntensity}
@@ -135,6 +168,8 @@ const Options = memo(function Options({
               position: 'absolute',
               inset: 0,
               zIndex: 1,
+              filter: isShuttingDown ? 'brightness(0.42) contrast(1.12)' : 'brightness(1)',
+              transition: 'filter 3600ms cubic-bezier(.55, 0, .9, .55)',
             }}
             imageUrl={activeImage}
             imageOpacity={imageOpacity}
@@ -151,7 +186,7 @@ const Options = memo(function Options({
             <Link
               key={label}
               to={path}
-              className="options-link"
+              className={`options-link${selectedLabel === label ? ' options-link--selected' : ''}${selectedLabel && selectedLabel !== label ? ' options-link--dismissed' : ''}`}
               data-cursor-target="options"
               data-cursor-label={label}
               tabIndex={active ? 0 : -1}
@@ -167,6 +202,7 @@ const Options = memo(function Options({
               }}
               onBlur={hidePreview}
               onPointerDown={() => warmLink(path)}
+              onClick={(event) => beginRouteTransition(event, label, path)}
             >
               <span ref={linkRefs[label]}>{label}</span>
             </Link>

@@ -4,6 +4,7 @@ import {
   loadEntryRoute,
   loadPortfolioRoute,
 } from '../shared/performance/routePreloader'
+import RouteTransitionOverlay from './RouteTransitionOverlay'
 
 const Home = lazy(() => import('../features/home/Landing.jsx'))
 const Portfolio = lazy(loadPortfolioRoute)
@@ -24,8 +25,9 @@ const AdminLogin = lazy(() => import('../features/admin-auth/Login'))
 
 export default function App() {
   return (
-    <Suspense fallback={null}>
-      <Routes>
+    <>
+      <Suspense fallback={null}>
+        <Routes>
         <Route
           path="/"
           element={(
@@ -66,7 +68,9 @@ export default function App() {
             route would shadow the archive and, for a signed-in visitor, bounce
             them back to this page in a loop. */}
         <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+      <RouteTransitionOverlay />
+    </>
   )
 }

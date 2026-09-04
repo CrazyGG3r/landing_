@@ -40,6 +40,8 @@ uniform float uUseMouse;
 uniform float uPageLoadProgress;
 uniform float uUsePageLoadAnimation;
 uniform float uBrightness;
+uniform float uShutdownProgress;
+uniform float uViewportRecession;
 uniform float uEffectsIntensity;
 uniform float uEmissionFlickerIntensity;
 uniform float uEmissionFlickerFrequency;
@@ -163,7 +165,9 @@ vec3 getColor(
   vec2 p = wp*grid;
 
   float intensity;
-  float dead = isDeadCell(s) ? 1.0 : 0.0;
+  float shutdownOrder = hash21(s*91.73+vec2(17.0,43.0));
+  float shutdownDead = step(shutdownOrder, clamp(uShutdownProgress,0.0,1.0));
+  float dead = max(isDeadCell(s) ? 1.0 : 0.0, shutdownDead);
   if(dead > 0.5){
     intensity = -9999.0;
   } else {
@@ -339,6 +343,7 @@ void main(){
   // Refraction happens in the final composite so every base-scene contribution
   // (including corner bloom) is optically bent before chromatic dispersion.
   vec2 uv = windowUv;
+  uv = (uv-0.5)*mix(1.0,1.3,clamp(uViewportRecession,0.0,1.0))+0.5;
   if(uCurvature!=0.0) uv=barrel(uv);
   vec2 wp = worldPos(uv);
 
@@ -399,6 +404,7 @@ void main(){
     col = mix(col, mult, uImageOpacity);
   }
   col *= uTint*uBrightness;
+  col *= 1.0-edgeInfluence*0.16*clamp(uViewportRecession,0.0,1.0);
   // Base fuzz remains adjustable independently; emission adds the hotter,
   // brighter component in the selected bloom colour.
   col += uCornerBloomColor*(
@@ -686,6 +692,7 @@ export default function FaultyTerminal({
   mouseReact=true, mouseStrength=0.5,
   dpr=Math.min(typeof window!=='undefined'?window.devicePixelRatio||1:1,2),
   pageLoadAnimation=true, brightness=0.6,
+  shutdownProgress=0,
   effectsIntensity=1,
   emissionFlickerIntensity=0.6,
   emissionFlickerFrequency=1,
@@ -738,6 +745,8 @@ export default function FaultyTerminal({
   const mouseReactRef = useRef(mouseReact);
   const pageLoadAnimationRef = useRef(pageLoadAnimation);
   const brightnessRef = useRef(brightness);
+  const shutdownTargetRef = useRef(shutdownProgress);
+  const shutdownProgressRef = useRef(shutdownProgress);
   const effectsIntensityRef = useRef(effectsIntensity);
   const emissionFlickerIntensityRef = useRef(emissionFlickerIntensity);
   const emissionFlickerFrequencyRef = useRef(emissionFlickerFrequency);
@@ -782,6 +791,10 @@ export default function FaultyTerminal({
   useEffect(()=>{ opacityTargetRef.current = imageOpacity; },[imageOpacity]);
   useEffect(()=>{ onReadyRef.current = onReady; },[onReady]);
   useEffect(()=>{ pauseRef.current = pause; },[pause]);
+  useEffect(()=>{
+    const value=Number(shutdownProgress);
+    shutdownTargetRef.current=Number.isFinite(value)?Math.min(1,Math.max(0,value)):0;
+  },[shutdownProgress]);
   useEffect(()=>{ mouseReactRef.current = mouseReact; staticDirtyRef.current = true; },[mouseReact]);
   useEffect(()=>{ pageLoadAnimationRef.current = pageLoadAnimation; staticDirtyRef.current = true; },[pageLoadAnimation]);
   useEffect(()=>{ brightnessRef.current = brightness; staticDirtyRef.current = true; },[brightness]);
@@ -1027,7 +1040,7 @@ export default function FaultyTerminal({
       'uScanlineIntensity','uGlitchAmount','uFlickerAmount','uNoiseAmp',
       'uChromaticAberration','uDither','uCurvature','uTint','uMouse',
       'uMouseStrength','uUseMouse','uPageLoadProgress','uUsePageLoadAnimation',
-      'uBrightness','uEffectsIntensity','uEmissionFlickerIntensity',
+      'uBrightness','uShutdownProgress','uViewportRecession','uEffectsIntensity','uEmissionFlickerIntensity',
       'uEmissionFlickerFrequency','uCornerBloomIntensity',
       'uCornerBloomEmission','uCornerBloomColor','uEncodeBloomMask',
       'uImage','uPreviousImage','uUseImage',
@@ -1059,6 +1072,8 @@ export default function FaultyTerminal({
       gl.uniform1f(uni.uUseMouse,mouseReactRef.current?1:0);
       gl.uniform1f(uni.uUsePageLoadAnimation,pageLoadAnimationRef.current?1:0);
       gl.uniform1f(uni.uBrightness,brightnessRef.current);
+      gl.uniform1f(uni.uShutdownProgress,shutdownProgressRef.current);
+      gl.uniform1f(uni.uViewportRecession,shutdownProgressRef.current);
       gl.uniform1f(uni.uEffectsIntensity,effectsIntensityRef.current);
       gl.uniform1f(
         uni.uEmissionFlickerIntensity,
@@ -1221,6 +1236,13 @@ export default function FaultyTerminal({
 
       const e=(t*0.001+timeOffRef.current)*timeScaleRef.current;
       gl.uniform1f(uni.iTime,e); frozenRef.current=e;
+      shutdownProgressRef.current +=
+        (shutdownTargetRef.current-shutdownProgressRef.current)*0.015;
+      if(Math.abs(shutdownTargetRef.current-shutdownProgressRef.current)<0.0005){
+        shutdownProgressRef.current=shutdownTargetRef.current;
+      }
+      gl.uniform1f(uni.uShutdownProgress,shutdownProgressRef.current);
+      gl.uniform1f(uni.uViewportRecession,shutdownProgressRef.current);
 
       if(pageLoadAnimationRef.current&&loadStartRef.current>0)
         gl.uniform1f(uni.uPageLoadProgress,Math.min((t-loadStartRef.current)/2000,1));

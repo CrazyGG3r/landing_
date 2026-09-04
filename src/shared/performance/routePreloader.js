@@ -1,6 +1,7 @@
 const routeImporters = {
   '/portfolio': () => import('../../features/portfolio/Portfolio.jsx'),
   '/entry': () => import('../../features/portfolio/EntryScene.jsx'),
+  '/about': () => import('../../features/about/TowerAbout.jsx'),
 }
 
 const routeModulePromises = new Map()

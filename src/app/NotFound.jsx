@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import TextPressure from '../shared/hooks/TextPressure.jsx';
+import { signalRouteReady } from './routeTransition';
 
 // ============================================
 // CONFIGURATION - Adjust all parameters here
@@ -89,6 +90,11 @@ export default function NotFound() {
       document.title = '404 - Not Found'; // or whatever default you want
     };
   }, []); // Empty dependency array = runs once on mount
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => signalRouteReady(window.location.pathname));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <div style={{
