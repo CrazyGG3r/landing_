@@ -3,6 +3,7 @@ import { ROUTE_TRANSITION_READY, ROUTE_TRANSITION_START } from './routeTransitio
 
 const REVEAL_MS = 1250
 const ROUTE_SETTLE_MS = 450
+const MAX_HOLD_MS = 12000
 const CRT_TIMES = '0;0.16;0.55;1'
 const CRT_SPLINES = '.2,.8,.2,1;.12,.86,.2,1;.28,0,.1,1'
 
@@ -35,7 +36,7 @@ function RasterRect({ className = '', children }) {
 export default function RouteTransitionOverlay() {
   const [state, setState] = useState({ phase: 'idle', label: '' })
   const maskId = `route-crt-${useId().replaceAll(':', '')}`
-  const timersRef = useRef({ ready: 0, reveal: 0 })
+  const timersRef = useRef({ ready: 0, reveal: 0, safety: 0 })
   const expectedPathRef = useRef('')
 
   useEffect(() => {
@@ -48,12 +49,15 @@ export default function RouteTransitionOverlay() {
     const requestReveal = event => {
       if (event.detail?.pathname !== expectedPathRef.current) return
       window.clearTimeout(timersRef.current.ready)
+      window.clearTimeout(timersRef.current.safety)
       timersRef.current.ready = window.setTimeout(reveal, ROUTE_SETTLE_MS)
     }
     const handleStart = event => {
       clearTimers()
       expectedPathRef.current = event.detail?.pathname || ''
       setState({ phase: 'holding', label: event.detail?.label || 'ROUTE' })
+      // A failed optional asset must never strand the visitor behind black.
+      timersRef.current.safety = window.setTimeout(reveal, MAX_HOLD_MS)
     }
 
     window.addEventListener(ROUTE_TRANSITION_START, handleStart)

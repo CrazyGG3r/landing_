@@ -40,6 +40,7 @@ import CRTGlass from './CRTGlass'
 import ScrollPathCamera from './ScrollPathCamera'
 import { resolveVhsProjectId } from './vhsProjects'
 import { warmRoute } from '../../shared/performance/routePreloader'
+import { signalRouteReady } from '../../app/routeTransition'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SCENE
@@ -80,7 +81,7 @@ const CONFIG = {
   directionalLightIntensity: 0.8,
   directionalLightPosition: [10, 20, 5],
   directionalLightColor: '#ffffff',
-  fadeOverlayColor: '#ffffff',
+  fadeOverlayColor: '#000000',
   fadeOutDurationMs: 450,
   screenNodeName: 'Screen',
   // Overall VHS post-composite intensity (0 = clean AMP signal, 1 = full VHS).
@@ -898,8 +899,23 @@ export default function EntryScene() {
 
   useEffect(() => {
     if (!revealReady) return undefined
-    const frame = requestAnimationFrame(() => setFadeVisible(false))
-    return () => cancelAnimationFrame(frame)
+    let revealFrame = 0
+    let paintedFrame = 0
+
+    revealFrame = requestAnimationFrame(() => {
+      setFadeVisible(false)
+      paintedFrame = requestAnimationFrame(() => {
+        // For a Portfolio handoff the app-level blackout is still covering the
+        // route. This signal starts the CRT flash only after EntryScene has a
+        // stable painted frame underneath it. It is harmless on direct visits.
+        signalRouteReady('/entry')
+      })
+    })
+
+    return () => {
+      cancelAnimationFrame(revealFrame)
+      cancelAnimationFrame(paintedFrame)
+    }
   }, [revealReady])
 
   return (

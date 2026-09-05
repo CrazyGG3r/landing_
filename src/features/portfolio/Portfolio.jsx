@@ -25,7 +25,7 @@ import RetroTitle from './RetroTitle'   // adjust path as needed
 import { resolveVhsProjectId } from './vhsProjects'
 import { scheduleRouteWarmup, warmRoute } from '../../shared/performance/routePreloader'
 import { getPortfolioPerformanceProfile } from './performanceProfile'
-import { signalRouteReady } from '../../app/routeTransition'
+import { signalRouteReady, startRouteTransition } from '../../app/routeTransition'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
@@ -1789,17 +1789,30 @@ export default function Portfolio() {
     })
 
     pageTransitionTimeoutRef.current = setTimeout(() => {
-      navigate(routePath, {
-        state: {
-          vhsIndex,
-          vhsCount: metaballObjects.length,
-          // EntryScene uses this together with a PUSH navigation to distinguish
-          // a deliberate Portfolio handoff from a reload/direct/history visit.
-          fromPortfolio: true,
-        },
+      // Hand ownership of the already-black viewport to the app-level overlay
+      // before this route unmounts. The destination will reveal only after it
+      // has loaded and painted a stable frame behind that cover.
+      startRouteTransition({
+        label: metaballObjects[vhsIndex]?.title || 'ENTRY',
+        pathname: routePath,
+      })
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          navigate(routePath, {
+            state: {
+              vhsIndex,
+              vhsCount: metaballObjects.length,
+              transition: 'portfolio-vhs',
+              // EntryScene uses this together with a PUSH navigation to distinguish
+              // a deliberate Portfolio handoff from a reload/direct/history visit.
+              fromPortfolio: true,
+            },
+          })
+        })
       })
     }, durationMs)
-  }, [navigate, metaballObjects.length])
+  }, [navigate, metaballObjects])
 
   useEffect(() => () => {
     if (pageTransitionFrameRef.current) {
@@ -2195,7 +2208,7 @@ export default function Portfolio() {
             inset: 0,
             zIndex: 5000,
             pointerEvents: 'none',
-            background: '#ffffff',
+            background: '#000000',
             opacity: pageTransition.visible ? 1 : 0,
             transition: `opacity ${pageTransition.durationMs}ms ease-in-out`,
           }}
