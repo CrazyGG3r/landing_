@@ -810,6 +810,9 @@
     explorer.before(tablist);
 
     const mobileLayout = window.matchMedia("(max-width: 800px)");
+    const touchNavigation = window.matchMedia(
+      "(max-width: 1024px), (pointer: coarse), (hover: none)",
+    );
     const hasExplorerTree = () =>
       Boolean(explorerList?.querySelector(":scope > li:not(.overflow-end)"));
     let explorerRequestFrame = 0;
@@ -852,6 +855,19 @@
     mobileLayout.addEventListener?.("change", afterLayoutChange);
 
     galleryController = { explorerTab, galleryTab, panel: null };
+    const navigateExplorerLink = (event) => {
+      if (!touchNavigation.matches) return;
+      const link = event.target.closest?.("a[href]");
+      if (!link || !explorerContent?.contains(link)) return;
+      const destination = new URL(link.href, window.location.href);
+      if (destination.origin !== window.location.origin) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeGallery();
+      setExplorerOpen(false);
+      window.location.assign(destination.href);
+    };
+    explorerContent?.addEventListener("click", navigateExplorerLink, true);
     browserTabsController = {
       cleanup: () => {
         cancelAnimationFrame(explorerRequestFrame);
@@ -861,6 +877,11 @@
           afterExplorerReady,
         );
         mobileLayout.removeEventListener?.("change", afterLayoutChange);
+        explorerContent?.removeEventListener(
+          "click",
+          navigateExplorerLink,
+          true,
+        );
       },
       explorer,
       tablist,
