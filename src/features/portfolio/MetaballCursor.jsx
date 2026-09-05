@@ -148,12 +148,12 @@ function parseMeshName(rawName) {
 
   if (delimIdx === -1) {
     // No description segment
-    const title = payload.replaceAll('_', ' ').trim()
+    const title = payload.replace(/_/g, ' ').trim()
     return { label: title || rawName, title: title || rawName, desc: null }
   }
 
-  const title = payload.slice(0, delimIdx).replaceAll('_', ' ').trim()
-  const desc  = payload.slice(delimIdx + 2).replaceAll('_', ' ').trim() || null
+  const title = payload.slice(0, delimIdx).replace(/_/g, ' ').trim()
+  const desc  = payload.slice(delimIdx + 2).replace(/_/g, ' ').trim() || null
 
   return { label: title || rawName, title: title || rawName, desc }
 }

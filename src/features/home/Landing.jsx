@@ -31,6 +31,7 @@ import Letterboxing from './components/Letterboxing';
 import Options from './Options';
 import { getCachedJson, preloadJson } from './core/assetCache';
 import { scheduleRouteWarmup } from '../../shared/performance/routePreloader';
+import { isIOSDevice } from '../../shared/performance/clientCapabilities';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
 const BOLTFORGED_ANIMATION = '/animations/boltforged_alpha.webm';
@@ -109,6 +110,7 @@ export default function Landing({
   const terminalReadySignalRef = useRef(null);
   const centerHoldMinTimerRef = useRef(0);
   const centerHoldMaxTimerRef = useRef(0);
+  const logoFallbackTimerRef = useRef(0);
   const canvasReadyFrameRef = useRef(0);
   const mountedRef = useRef(true);
   const [isCanvasReady, setIsCanvasReady] = useState(false);
@@ -119,6 +121,8 @@ export default function Landing({
   const [showMobileShutter, setShowMobileShutter] = useState(false);
   const [logoSize, setLogoSize] = useState(140);
   const isMobile = useCoarsePointer();
+  const iosDevice = useMemo(isIOSDevice, []);
+  const [logoVideoUsable, setLogoVideoUsable] = useState(() => !iosDevice);
 
   const [assetsPrepared, setAssetsPrepared] = useState(false);
   const [sceneLoaded, setSceneLoaded] = useState(false);
@@ -495,6 +499,7 @@ export default function Landing({
       terminalReadySignalRef.current = null;
       window.clearTimeout(centerHoldMinTimerRef.current);
       window.clearTimeout(centerHoldMaxTimerRef.current);
+      window.clearTimeout(logoFallbackTimerRef.current);
       emissionTweenRef.current?.kill();
       emissionTweenRef.current = null;
       if (logoVideo) {
@@ -568,9 +573,9 @@ export default function Landing({
   const preloaderAssets = useMemo(() => ({
     images: [BOLTFORGED_INITIAL_FRAME, BOLTFORGED_FINAL_FRAME],
     json: ['/models/manifest.json'],
-    binary: [BOLTFORGED_ANIMATION],
+    binary: iosDevice ? [] : [BOLTFORGED_ANIMATION],
     preloaders: [],
-  }), []);
+  }), [iosDevice]);
 
   const handleTerminalReady = useCallback(() => {
     terminalReadySignalRef.current?.();
@@ -707,6 +712,8 @@ export default function Landing({
       const handleAnimationFinished = () => {
         if (animationFinished) return;
         animationFinished = true;
+        window.clearTimeout(logoFallbackTimerRef.current);
+        logoFallbackTimerRef.current = 0;
         logoVideo.onended = null;
         emissionTweenRef.current?.kill();
         emissionTweenRef.current = null;
@@ -729,16 +736,40 @@ export default function Landing({
         }, 2800);
       };
 
-      logoVideo.currentTime = 0;
-      logoVideo.onended = handleAnimationFinished;
+      const canPlayTransparentVideo =
+        logoVideoUsable
+        && !iosDevice
+        && logoVideo.canPlayType('video/webm') !== '';
+
+      logoVideo.pause();
+      if (canPlayTransparentVideo) logoVideo.currentTime = 0;
+      logoVideo.onended = canPlayTransparentVideo ? handleAnimationFinished : null;
       gsap.set(logoVideo, { opacity: 0 });
       if (logoInitialRef.current) {
         gsap.set(logoInitialRef.current, { opacity: 1 });
-        gsap.to(logoInitialRef.current, { opacity: 0, duration: 0.22, ease: 'power2.inOut' });
       }
       if (logoFinalRef.current) gsap.set(logoFinalRef.current, { opacity: 0 });
-      gsap.to(logoVideo, { opacity: 1, duration: 0.22, ease: 'power2.inOut' });
-      const playbackDuration = Number.isFinite(logoVideo.duration) && logoVideo.duration > 0
+
+      if (canPlayTransparentVideo) {
+        if (logoInitialRef.current) {
+          gsap.to(logoInitialRef.current, { opacity: 0, duration: 0.22, ease: 'power2.inOut' });
+        }
+        gsap.to(logoVideo, { opacity: 1, duration: 0.22, ease: 'power2.inOut' });
+      } else {
+        // Safari on iOS does not reliably composite alpha WebM. Crossfade the
+        // matching transparent endpoint frames instead, preserving the same
+        // centered-logo timing and avoiding an opaque video rectangle.
+        if (logoInitialRef.current) {
+          gsap.to(logoInitialRef.current, { opacity: 0, duration: 0.72, ease: 'power2.inOut' });
+        }
+        if (logoFinalRef.current) {
+          gsap.to(logoFinalRef.current, { opacity: 1, duration: 0.72, ease: 'power2.inOut' });
+        }
+        logoFallbackTimerRef.current = window.setTimeout(handleAnimationFinished, 1600);
+      }
+
+      const playbackDuration = canPlayTransparentVideo
+        && Number.isFinite(logoVideo.duration) && logoVideo.duration > 0
         ? logoVideo.duration
         : 1.6;
       emissionTweenRef.current?.kill();
@@ -754,7 +785,12 @@ export default function Landing({
           duration: Math.max(0.4, playbackDuration * 0.42),
           ease: 'sine.inOut',
         });
-      logoVideo.play()?.catch(handleAnimationFinished);
+      if (canPlayTransparentVideo) {
+        logoVideo.play()?.catch(() => {
+          setLogoVideoUsable(false);
+          handleAnimationFinished();
+        });
+      }
     }, '+=0.05');
 
     tl.addPause();
@@ -794,7 +830,7 @@ export default function Landing({
       }
     }, '<+=0.12');
     transitionTimelineRef.current = tl;
-  }, [isTransitioning, isMobile, logoSize, scene]);
+  }, [iosDevice, isTransitioning, isMobile, logoSize, logoVideoUsable, scene]);
 
   return (
     <MouseProvider>
@@ -904,11 +940,12 @@ export default function Landing({
           />
           <video
             ref={logoVideoRef}
-            src={BOLTFORGED_ANIMATION}
+            src={iosDevice ? undefined : BOLTFORGED_ANIMATION}
             aria-label="Boltforged animated logo"
-            preload="auto"
+            preload={iosDevice ? 'none' : 'auto'}
             muted
             playsInline
+            onError={() => setLogoVideoUsable(false)}
             onLoadedData={(event) => {
               event.currentTarget.pause();
               event.currentTarget.currentTime = 0;

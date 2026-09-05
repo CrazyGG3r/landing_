@@ -20,12 +20,12 @@ function parseInteractiveName(rawName) {
   const delimiterIndex = payload.indexOf('__')
 
   if (delimiterIndex === -1) {
-    const title = payload.replaceAll('_', ' ').trim()
+    const title = payload.replace(/_/g, ' ').trim()
     return { label: title || rawName, title: title || rawName, desc: null }
   }
 
-  const title = payload.slice(0, delimiterIndex).replaceAll('_', ' ').trim()
-  const desc = payload.slice(delimiterIndex + 2).replaceAll('_', ' ').trim() || null
+  const title = payload.slice(0, delimiterIndex).replace(/_/g, ' ').trim()
+  const desc = payload.slice(delimiterIndex + 2).replace(/_/g, ' ').trim() || null
   return { label: title || rawName, title: title || rawName, desc }
 }
 

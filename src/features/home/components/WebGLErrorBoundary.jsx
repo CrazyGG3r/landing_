@@ -17,10 +17,11 @@ export default class WebGLErrorBoundary extends Component {
 
   componentDidCatch(error) {
     console.warn('WebGL component failed to render, disabling it:', error);
+    this.props.onError?.(error);
   }
 
   render() {
-    if (this.state.hasError) return null;
+    if (this.state.hasError) return this.props.fallback ?? null;
     return this.props.children;
   }
 }

@@ -35,7 +35,7 @@ function RasterRect({ className = '', children }) {
 
 export default function RouteTransitionOverlay() {
   const [state, setState] = useState({ phase: 'idle', label: '' })
-  const maskId = `route-crt-${useId().replaceAll(':', '')}`
+  const maskId = `route-crt-${useId().replace(/:/g, '')}`
   const timersRef = useRef({ ready: 0, reveal: 0, safety: 0 })
   const expectedPathRef = useRef('')
 

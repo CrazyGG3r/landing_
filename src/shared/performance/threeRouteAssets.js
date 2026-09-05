@@ -5,7 +5,7 @@ import {
   DEFAULT_VHS_MODEL_PATH,
   preloadVhsMaterialTextures,
 } from '../../features/portfolio/vhsMaterials'
-import { getPortfolioVhsModelPath } from '../../features/portfolio/performanceProfile'
+import { getPortfolioPerformanceProfile } from '../../features/portfolio/performanceProfile'
 
 const SHARED_ASSETS = {
   environment: '/hdri/vhs/Soft 2RingHighContrast.exr',
@@ -26,10 +26,13 @@ export function primeRouteAssets(pathname) {
   // Match the exact loader classes and URL strings used by the route
   // components so React Three Fiber's suspense cache is reused on mount.
   useLoader.preload(GLTFLoader, modelPath)
-  const vhsModel = pathname === '/portfolio'
-    ? getPortfolioVhsModelPath()
-    : DEFAULT_VHS_MODEL_PATH
+  const portfolioProfile = pathname === '/portfolio'
+    ? getPortfolioPerformanceProfile()
+    : null
+  const vhsModel = portfolioProfile?.vhsModelPath ?? DEFAULT_VHS_MODEL_PATH
   useLoader.preload(GLTFLoader, vhsModel)
-  useEnvironment.preload({ files: SHARED_ASSETS.environment })
+  if (!portfolioProfile?.skipEnvironment) {
+    useEnvironment.preload({ files: SHARED_ASSETS.environment })
+  }
   preloadVhsMaterialTextures()
 }

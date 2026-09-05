@@ -32,11 +32,14 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import helvetiker from 'three/examples/fonts/helvetiker_bold.typeface.json'
 import { ABOUT_PEOPLE, ABOUT_PEOPLE_BY_ID, ABOUT_TIERS } from './towerTeam'
 import { signalRouteReady } from '../../app/routeTransition'
+import { isIOSDevice, supportsWebPImages } from '../../shared/performance/clientCapabilities'
+import WebGLErrorBoundary from '../home/components/WebGLErrorBoundary'
 import './tower-about.css'
 
 const AVATAR_URL = '/models/about/crazygger-rigged.glb'
 const PYRAMID_PATTERN_URL = '/images/about/tilemaps/boltforged-pattern-neutral.png'
 const RING_PATTERN_URL = '/images/about/tilemaps/boltforged-pattern-steel-blue.png'
+const AVATAR_TEXTURES_SUPPORTED = supportsWebPImages()
 
 function getFieldSourcePosition(person) {
   if (!person) return [0, 0, 0]
@@ -444,7 +447,7 @@ function SpiralRamp() {
   )
 }
 
-function PsionicField({ pulseId, onScreenOrigin }) {
+function PsionicField({ pulseId, onScreenOrigin, constrained }) {
   const liquidShellRef = useRef(null)
   const spectralShellRefs = useRef([])
   const startedAtRef = useRef(-10000)
@@ -537,10 +540,10 @@ function PsionicField({ pulseId, onScreenOrigin }) {
 
       {pulseId > 0 && (
         <mesh ref={liquidShellRef} renderOrder={8 + pulseId * 3}>
-          <sphereGeometry args={[1, 144, 104]} />
+          <sphereGeometry args={constrained ? [1, 64, 48] : [1, 144, 104]} />
           <MeshTransmissionMaterial
-            samples={10}
-            resolution={1024}
+            samples={constrained ? 2 : 10}
+            resolution={constrained ? 256 : 1024}
             transmission={1}
             roughness={0.04}
             thickness={0.14}
@@ -567,7 +570,7 @@ function PsionicField({ pulseId, onScreenOrigin }) {
           visible={false}
           renderOrder={9 + pulseId * 3 + index}
         >
-          <sphereGeometry args={[1, 128, 88]} />
+          <sphereGeometry args={constrained ? [1, 56, 40] : [1, 128, 88]} />
           <shaderMaterial
             uniforms={spectralUniforms[index]}
             vertexShader={fieldVertexShader}
@@ -690,9 +693,18 @@ function AvatarModel({ poseClip, highlighted = false }) {
   )
 }
 
-function AvatarPlaceholder({ person }) {
+function AvatarPlaceholder({ person, onHover, onOpen }) {
   return (
-    <group position={person.position} rotation={person.rotation}>
+    <group
+      position={person.position}
+      rotation={person.rotation}
+      onPointerEnter={() => onHover?.(person.id)}
+      onPointerLeave={() => onHover?.(null)}
+      onClick={event => {
+        event.stopPropagation()
+        onOpen?.(person.id)
+      }}
+    >
       <mesh position={[0, 0.72, 0]}>
         <capsuleGeometry args={[0.25, 0.9, 5, 10]} />
         <meshStandardMaterial color="#162129" wireframe />
@@ -816,8 +828,8 @@ function PyramidControls({ pulseId }) {
   )
 }
 
-function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin }) {
-  const latestPulseId = pulses.at(-1)?.id ?? 0
+function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin, constrained }) {
+  const latestPulseId = pulses.length ? pulses[pulses.length - 1].id : 0
 
   return (
     <>
@@ -845,7 +857,7 @@ function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin }) {
         position={[-7, 11, 8]}
         intensity={2.4}
         color="#e3fbff"
-        castShadow
+        castShadow={!constrained}
         shadow-mapSize={[1024, 1024]}
       />
       <spotLight
@@ -865,8 +877,11 @@ function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin }) {
         <TowerCrown />
         <SpiralRamp />
 
-        {ABOUT_PEOPLE.map(person => (
-          <Suspense key={person.id} fallback={<AvatarPlaceholder person={person} />}>
+        {ABOUT_PEOPLE.map(person => AVATAR_TEXTURES_SUPPORTED ? (
+          <Suspense
+            key={person.id}
+            fallback={<AvatarPlaceholder person={person} onHover={onHover} onOpen={onOpen} />}
+          >
             <TowerAvatar
               person={person}
               highlighted={person.id === hoveredId}
@@ -874,6 +889,13 @@ function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin }) {
               onOpen={onOpen}
             />
           </Suspense>
+        ) : (
+          <AvatarPlaceholder
+            key={person.id}
+            person={person}
+            onHover={onHover}
+            onOpen={onOpen}
+          />
         ))}
       </group>
 
@@ -882,9 +904,10 @@ function TowerScene({ hoveredId, onHover, onOpen, pulses, onFieldOrigin }) {
           key={pulse.id}
           pulseId={pulse.id}
           onScreenOrigin={onFieldOrigin}
+          constrained={constrained}
         />
       ))}
-      <PulsePostEffects />
+      {!constrained && <PulsePostEffects />}
 
       <gridHelper
         args={[34, 34, '#18323b', '#091317']}
@@ -947,7 +970,7 @@ function RecordModelAberration() {
   )
 }
 
-function PersonRecordWindow({ person, onClose }) {
+function PersonRecordWindow({ person, onClose, constrained }) {
   const closeRef = useRef(null)
   const tier = ABOUT_TIERS.find(item => item.id === person.tier)
 
@@ -973,16 +996,18 @@ function PersonRecordWindow({ person, onClose }) {
         aria-modal="true"
         aria-labelledby="about-record-name"
       >
-        <div className="about-record-shader" aria-hidden="true">
-          <Canvas
-            orthographic
-            camera={{ position: [0, 0, 1], zoom: 1 }}
-            dpr={[1, 1.25]}
-            gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
-          >
-            <RecordWindowShader />
-          </Canvas>
-        </div>
+        {!constrained && (
+          <div className="about-record-shader" aria-hidden="true">
+            <Canvas
+              orthographic
+              camera={{ position: [0, 0, 1], zoom: 1 }}
+              dpr={[1, 1.25]}
+              gl={{ antialias: false, alpha: true, powerPreference: 'high-performance' }}
+            >
+              <RecordWindowShader />
+            </Canvas>
+          </div>
+        )}
 
         <header className="about-record-header">
           <span>CONTRIBUTOR RECORD / {tier.index}</span>
@@ -1006,7 +1031,7 @@ function PersonRecordWindow({ person, onClose }) {
               </div>
               <div>
                 <dt>Pose</dt>
-                <dd>{person.poseClip.replaceAll('_', ' ')}</dd>
+                <dd>{person.poseClip.replace(/_/g, ' ')}</dd>
               </div>
               <div>
                 <dt>Status</dt>
@@ -1018,8 +1043,8 @@ function PersonRecordWindow({ person, onClose }) {
           <div className="about-record-model" aria-label={`Rotating 3D representation of ${person.name}`}>
             <Canvas
               camera={{ position: [0, 0.5, 11], fov: 34, near: 0.1, far: 40 }}
-              dpr={[1, 1.5]}
-              gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+              dpr={constrained ? [1, 1] : [1, 1.5]}
+              gl={{ antialias: !constrained, alpha: true, powerPreference: 'high-performance' }}
             >
               <Suspense fallback={null}>
                 <RotatingRecordModel person={person} />
@@ -1035,10 +1060,12 @@ function PersonRecordWindow({ person, onClose }) {
 }
 
 export default function TowerAbout() {
+  const iosDevice = useMemo(isIOSDevice, [])
   const { active: assetsLoading, progress: assetsProgress } = useProgress()
   const [hoveredId, setHoveredId] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [pulses, setPulses] = useState([])
+  const [webglFailed, setWebglFailed] = useState(false)
   const pageRef = useRef(null)
   const pulsesRef = useRef([])
   const nextPulseIdRef = useRef(0)
@@ -1081,14 +1108,22 @@ export default function TowerAbout() {
     return undefined
   }, [assetsLoading, assetsProgress])
 
+  useEffect(() => {
+    if (webglFailed) signalRouteReady('/about')
+  }, [webglFailed])
+
   return (
     <main ref={pageRef} className={`about-page${pulses.length > 0 ? ' about-page--field-active' : ''}`}>
       <div className="about-canvas" aria-hidden="true">
+        <WebGLErrorBoundary
+          onError={() => setWebglFailed(true)}
+          fallback={<div className="about-webgl-fallback">3D VIEW UNAVAILABLE</div>}
+        >
         <Canvas
           camera={{ position: [0, 3.25, 16.5], fov: 41, near: 0.1, far: 80 }}
-          dpr={[1.25, 2]}
-          shadows
-          gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
+          dpr={iosDevice ? [1, 1] : [1.25, 2]}
+          shadows={!iosDevice}
+          gl={{ antialias: !iosDevice, alpha: false, powerPreference: 'high-performance' }}
           onPointerMissed={() => setHoveredId(null)}
         >
           <TowerScene
@@ -1097,8 +1132,10 @@ export default function TowerAbout() {
             onOpen={setSelectedId}
             pulses={pulses}
             onFieldOrigin={updateFieldOrigin}
+            constrained={iosDevice}
           />
         </Canvas>
+        </WebGLErrorBoundary>
       </div>
 
       <div className="about-atmosphere" aria-hidden="true" />
@@ -1158,12 +1195,13 @@ export default function TowerAbout() {
         <PersonRecordWindow
           person={selectedPerson}
           onClose={() => setSelectedId(null)}
+          constrained={iosDevice}
         />
       )}
     </main>
   )
 }
 
-useGLTF.preload(AVATAR_URL)
+if (AVATAR_TEXTURES_SUPPORTED) useGLTF.preload(AVATAR_URL)
 useTexture.preload(PYRAMID_PATTERN_URL)
 useTexture.preload(RING_PATTERN_URL)

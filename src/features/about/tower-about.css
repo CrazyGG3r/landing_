@@ -49,6 +49,20 @@
   cursor: grabbing;
 }
 
+.about-webgl-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  color: rgba(220, 242, 248, 0.72);
+  background: #020305;
+  font-family: 'BF Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+
 .about-atmosphere {
   position: absolute;
   inset: 0;

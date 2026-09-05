@@ -1,3 +1,5 @@
+import { isIOSDevice, supportsWebPImages } from '../../shared/performance/clientCapabilities'
+
 function getConnection() {
   if (typeof navigator === 'undefined') return null
   return navigator.connection || navigator.mozConnection || navigator.webkitConnection
@@ -14,10 +16,13 @@ export function getPortfolioPerformanceProfile() {
       pickingFps: 30,
       animateComposite: true,
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
+      enableShadows: true,
+      skipEnvironment: false,
     }
   }
 
   const connection = getConnection()
+  const ios = isIOSDevice()
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches
   const memory = navigator.deviceMemory || 8
@@ -35,6 +40,23 @@ export function getPortfolioPerformanceProfile() {
     memory <= 4 ||
     cores <= 4
 
+  if (ios) {
+    return {
+      level: 'ios',
+      maxDpr: 1,
+      antialias: false,
+      shadowMapSize: 256,
+      shadowCasters: 0,
+      pickingFps: 24,
+      animateComposite: false,
+      vhsModelPath: supportsWebPImages()
+        ? 'models/vhs/VHSUnit.performance.glb'
+        : 'models/vhs/VHSUnit.glb',
+      enableShadows: false,
+      skipEnvironment: true,
+    }
+  }
+
   if (reduced) {
     return {
       level: 'reduced',
@@ -45,6 +67,8 @@ export function getPortfolioPerformanceProfile() {
       pickingFps: 24,
       animateComposite: false,
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
+      enableShadows: true,
+      skipEnvironment: false,
     }
   }
 
@@ -59,6 +83,8 @@ export function getPortfolioPerformanceProfile() {
       pickingFps: 30,
       animateComposite: true,
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
+      enableShadows: true,
+      skipEnvironment: false,
     }
   }
 
@@ -71,6 +97,8 @@ export function getPortfolioPerformanceProfile() {
     pickingFps: 60,
     animateComposite: true,
     vhsModelPath: 'models/vhs/VHSUnit.high.glb',
+    enableShadows: true,
+    skipEnvironment: false,
   }
 }
 

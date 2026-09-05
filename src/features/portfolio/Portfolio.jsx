@@ -26,6 +26,7 @@ import { resolveVhsProjectId } from './vhsProjects'
 import { scheduleRouteWarmup, warmRoute } from '../../shared/performance/routePreloader'
 import { getPortfolioPerformanceProfile } from './performanceProfile'
 import { signalRouteReady, startRouteTransition } from '../../app/routeTransition'
+import WebGLErrorBoundary from '../home/components/WebGLErrorBoundary'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
@@ -1546,6 +1547,7 @@ export default function Portfolio() {
   const [cameraReady, setCameraReady] = useState(false)
   const [hasRevealed, setHasRevealed] = useState(false)
   const [error, setError] = useState(null)
+  const [webglFailed, setWebglFailed] = useState(false)
   const [metaballObjects, setMetaballObjects] = useState([])
   const [vhsEmptyTransforms, setVhsEmptyTransforms] = useState([])
   const [practicalLights, setPracticalLights] = useState([])
@@ -1848,6 +1850,11 @@ export default function Portfolio() {
   }, [hasRevealed])
 
   useEffect(() => {
+    if (!webglFailed) return
+    signalRouteReady('/portfolio')
+  }, [webglFailed])
+
+  useEffect(() => {
     if (!hasRevealed) return undefined
 
     return scheduleRouteWarmup('/entry', {
@@ -1983,6 +1990,30 @@ export default function Portfolio() {
             willChange: CONFIG.usePostComposite ? 'filter' : 'auto',
           }}
         >
+          <WebGLErrorBoundary
+            onError={() => setWebglFailed(true)}
+            fallback={(
+              <div
+                role="status"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'grid',
+                  placeContent: 'center',
+                  gap: 8,
+                  color: 'rgba(220, 242, 248, 0.72)',
+                  background: '#020305',
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  letterSpacing: '0.14em',
+                  textAlign: 'center',
+                }}
+              >
+                <span>PORTFOLIO DISPLAY UNAVAILABLE</span>
+                <small>Enable hardware acceleration, then reload this page.</small>
+              </div>
+            )}
+          >
           <Canvas
             camera={{
               position: CONFIG.cameraDefaultPosition,
@@ -1997,7 +2028,7 @@ export default function Portfolio() {
               display: 'block',
             }}
             frameloop="always"
-            shadows
+            shadows={performanceProfile.enableShadows}
             dpr={[1, performanceProfile.maxDpr]}
             gl={{
               antialias: performanceProfile.antialias,
@@ -2057,17 +2088,19 @@ export default function Portfolio() {
                 />
               )}
 
-              <Environment
-                files={CONFIG.hdriPath}
-                background={false}
-                intensity={CONFIG.environmentIntensity}
-              />
+              {!performanceProfile.skipEnvironment && (
+                <Environment
+                  files={CONFIG.hdriPath}
+                  background={false}
+                  intensity={CONFIG.environmentIntensity}
+                />
+              )}
 
               <directionalLight
                 position={CONFIG.directionalLightPosition}
                 intensity={CONFIG.directionalLightIntensity}
                 color={CONFIG.directionalLightColor}
-                castShadow
+                castShadow={performanceProfile.enableShadows}
                 shadow-mapSize={[
                   performanceProfile.shadowMapSize,
                   performanceProfile.shadowMapSize,
@@ -2158,6 +2191,7 @@ export default function Portfolio() {
               {CONFIG.enableOrbitControls && <OrbitControls makeDefault />}
             </ScrollControls>
           </Canvas>
+          </WebGLErrorBoundary>
         </div>
 
         {CONFIG.usePostComposite && (
