@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" data-projectzaman-phone-page="true"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Animation Mechanics</title><style>:root{color-scheme:light dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#faf8f8;color:#2b2b2b}*{box-sizing:border-box}body{margin:0 auto;max-width:46rem;padding:1rem;line-height:1.62}header{align-items:center;border-bottom:1px solid #d6d6d6;display:flex;gap:.5rem;justify-content:space-between;margin-bottom:1.25rem;padding-bottom:.8rem}header nav{display:flex;gap:.45rem}header a{border:1px solid #b8b8b8;border-radius:.5rem;display:inline-flex;min-height:2.75rem;align-items:center;padding:0 .75rem;text-decoration:none}h1{font-size:1.65rem;line-height:1.2}h2{font-size:1.35rem}h3{font-size:1.15rem}a{color:#315f73;overflow-wrap:anywhere}img{height:auto;max-width:100%}pre{max-width:100%;overflow:auto;padding:.75rem}table{border-collapse:collapse;display:block;max-width:100%;overflow:auto}th,td{border:1px solid #b8b8b8;padding:.4rem}svg{max-width:100%}.left,.right,.sidebar,.graph,.global-graph-outer,.search,.toc,.backlinks,.page-footer,.metadata-container{display:none!important}@media(prefers-color-scheme:dark){:root{background:#161618;color:#ebebec}header{border-color:#393639}a{color:#8bb4c4}header a,th,td{border-color:#646464}}</style></head><body><header><strong>Project Zaman</strong><nav aria-label="Phone navigation"><a href="/admin/">Home</a><a href="/admin/mobile-navigation.html">Browse</a></nav></header><main><h1>Animation Mechanics</h1><article><div class="markdown-preview-view markdown-rendered"><h1 id="animation-mechanics">Animation Mechanics<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#animation-mechanics" class="internal internal-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h1>
+<p><strong>Tags:</strong> <a href="../../.././../../tags/project-zaman" class="tag-link internal internal-link alias" data-slug="tags/project-zaman">project-zaman</a> <a href="../../.././../../tags/domain/production" class="tag-link internal internal-link alias" data-slug="tags/domain/production">production</a> <a href="../../.././../../tags/type/production" class="tag-link internal internal-link alias" data-slug="tags/type/production">production</a> <a href="../../.././../../tags/production/design" class="tag-link internal internal-link alias" data-slug="tags/production/design">design</a> <a href="../../.././../../tags/production/animation" class="tag-link internal internal-link alias" data-slug="tags/production/animation">animation</a> <a href="../../.././../../tags/mechanic/dodge" class="tag-link internal internal-link alias" data-slug="tags/mechanic/dodge">dodge</a> <a href="../../.././../../tags/mechanic/parry" class="tag-link internal internal-link alias" data-slug="tags/mechanic/parry">parry</a> <a href="../../.././../../tags/status/proposed" class="tag-link internal internal-link alias" data-slug="tags/status/proposed">proposed</a></p>
+<blockquote class="callout abstract" data-callout="abstract">
+<div class="callout-title">
+                  <div class="callout-icon"></div>
+                  <div class="callout-title-inner"><p>Purpose </p></div>
+                  
+                </div>
+<div class="callout-content">
+<p>This note defines a combat-animation direction for Project ZAMAN: contextual defensive animations that react to the opponent’s attack instead of using one generic dodge or parry response.</p>
+</div>
+</blockquote>
+<hr/>
+<h2 id="design-goal">Design Goal<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#design-goal" class="internal internal-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Project ZAMAN’s combat should feel grounded, readable, and tense.</p>
+<p>Defensive animation can support that by making the player character respond to the specific threat in front of him. A horizontal sweep, a direct thrust, an overhead strike, and a low attack should not all trigger the same body motion.</p>
+<p>The goal is realism through response quality, not animation excess.</p>
+<hr/>
+<h2 id="variant-dodge-mechanics">Variant Dodge Mechanics<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#variant-dodge-mechanics" class="internal internal-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><strong>Variant Dodge Mechanics</strong> activate dedicated dodge animations based on the opponent’s incoming attack.</p>
+<p>The system can read several attack properties:</p>
+<ul>
+<li>Attack height: high, mid, or low.</li>
+<li>Attack line: horizontal, vertical, thrusting, circular, or diagonal.</li>
+<li>Attack source: weapon, limb, projectile, grab, or environmental hazard.</li>
+<li>Player direction: forward, backward, left, right, or angled.</li>
+<li>Timing quality: early, clean, late, or panic input.</li>
+<li>Distance: close pressure, normal range, or barely-in-range evasion.</li>
+</ul>
+<p>This allows defensive movement to look intentional:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Incoming attack</th><th>Possible dodge response</th></tr></thead><tbody><tr><td>Horizontal sweep</td><td>Duck, shoulder roll, or compact side slip</td></tr><tr><td>Straight thrust</td><td>Narrow sidestep or angled pivot</td></tr><tr><td>Overhead strike</td><td>Back step, shoulder turn, or diagonal escape</td></tr><tr><td>Low sweep</td><td>Hop, lifted step, or backward pull</td></tr><tr><td>Grab attempt</td><td>Hand break, torso twist, or short shove-away</td></tr><tr><td>Projectile</td><td>Lean, drop, side roll, or cover-aware evade</td></tr></tbody></table></div>
+<p>The animation should never hide the player’s intention. Even when a contextual variant plays, the input direction and timing still need to be clear.</p>
+<hr/>
+<h2 id="variant-parry-mechanics">Variant Parry Mechanics<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#variant-parry-mechanics" class="internal internal-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><strong>Variant Parry Mechanics</strong> use dedicated parry reactions based on the incoming attack’s angle, force, and source.</p>
+<p>A strong parry system should not make every successful defense look like the same weapon tap. It should show how Subject-001 survives pressure while still appearing physically vulnerable.</p>
+<p>Possible variants:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Incoming attack</th><th>Possible parry response</th></tr></thead><tbody><tr><td>Light weapon strike</td><td>Quick deflection with minimal recovery</td></tr><tr><td>Heavy weapon strike</td><td>Two-handed brace, recoil, or staggered redirect</td></tr><tr><td>Thrust</td><td>Outside-line deflection or wrist turn</td></tr><tr><td>Overhead strike</td><td>Raised guard, angled catch, or shoulder drop</td></tr><tr><td>Claw or limb attack</td><td>Forearm jam, body slip, or elbow check</td></tr><tr><td>Repeated combo hit</td><td>Chain parry with rising stamina or posture cost</td></tr></tbody></table></div>
+<p>The parry should reward accurate timing while still respecting the fiction. A perfect response can look skillful, but not effortless.</p>
+<hr/>
+<h2 id="readability-rules">Readability Rules<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#readability-rules" class="internal internal-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li>Do not let contextual animations steal control for too long.</li>
+<li>Keep dodge and parry outcomes readable at boss speed.</li>
+<li>Use clear anticipation frames on enemy attacks so the player can learn patterns.</li>
+<li>Match animation intensity to risk: a late dodge should look less composed than a clean one.</li>
+<li>Preserve the Soulslike demand for commitment, stamina, spacing, and recovery.</li>
+<li>Avoid making defensive variety purely cosmetic; the chosen variant should communicate why it worked.</li>
+</ul>
+<hr/>
+<h2 id="lore-fit">Lore Fit<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lore-fit" class="internal internal-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>This system suits <a href="../../../subject-001" class="internal internal-link" data-slug="subject-001">Subject-001</a> because his survival is not based on brute confidence.</p>
+<p>He carries inherited grief, fragmented identity, and a body moving through danger without full certainty. Contextual dodge and parry animations can express that: not invincible grace, but precise survival under pressure.</p>
+<p>The system should also respect the broader premise of <a href="../../../immaculate-thought" class="internal internal-link alias" data-slug="immaculate-thought">Immaculate Thought</a> and the calm requirement recorded in <a href="../../../mechanics-index" class="internal internal-link alias" data-slug="mechanics-index">Mechanics Index</a>. If defensive mastery ever connects to calm, it should feel like controlled presence rather than aggression.</p></div></article></main></body></html>
