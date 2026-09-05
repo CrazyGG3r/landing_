@@ -48,12 +48,9 @@ function phoneDocumentDestination(pathname, requestUrl) {
   }
 
   let relative = pathname.slice('/admin'.length);
-  if (!relative || relative === '/') relative = '/index.html';
-  else if (relative.endsWith('/')) relative += 'index.html';
-  else if (!relative.endsWith('.html')) {
-    if (relative.split('/').at(-1)?.includes('.')) return null;
-    relative += '.html';
-  }
+  if (!relative || relative === '/') relative = '/';
+  else if (relative.endsWith('.html')) relative = relative.slice(0, -'.html'.length);
+  else if (relative.split('/').at(-1)?.includes('.')) return null;
 
   return new URL(`/admin/_mobile${relative}`, requestUrl);
 }

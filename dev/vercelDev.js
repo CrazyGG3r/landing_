@@ -107,7 +107,15 @@ export function vercelDev() {
           const rewriteTarget = result?.headers.get('x-middleware-rewrite');
           if (rewriteTarget) {
             const rewritten = new URL(rewriteTarget);
-            req.url = `${rewritten.pathname}${rewritten.search}`;
+            let rewrittenPath = rewritten.pathname;
+            if (rewrittenPath.endsWith('/')) {
+              const index = path.join(server.config.publicDir, rewrittenPath, 'index.html');
+              if (existsSync(index)) rewrittenPath += 'index.html';
+            } else {
+              const document = path.join(server.config.publicDir, `${rewrittenPath}.html`);
+              if (existsSync(document)) rewrittenPath += '.html';
+            }
+            req.url = `${rewrittenPath}${rewritten.search}`;
             return next();
           }
 
