@@ -1,4 +1,4 @@
-import { next } from '@vercel/edge';
+import { next, rewrite } from '@vercel/edge';
 import {
   SESSION_COOKIE,
   isAllowedEmail,
@@ -24,6 +24,38 @@ function isDocumentRequest(request) {
   if (destination === 'document' || destination === 'iframe') return true;
 
   return (request.headers.get('accept') || '').includes('text/html');
+}
+
+function isPhoneRequest(request, url) {
+  if (url.searchParams.get('desktop') === '1') return false;
+  if (url.searchParams.get('mobile') === '1') return true;
+
+  const mobileHint = request.headers.get('sec-ch-ua-mobile');
+  if (mobileHint === '?1') return true;
+
+  const userAgent = request.headers.get('user-agent') || '';
+  return /(?:iPhone|iPod|Windows Phone|IEMobile|Opera Mini|Android[^;)]*Mobile)/i.test(
+    userAgent,
+  );
+}
+
+function phoneDocumentDestination(pathname, requestUrl) {
+  if (
+    pathname.startsWith('/admin/_mobile/') ||
+    pathname === '/admin/mobile-navigation.html'
+  ) {
+    return null;
+  }
+
+  let relative = pathname.slice('/admin'.length);
+  if (!relative || relative === '/') relative = '/index.html';
+  else if (relative.endsWith('/')) relative += 'index.html';
+  else if (!relative.endsWith('.html')) {
+    if (relative.split('/').at(-1)?.includes('.')) return null;
+    relative += '.html';
+  }
+
+  return new URL(`/admin/_mobile${relative}`, requestUrl);
 }
 
 function redirectToLogin(requestUrl, attemptedPath) {
@@ -79,6 +111,15 @@ function authenticatedResponse(pathname) {
   return response;
 }
 
+function authenticatedPhoneResponse(destination) {
+  const response = rewrite(destination);
+  response.headers.set('Vary', 'Cookie, User-Agent, Sec-CH-UA-Mobile');
+  response.headers.set('Cache-Control', 'private, no-store, must-revalidate');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-ProjectZaman-Mode', 'phone');
+  return response;
+}
+
 export default async function middleware(request) {
   const url = new URL(request.url);
   const { pathname } = url;
@@ -100,6 +141,11 @@ export default async function middleware(request) {
   const claims = await verifySessionToken(token, secret);
   if (!claims || !isAllowedEmail(claims.email, process.env)) {
     return rejectUnauthenticated(request, url, `${pathname}${url.search}`);
+  }
+
+  if (isDocumentRequest(request) && isPhoneRequest(request, url)) {
+    const destination = phoneDocumentDestination(pathname, url);
+    if (destination) return authenticatedPhoneResponse(destination);
   }
 
   return authenticatedResponse(pathname);

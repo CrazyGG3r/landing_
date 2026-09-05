@@ -186,3 +186,21 @@
   .zaman-auth__card { animation: none; }
   .zaman-auth__grain { animation: none; }
 }
+
+.zaman-auth--phone {
+  background: #08060f;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.zaman-auth--phone .zaman-auth__card {
+  animation: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  font-family: inherit;
+}
+
+.zaman-auth--phone .zaman-auth__title,
+.zaman-auth--phone .zaman-auth__eyebrow {
+  font-family: inherit;
+}

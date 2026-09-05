@@ -104,6 +104,13 @@ export function vercelDev() {
           const { default: middleware } = await server.ssrLoadModule('/middleware.js');
           const result = await middleware(request);
 
+          const rewriteTarget = result?.headers.get('x-middleware-rewrite');
+          if (rewriteTarget) {
+            const rewritten = new URL(rewriteTarget);
+            req.url = `${rewritten.pathname}${rewritten.search}`;
+            return next();
+          }
+
           // `next()` from @vercel/edge marks pass-through with this header;
           // anything else is a real response (the redirect to /admin/login).
           if (result && result.headers.get('x-middleware-next') !== '1') {

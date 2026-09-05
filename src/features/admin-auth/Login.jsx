@@ -1,12 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import WebGLErrorBoundary from '../home/components/WebGLErrorBoundary';
 import GoogleSignInButton from './GoogleSignInButton';
-import AuthBackdrop from './three/AuthBackdrop';
-import GlassSlab from './three/GlassSlab';
 import { usePointer } from './usePointer';
 import './login.css';
 
 const DEFAULT_TARGET = '/admin/';
+const AuthBackdrop = lazy(() => import('./three/AuthBackdrop'));
+const GlassSlab = lazy(() => import('./three/GlassSlab'));
+
+function isPhoneDevice() {
+  const smallestSide = Math.min(
+    window.screen?.width || window.innerWidth,
+    window.screen?.height || window.innerHeight,
+  );
+  const touch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  return smallestSide <= 540 && touch;
+}
 
 /**
  * Only ever bounce back into the archive. Anything else is either a stale
@@ -21,6 +30,7 @@ function safeTarget(raw) {
 
 export default function Login() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  const [phoneLite] = useState(isPhoneDevice);
 
   const pointerRef = usePointer();
   const backdropRef = useRef(null);
@@ -137,26 +147,30 @@ export default function Login() {
   }, []);
 
   return (
-    <main className="zaman-auth">
-      {!leaving && (
+    <main className={`zaman-auth${phoneLite ? ' zaman-auth--phone' : ''}`}>
+      {!phoneLite && !leaving && (
         <WebGLErrorBoundary>
-          <AuthBackdrop ref={setBackdropNode} pointerRef={pointerRef} />
+          <Suspense fallback={null}>
+            <AuthBackdrop ref={setBackdropNode} pointerRef={pointerRef} />
+          </Suspense>
         </WebGLErrorBoundary>
       )}
 
-      {!leaving && backdropReady && cardBox.width > 0 && (
+      {!phoneLite && !leaving && backdropReady && cardBox.width > 0 && (
         <WebGLErrorBoundary>
-          <GlassSlab
-            backdropRef={backdropRef}
-            pointerRef={pointerRef}
-            cardWidth={cardBox.width}
-            cardHeight={cardBox.height}
-          />
+          <Suspense fallback={null}>
+            <GlassSlab
+              backdropRef={backdropRef}
+              pointerRef={pointerRef}
+              cardWidth={cardBox.width}
+              cardHeight={cardBox.height}
+            />
+          </Suspense>
         </WebGLErrorBoundary>
       )}
 
-      <div className="zaman-auth__vignette" />
-      <div className="zaman-auth__grain" />
+      {!phoneLite && <div className="zaman-auth__vignette" />}
+      {!phoneLite && <div className="zaman-auth__grain" />}
 
       <section className="zaman-auth__card" ref={setCardNode}>
         <p className="zaman-auth__eyebrow">Restricted Archive</p>
