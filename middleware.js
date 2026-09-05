@@ -113,7 +113,7 @@ function authenticatedPhoneResponse(destination) {
   response.headers.set('Vary', 'Cookie, User-Agent, Sec-CH-UA-Mobile');
   response.headers.set('Cache-Control', 'private, no-store, must-revalidate');
   response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-ProjectZaman-Mode', 'phone-static-v3');
+  response.headers.set('X-ProjectZaman-Mode', 'phone-static-v4');
   return response;
 }
 
