@@ -393,6 +393,8 @@ void main() {
 
   float mainIns = min(1.0, baseIns + (trigIns - baseIns) * u_alpha);
   float totalIns = min(1.0, mainIns + ghostIns);
+  float aura = exp(-max(baseF, 0.0) / max(1.0, u_res.y * 0.042));
+  aura *= (0.13 + u_alpha * 0.3) * (0.88 + 0.12 * sin(u_time * 2.2));
 
   float ripGlow = 0.0;
   for (int r = 0; r < 6; r++) {
@@ -429,6 +431,8 @@ void main() {
   res = mix(res, ghostCol, ghostIns * (1.0 - u_alpha));
   res = mix(res, 1.0 - fs, totalIns * u_alpha);
   res += prism * (1.0 - res);
+  res += tgt * aura * (1.0 - totalIns * 0.45);
+  res += vec3(1.0) * pow(max(totalIns, 0.0), 5.0) * (0.06 + u_alpha * 0.1);
   res = mix(res, vec3(0.95, 0.85, 1.0), ripGlow * 0.4 * u_alpha);
   // rtActive is captured over transparent black, so its RGB is already
   // premultiplied by alpha. Composite it once, above the completed blob.

@@ -8,7 +8,7 @@ import React, {
   useState,
 } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Environment, OrbitControls, ScrollControls, useProgress, useScroll } from '@react-three/drei'
+import { OrbitControls, ScrollControls, useProgress, useScroll } from '@react-three/drei'
 import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
@@ -106,14 +106,7 @@ const CONFIG = {
 const PROGRESS_EPSILON = 0.001
 const INITIAL_SCROLL_PERCENT = 0.01
 const PORTFOLIO_SCROLL_CLASS = 'portfolio-scroll-controls'
-const ARCHIVE_FRAME_LEVELS = [-1.5, 0.5, 2.5, 4.5, 6.5, 8.5, 10.5, 12.5]
-const ARCHIVE_HALF_WIDTH = 7.2
-const ARCHIVE_LIGHT_LIMIT = 4
-
 function configureArchiveScene(scene) {
-  const practicalLights = []
-  let sphereIndex = 0
-
   scene.updateMatrixWorld(true)
   scene.traverse((child) => {
     if (!child.isMesh || !/^Sphere\d*$/.test(child.name)) return
@@ -148,23 +141,7 @@ function configureArchiveScene(scene) {
     child.castShadow = false
     child.receiveShadow = false
 
-    const worldPosition = new THREE.Vector3()
-    child.getWorldPosition(worldPosition)
-    const materialColor = styledMaterials.find((material) => material?.emissive)?.emissive
-      ?? styledMaterials.find((material) => material?.color)?.color
-      ?? new THREE.Color('#8ca49e')
-
-    if (sphereIndex % 2 === 0 && practicalLights.length < ARCHIVE_LIGHT_LIMIT) {
-      practicalLights.push({
-        key: child.uuid,
-        position: worldPosition.toArray(),
-        color: `#${materialColor.getHexString()}`,
-      })
-    }
-    sphereIndex += 1
   })
-
-  return practicalLights
 }
 
 function PortfolioScrollSurface() {
@@ -733,58 +710,19 @@ function PortfolioCinematicRenderer({ progress, stateRef }) {
   return null
 }
 
-function ArchiveShaft({ practicalLights }) {
-  const frameMeshRef = useRef(null)
-  const lightBarMeshRef = useRef(null)
-  const lightBarMaterialRef = useRef(null)
-  const dustRef = useRef(null)
-  const dummy = useMemo(() => new THREE.Object3D(), [])
-
-  const frameTransforms = useMemo(() => {
-    const transforms = []
-    const centerX = 0.5
-    const centerZ = -0.3
-    const span = ARCHIVE_HALF_WIDTH * 2
-
-    ARCHIVE_FRAME_LEVELS.forEach((y) => {
-      transforms.push(
-        { position: [centerX, y, centerZ - ARCHIVE_HALF_WIDTH], scale: [span, 0.09, 0.13] },
-        { position: [centerX, y, centerZ + ARCHIVE_HALF_WIDTH], scale: [span, 0.09, 0.13] },
-        { position: [centerX - ARCHIVE_HALF_WIDTH, y, centerZ], scale: [0.13, 0.09, span] },
-        { position: [centerX + ARCHIVE_HALF_WIDTH, y, centerZ], scale: [0.13, 0.09, span] },
-      )
-    })
-
-    ;[-1, 1].forEach((xDirection) => {
-      ;[-1, 1].forEach((zDirection) => {
-        transforms.push({
-          position: [
-            centerX + xDirection * ARCHIVE_HALF_WIDTH,
-            5.25,
-            centerZ + zDirection * ARCHIVE_HALF_WIDTH,
-          ],
-          scale: [0.12, 14.5, 0.12],
-        })
-      })
-    })
-
-    return transforms
-  }, [])
-
-  const lightBarTransforms = useMemo(() => {
-    const transforms = []
-    for (let y = -0.2; y <= 12.4; y += 2.1) {
-      transforms.push(
-        { position: [-2.2, y, -9.08], scale: [2.25, 0.045, 0.055] },
-        { position: [3.2, y, -9.08], scale: [2.25, 0.045, 0.055] },
-      )
-    }
-    return transforms
-  }, [])
-
-  const dustGeometry = useMemo(() => {
-    const count = 180
+function AtmosphericParticles() {
+  const materialRef = useRef(null)
+  const geometry = useMemo(() => {
+    const count = 520
     const positions = new Float32Array(count * 3)
+    const colors = new Float32Array(count * 3)
+    const sizes = new Float32Array(count)
+    const phases = new Float32Array(count)
+    const palette = [
+      new THREE.Color('#d7ddd9'),
+      new THREE.Color('#afc8c1'),
+      new THREE.Color('#d8c9b3'),
+    ]
     let seed = 918273
     const random = () => {
       seed = (seed * 1664525 + 1013904223) >>> 0
@@ -792,140 +730,68 @@ function ArchiveShaft({ practicalLights }) {
     }
 
     for (let i = 0; i < count; i += 1) {
-      positions[i * 3] = (random() - 0.5) * 13
-      positions[i * 3 + 1] = random() * 15 - 2
-      positions[i * 3 + 2] = (random() - 0.5) * 13
+      positions[i * 3] = (random() - 0.5) * 18
+      positions[i * 3 + 1] = random() * 18 - 3
+      positions[i * 3 + 2] = (random() - 0.5) * 18
+      const color = palette[Math.min(2, Math.floor(random() * palette.length))]
+      colors.set(color.toArray(), i * 3)
+      sizes[i] = 0.75 + random() * 1.35
+      phases[i] = random() * Math.PI * 2
     }
 
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.computeBoundingSphere()
-    return geometry
+    const next = new THREE.BufferGeometry()
+    next.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    next.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    next.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1))
+    next.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1))
+    next.computeBoundingSphere()
+    return next
   }, [])
 
-  useLayoutEffect(() => {
-    const frameMesh = frameMeshRef.current
-    const lightBarMesh = lightBarMeshRef.current
-
-    if (frameMesh) {
-      frameTransforms.forEach((transform, index) => {
-        dummy.position.fromArray(transform.position)
-        dummy.rotation.set(0, 0, 0)
-        dummy.scale.fromArray(transform.scale)
-        dummy.updateMatrix()
-        frameMesh.setMatrixAt(index, dummy.matrix)
-      })
-      frameMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
-      frameMesh.instanceMatrix.needsUpdate = true
-      frameMesh.computeBoundingSphere()
-    }
-
-    if (lightBarMesh) {
-      lightBarTransforms.forEach((transform, index) => {
-        dummy.position.fromArray(transform.position)
-        dummy.rotation.set(0, 0, 0)
-        dummy.scale.fromArray(transform.scale)
-        dummy.updateMatrix()
-        lightBarMesh.setMatrixAt(index, dummy.matrix)
-      })
-      lightBarMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)
-      lightBarMesh.instanceMatrix.needsUpdate = true
-      lightBarMesh.computeBoundingSphere()
-    }
-  }, [dummy, frameTransforms, lightBarTransforms])
-
-  useEffect(() => () => {
-    dustGeometry.dispose()
-  }, [dustGeometry])
-
+  useEffect(() => () => geometry.dispose(), [geometry])
   useFrame(({ clock }) => {
-    const time = clock.elapsedTime
-    if (dustRef.current) {
-      dustRef.current.rotation.y = Math.sin(time * 0.035) * 0.018
-      dustRef.current.position.y = Math.sin(time * 0.08) * 0.07
-    }
-    if (lightBarMaterialRef.current) {
-      const lowPulse = Math.sin(time * 1.4) * 0.035
-      const rareInstability = Math.pow(Math.max(0, Math.sin(time * 0.47) - 0.985), 2) * 42
-      lightBarMaterialRef.current.emissiveIntensity = 1.8 + lowPulse - rareInstability
-    }
+    if (materialRef.current) materialRef.current.uniforms.uTime.value = clock.elapsedTime
   })
 
   return (
-    <group>
-      <mesh position={[0.5, 5.25, -0.3]} receiveShadow renderOrder={-30}>
-        <boxGeometry args={[18.8, 19.5, 18.8]} />
-        <meshStandardMaterial
-          color="#111816"
-          roughness={0.92}
-          metalness={0.025}
-          envMapIntensity={0.12}
-          side={THREE.BackSide}
-        />
-      </mesh>
-
-      <mesh position={[0.5, -1.9, -0.3]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[17.5, 17.5]} />
-        <meshStandardMaterial
-          color="#171a18"
-          roughness={0.48}
-          metalness={0.16}
-          envMapIntensity={0.34}
-        />
-      </mesh>
-
-      <instancedMesh
-        ref={frameMeshRef}
-        args={[undefined, undefined, frameTransforms.length]}
-        receiveShadow
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          color="#252b29"
-          roughness={0.68}
-          metalness={0.24}
-          envMapIntensity={0.28}
-        />
-      </instancedMesh>
-
-      <instancedMesh
-        ref={lightBarMeshRef}
-        args={[undefined, undefined, lightBarTransforms.length]}
-      >
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          ref={lightBarMaterialRef}
-          color="#d9e1da"
-          emissive="#b8cec6"
-          emissiveIntensity={1.8}
-          roughness={0.34}
-          toneMapped={false}
-        />
-      </instancedMesh>
-
-      <points ref={dustRef} geometry={dustGeometry} frustumCulled={false}>
-        <pointsMaterial
-          color="#d8d2c2"
-          size={0.024}
-          opacity={0.2}
-          transparent
-          depthWrite={false}
-          sizeAttenuation
-          fog
-        />
-      </points>
-
-      {practicalLights.map((light) => (
-        <pointLight
-          key={light.key}
-          position={light.position}
-          color={light.color}
-          intensity={8}
-          distance={5.5}
-          decay={2}
-        />
-      ))}
-    </group>
+    <points geometry={geometry} frustumCulled={false}>
+      <shaderMaterial
+        ref={materialRef}
+        transparent
+        depthWrite={false}
+        blending={THREE.NormalBlending}
+        vertexColors
+        uniforms={{ uTime: { value: 0 } }}
+        vertexShader={`
+          attribute float aSize;
+          attribute float aPhase;
+          varying vec3 vColor;
+          varying float vPulse;
+          uniform float uTime;
+          void main() {
+            vec3 p = position;
+            p.x += sin(uTime * .08 + aPhase) * .045;
+            p.y += sin(uTime * .055 + aPhase * 1.7) * .035;
+            p.z += cos(uTime * .065 + aPhase) * .04;
+            vec4 mv = modelViewMatrix * vec4(p, 1.0);
+            vColor = color;
+            vPulse = .72 + .18 * sin(uTime * .42 + aPhase);
+            gl_PointSize = clamp(aSize * (8.0 / max(2.0, -mv.z)), .75, 2.15);
+            gl_Position = projectionMatrix * mv;
+          }
+        `}
+        fragmentShader={`
+          varying vec3 vColor;
+          varying float vPulse;
+          void main() {
+            float d = length(gl_PointCoord - .5);
+            float dot = 1.0 - smoothstep(.34, .49, d);
+            if (dot < .02) discard;
+            gl_FragColor = vec4(vColor, dot * vPulse * .58);
+          }
+        `}
+      />
+    </points>
   )
 }
 
@@ -1550,7 +1416,6 @@ export default function Portfolio() {
   const [webglFailed, setWebglFailed] = useState(false)
   const [metaballObjects, setMetaballObjects] = useState([])
   const [vhsEmptyTransforms, setVhsEmptyTransforms] = useState([])
-  const [practicalLights, setPracticalLights] = useState([])
   const [pageTransition, setPageTransition] = useState({
     mounted: false,
     visible: false,
@@ -1630,7 +1495,7 @@ export default function Portfolio() {
 
     setPathPoints(extractedPoints)
     setMarkers(extractedMarkers)
-    setPracticalLights(configureArchiveScene(loadedScene))
+    configureArchiveScene(loadedScene)
 
     // Filter interactiveMeshes: keep only those with name starting with "I_"
     const filteredMeshes = (interactiveMeshes || []).filter(
@@ -1740,12 +1605,14 @@ export default function Portfolio() {
 
   const handleInteractiveObjectFocusStart = useCallback(async (activeIndex) => {
     if (typeof activeIndex === 'number' && activeIndex >= 0) {
-      void warmRoute('/entry', {
+      const projectId = resolveVhsProjectId(activeIndex)
+      const warmup = warmRoute('/entry', {
         includeAssets: true,
         intent: true,
-        projectId: resolveVhsProjectId(activeIndex),
+        projectId,
       })
-      await vhsControllerRef.current?.playClick(activeIndex)
+      const clickAnimation = vhsControllerRef.current?.playClick(activeIndex)
+      await Promise.allSettled([warmup, clickAnimation])
     }
 
     if (metaballCommitTimeoutRef.current) {
@@ -2078,7 +1945,7 @@ export default function Portfolio() {
                   vignetteFollowLerp={CONFIG.vignetteFollowLerp}
                 />
               )}
-              <ArchiveShaft practicalLights={practicalLights} />
+              <AtmosphericParticles />
 
               <ambientLight intensity={CONFIG.ambientIntensity} />
               {CONFIG.useGradientSkybox && (
@@ -2088,13 +1955,7 @@ export default function Portfolio() {
                 />
               )}
 
-              {!performanceProfile.skipEnvironment && (
-                <Environment
-                  files={CONFIG.hdriPath}
-                  background={false}
-                  intensity={CONFIG.environmentIntensity}
-                />
-              )}
+              <hemisphereLight color="#dffcf3" groundColor="#251c18" intensity={0.72} />
 
               <directionalLight
                 position={CONFIG.directionalLightPosition}

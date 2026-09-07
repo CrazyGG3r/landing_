@@ -12,12 +12,12 @@ export function getPortfolioPerformanceProfile() {
       maxDpr: 1.25,
       antialias: true,
       shadowMapSize: 512,
-      shadowCasters: 3,
+      shadowCasters: 0,
       pickingFps: 30,
       animateComposite: true,
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
-      enableShadows: true,
-      skipEnvironment: false,
+      enableShadows: false,
+      skipEnvironment: true,
     }
   }
 
@@ -63,12 +63,12 @@ export function getPortfolioPerformanceProfile() {
       maxDpr: 1,
       antialias: false,
       shadowMapSize: 512,
-      shadowCasters: 1,
+      shadowCasters: 0,
       pickingFps: 24,
       animateComposite: false,
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
-      enableShadows: true,
-      skipEnvironment: false,
+      enableShadows: false,
+      skipEnvironment: true,
     }
   }
 
@@ -79,12 +79,12 @@ export function getPortfolioPerformanceProfile() {
       maxDpr: 1.25,
       antialias: true,
       shadowMapSize: 512,
-      shadowCasters: 3,
+      shadowCasters: 0,
       pickingFps: 30,
       animateComposite: true,
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
-      enableShadows: true,
-      skipEnvironment: false,
+      enableShadows: false,
+      skipEnvironment: true,
     }
   }
 
@@ -93,12 +93,12 @@ export function getPortfolioPerformanceProfile() {
     maxDpr: 1.5,
     antialias: true,
     shadowMapSize: 1024,
-    shadowCasters: Number.POSITIVE_INFINITY,
+    shadowCasters: 0,
     pickingFps: 60,
     animateComposite: true,
     vhsModelPath: 'models/vhs/VHSUnit.high.glb',
-    enableShadows: true,
-    skipEnvironment: false,
+    enableShadows: false,
+    skipEnvironment: true,
   }
 }
 

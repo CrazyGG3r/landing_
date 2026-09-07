@@ -550,10 +550,11 @@ export default function Landing({
 
     // Begin a guarded idle warmup once the landing scene is stable. The route
     // preloader automatically skips this on data-saver/slow/low-memory devices.
-    return scheduleRouteWarmup('/portfolio', {
+    const cancelWarmup = scheduleRouteWarmup('/portfolio', {
       includeAssets: true,
       timeoutMs: 2400,
     });
+    return cancelWarmup;
   }, [sceneLoaded]);
 
   const titleFontSize = isTight

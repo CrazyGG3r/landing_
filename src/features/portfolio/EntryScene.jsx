@@ -7,8 +7,9 @@ import React, {
   useState,
 } from 'react'
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber'
-import { Environment, Html, useProgress } from '@react-three/drei'
+import { Html, useProgress } from '@react-three/drei'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { useLocation, useNavigationType } from 'react-router-dom'
 import {
   FastForward,
@@ -21,7 +22,6 @@ import {
 } from 'lucide-react'
 import * as THREE from 'three'
 import {
-  DEFAULT_VHS_MODEL_PATH,
   VHS_PRIMARY_MASK_PATH,
   VHS_SECONDARY_MASK_PATH,
   VHS_LABEL_DIR,
@@ -40,6 +40,7 @@ import CRTGlass from './CRTGlass'
 import ScrollPathCamera from './ScrollPathCamera'
 import { resolveVhsProjectId } from './vhsProjects'
 import { warmRoute } from '../../shared/performance/routePreloader'
+import { getPortfolioVhsModelPath } from './performanceProfile'
 import { signalRouteReady } from '../../app/routeTransition'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -65,7 +66,7 @@ import { signalRouteReady } from '../../app/routeTransition'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/EntryScene.glb',
-  vhsModelPath: DEFAULT_VHS_MODEL_PATH,
+  vhsModelPath: getPortfolioVhsModelPath(),
   vhsScale: 1,
   cameraNodeName: 'Camera',
   // Keep the established framing independent from incidental lens changes in
@@ -97,6 +98,27 @@ const CONFIG = {
   readerResolution: 640,
   // The Screen only powers on this long after every "Entry_" animation finishes.
   screenActivationDelayMs: 500,
+}
+
+function ProceduralEnvironment() {
+  const { gl, scene } = useThree()
+
+  useEffect(() => {
+    const previousEnvironment = scene.environment
+    const generator = new THREE.PMREMGenerator(gl)
+    const room = new RoomEnvironment()
+    const target = generator.fromScene(room, 0.03)
+    scene.environment = target.texture
+
+    return () => {
+      scene.environment = previousEnvironment
+      target.dispose()
+      room.dispose()
+      generator.dispose()
+    }
+  }, [gl, scene])
+
+  return null
 }
 
 const VHS_BUTTONS = [
@@ -939,11 +961,8 @@ export default function EntryScene() {
           intensity={CONFIG.directionalLightIntensity}
           color={CONFIG.directionalLightColor}
         />
-        <Environment
-          files={CONFIG.hdriPath}
-          background={false}
-          intensity={CONFIG.environmentIntensity}
-        />
+        <hemisphereLight color="#e8fff9" groundColor="#17100d" intensity={0.85} />
+        <ProceduralEnvironment />
 
         <Suspense fallback={null}>
           <EntrySceneRoom

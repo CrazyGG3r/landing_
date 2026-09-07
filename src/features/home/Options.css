@@ -64,7 +64,7 @@
   text-shadow:
     0 0 8px rgba(215, 242, 255, 0.72),
     0 0 20px rgba(120, 184, 255, 0.38);
-  animation: options-link-selected-hold 4750ms ease-out forwards;
+  animation: options-link-selected-hold 1800ms ease-out forwards;
 }
 
 @keyframes options-link-signal-loss {

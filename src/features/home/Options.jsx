@@ -16,6 +16,8 @@ const IMAGE_FOR_LABEL = Object.freeze({
 })
 const OPTION_IMAGE_URLS = Object.freeze(Object.values(IMAGE_FOR_LABEL))
 const EMPTY_IMAGE_URLS = Object.freeze([])
+const ROUTE_COMMIT_MIN_MS = 850
+const ROUTE_WARMUP_MAX_MS = 1800
 
 const LINKS = Object.freeze([
   { label: 'Portfolio', path: '/portfolio' },
@@ -97,25 +99,31 @@ const Options = memo(function Options({
     window.clearTimeout(navigationTimerRef.current)
   }, [])
 
-  const beginRouteTransition = useCallback((event, label, path) => {
+  const beginRouteTransition = useCallback(async (event, label, path) => {
     event.preventDefault()
     if (selectedLabel) return
 
     setSelectedLabel(label)
     onHoverTarget?.(label)
-    void warmRoute(path, { includeAssets: true, intent: true })
+    const warmup = warmRoute(path, { includeAssets: true, intent: true })
 
     shutdownTimerRef.current = window.setTimeout(() => {
       setIsShuttingDown(true)
       setImageOpacity(0)
-    }, 650)
+    }, 280)
 
-    navigationTimerRef.current = window.setTimeout(() => {
-      startRouteTransition({ label, pathname: path })
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => navigate(path))
-      })
-    }, 4750)
+    const delay = (ms) => new Promise((resolve) => {
+      navigationTimerRef.current = window.setTimeout(resolve, ms)
+    })
+    await Promise.all([
+      delay(ROUTE_COMMIT_MIN_MS),
+      Promise.race([warmup, delay(ROUTE_WARMUP_MAX_MS)]),
+    ])
+
+    startRouteTransition({ label, pathname: path })
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => navigate(path))
+    })
   }, [navigate, onHoverTarget, selectedLabel])
 
   const showPreview = useCallback((label) => {
