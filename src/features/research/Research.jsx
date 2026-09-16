@@ -19,7 +19,7 @@ export default function Research() {
   useDisableInteractions();
   usePreventHorizontalScroll();
   const viewportHeight = useOrientationHandler();
-  const { isMobile, orientation } = useMobileDetect();
+  const { isMobile } = useMobileDetect();
 
   const [activeSection, setActiveSection] = useState("overview");
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -174,7 +174,6 @@ export default function Research() {
 
   return (
     <div style={{
-      minHeight: "100vh",
       minHeight: `calc(${viewportHeight}px)`,
       background: T.bg,
       fontFamily: T.fontSans,

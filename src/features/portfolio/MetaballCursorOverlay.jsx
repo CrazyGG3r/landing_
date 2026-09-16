@@ -219,7 +219,7 @@ function useMeasuredHeight(ref) {
 // A generic, animated container that you can fill with anything.
 // Animations (opacity + scale) are applied automatically based on `visible`.
 
-function CardShell({ side, visible, children }) {
+function CardShell({ children }) {
   return (
     <div>
       {children}
@@ -340,7 +340,7 @@ export function MetaballCursorOverlay({
 
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [isActive, getPos, canvasToWindow, getSide, cardH, win])
+  }, [isActive, getPos, getProjR, canvasToWindow, getSide, cardW, cardH, win])
 
   // reset position lock when hidden → next appearance snaps immediately
   useEffect(() => {
@@ -381,6 +381,7 @@ export function MetaballCursorOverlay({
   return (
     <div
       aria-hidden="true"
+      className={className}
       style={{
         position: 'absolute',
         inset: 0,
@@ -401,7 +402,7 @@ export function MetaballCursorOverlay({
       >
         {/* inner container measured for height */}
         <div ref={cardInnerRef}>
-          <CardShell side={side} visible={visible}>
+          <CardShell>
             {content}
           </CardShell>
         </div>

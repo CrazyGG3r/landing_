@@ -307,7 +307,7 @@ export default function TextPressure({
         }
       };
 
-      const handleTouchEnd = (e) => {
+      const handleTouchEnd = () => {
         touchActiveRef.current = false;
         // Gradually return to center when touch ends
         const centerX = window.innerWidth / 2;
@@ -324,7 +324,7 @@ export default function TextPressure({
         });
       };
 
-      const handleTouchCancel = (e) => {
+      const handleTouchCancel = () => {
         touchActiveRef.current = false;
         const centerX = window.innerWidth / 2;
         const centerY = window.innerHeight / 2;

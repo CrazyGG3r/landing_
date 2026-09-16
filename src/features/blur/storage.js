@@ -83,7 +83,9 @@ export async function loadSettings() {
       const p = JSON.parse(res.value);
       if (isValidSettings(p)) return normalizeSettings(p);
     }
-  } catch (_) {}
+  } catch (_) {
+    // Storage is optional; fall back to defaults when the adapter is unavailable.
+  }
   return DEFAULT_SETTINGS;
 }
 
@@ -91,14 +93,18 @@ export async function saveSettings(data) {
   try {
     const s = getStorageAdapter();
     if (s) await s.set(STORAGE_KEY, JSON.stringify({ version: 1, ...data }));
-  } catch(_) {} 
+  } catch(_) {
+    // Persistence failure must not interrupt the visual editor.
+  }
 }
 
 export async function resetSettings() { 
   try {
     const s = getStorageAdapter();
     if (s) await s.delete(STORAGE_KEY);
-  } catch(_) {} 
+  } catch(_) {
+    // The default state is still returned when deletion is unavailable.
+  }
   return DEFAULT_SETTINGS; 
 }
 

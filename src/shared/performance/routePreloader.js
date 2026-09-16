@@ -102,13 +102,22 @@ export function warmRoute(
   if (!routeImporters[route]) return Promise.resolve()
   if (!intent && !canRunBackgroundWarmup()) return Promise.resolve()
 
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : null
+
   const tasks = [getRouteModule(route)]
   if (includeAssets) tasks.push(primeRouteAssets(route))
   if (route === '/entry' && projectId) {
     tasks.push(prefetchProjectDocument(projectId))
   }
 
-  return Promise.allSettled(tasks).then(() => undefined)
+  return Promise.allSettled(tasks).then(() => {
+    if (startedAt !== null) {
+      recordPerformanceMetric('route-warmup', performance.now() - startedAt, {
+        pathname: route,
+        includesAssets: includeAssets,
+      })
+    }
+  })
 }
 
 export function scheduleRouteWarmup(
@@ -151,3 +160,4 @@ export function loadEntryRoute() {
   void primeRouteAssets('/entry').catch(() => {})
   return getRouteModule('/entry')
 }
+import { recordPerformanceMetric } from './metrics'

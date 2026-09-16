@@ -40,7 +40,7 @@ import CRTGlass from './CRTGlass'
 import ScrollPathCamera from './ScrollPathCamera'
 import { resolveVhsProjectId } from './vhsProjects'
 import { warmRoute } from '../../shared/performance/routePreloader'
-import { getPortfolioVhsModelPath } from './performanceProfile'
+import { getPortfolioPerformanceProfile } from './performanceProfile'
 import { signalRouteReady } from '../../app/routeTransition'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -64,9 +64,11 @@ import { signalRouteReady } from '../../app/routeTransition'
 // viewport instead of the glTF's baked 16:9.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const ENTRY_PERFORMANCE = getPortfolioPerformanceProfile()
+
 const CONFIG = {
   modelPath: 'scenes/vhs/EntryScene.glb',
-  vhsModelPath: getPortfolioVhsModelPath(),
+  vhsModelPath: ENTRY_PERFORMANCE.vhsModelPath,
   vhsScale: 1,
   cameraNodeName: 'Camera',
   // Keep the established framing independent from incidental lens changes in
@@ -117,6 +119,25 @@ function ProceduralEnvironment() {
       generator.dispose()
     }
   }, [gl, scene])
+
+  return null
+}
+
+function EntryVisibilityFrameLoop() {
+  const setFrameloop = useThree((state) => state.setFrameloop)
+  const invalidate = useThree((state) => state.invalidate)
+
+  useEffect(() => {
+    const sync = () => {
+      const visible = document.visibilityState !== 'hidden'
+      setFrameloop(visible ? 'always' : 'never')
+      if (visible) invalidate()
+    }
+
+    sync()
+    document.addEventListener('visibilitychange', sync)
+    return () => document.removeEventListener('visibilitychange', sync)
+  }, [invalidate, setFrameloop])
 
   return null
 }
@@ -952,9 +973,11 @@ export default function EntryScene() {
     >
       <Canvas
         camera={{ position: [0, 1, 3], fov: 35 }}
+        dpr={[1, ENTRY_PERFORMANCE.maxDpr]}
         style={{ width: '100%', height: '100%', display: 'block' }}
-        gl={{ antialias: true }}
+        gl={{ antialias: ENTRY_PERFORMANCE.antialias, powerPreference: 'high-performance' }}
       >
+        <EntryVisibilityFrameLoop />
         <ambientLight intensity={CONFIG.ambientIntensity} />
         <directionalLight
           position={CONFIG.directionalLightPosition}
@@ -1029,6 +1052,9 @@ export default function EntryScene() {
           <CRTGlass
             sceneRoot={sceneRoot}
             refraction={CONFIG.crtRefraction}
+            captureScale={ENTRY_PERFORMANCE.crtCaptureScale}
+            captureFps={ENTRY_PERFORMANCE.crtCaptureFps}
+            captureSamples={ENTRY_PERFORMANCE.crtCaptureSamples}
           />
         )}
       </Canvas>

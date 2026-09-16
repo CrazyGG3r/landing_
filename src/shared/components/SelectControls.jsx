@@ -18,13 +18,13 @@ export function Clickable({
     if (onClick) onClick(e)
   }
 
-  const handlePointerOver = (e) => {
+  const handlePointerOver = () => {
  
     setHovered(true)
     document.body.style.cursor = 'pointer'
   }
 
-  const handlePointerOut = (e) => {
+  const handlePointerOut = () => {
 
     setHovered(false)
     document.body.style.cursor = 'default'

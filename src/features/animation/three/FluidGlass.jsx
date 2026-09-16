@@ -56,6 +56,13 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
   useEffect(() => {
     const loadModelList = async () => {
       try {
+        if (modelUrl) {
+          const filename = modelUrl.split('/').pop();
+          setModelConfig(MODEL_CONFIGS[filename] || DEFAULT_MODEL_CONFIG);
+          setModelPath(modelUrl);
+          return;
+        }
+
         const modelFiles = Object.keys(models);
         if (modelFiles.length === 0) {
           console.warn('No models found in ../assets/models/');
@@ -78,7 +85,7 @@ const FluidGlass = memo(function FluidGlass({ bgCanvasRef, modelUrl }) {
     };
 
     loadModelList();
-  }, []);
+  }, [modelUrl]);
 
   useEffect(() => {
     if (!modelPath) return;

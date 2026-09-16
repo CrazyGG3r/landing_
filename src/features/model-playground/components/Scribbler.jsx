@@ -1,12 +1,10 @@
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
-import { useRef, useMemo } from "react";
+import { useMemo } from "react";
 import * as THREE from "three";
 
 function ScribbleModel({ path }) {
   const { scene } = useGLTF(path);
-  const materialRef = useRef();
-
   const material = useMemo(() => {
     return new THREE.ShaderMaterial({
       transparent: true,

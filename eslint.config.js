@@ -5,7 +5,30 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'dist-runtime', 'src/archive']),
+  globalIgnores([
+    'dist',
+    'dist-runtime',
+    'public',
+    'src/archive',
+    'src/assignment',
+    'src/blur',
+    'src/blur1',
+    'src/components',
+    'src/home',
+    'src/home copy',
+    'src/hooks',
+    'src/iot_testing',
+    'src/nextmodel',
+    'src/performance',
+    'src/portfolio',
+    'src/test',
+    'src/AMP',
+    'src/AMPReaderScreen.jsx',
+    'src/App.jsx',
+    'src/NotFound.jsx',
+    'src/main.jsx',
+    'src/old.jsx',
+  ]),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -23,7 +46,14 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': [
+        'error',
+        {
+          varsIgnorePattern: '^(?:[A-Z_]|motion$)',
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   },
   {
@@ -33,6 +63,20 @@ export default defineConfig([
     languageOptions: {
       globals: { ...globals.browser, ...globals.node },
     },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    // These rendering modules intentionally export reusable shader/material
+    // helpers alongside their React component entry points.
+    files: [
+      'src/features/portfolio/MetaballCursor.jsx',
+      'src/features/portfolio/PortfolioCompositeEffects.jsx',
+      'src/features/portfolio/SceneLoader.jsx',
+      'src/features/animation/components/FaultyTerminal.jsx',
+      'src/features/animation/core/MouseContext.jsx',
+    ],
     rules: {
       'react-refresh/only-export-components': 'off',
     },

@@ -28,19 +28,11 @@ import ChalkStick from '/fonts/Chalk Stick.otf';
 // import IKarm from './components/arm/IKarm';
 // ── CHANGED: replaced Background with FaultyTerminal ──────────────
 import FaultyTerminal from './components/FaultyTerminal';
-import { ANIMATION_FRAMES, box, third } from './components/Animationframes';
+import { ANIMATION_FRAMES } from './components/Animationframes';
 // ──────────────────────────────────────────────────────────────────
 
 export default function Landing({
   preloaderDuration = 3,
-
-  // PaperFish config — adjust to match your actual files
-  fishFrameCount = 5,
-  fishFramePath  = '/anims/fish/',  // → public/anims/fish/fish_001.png etc.
-  fishFrameExt   = 'png',
-  fishFramePad   = 3,
-  fishFps        = 0.75,
-  fishCount      = 3,
 }) {
   const [isMobile] = useState(() => {
     const ua = navigator.userAgent;

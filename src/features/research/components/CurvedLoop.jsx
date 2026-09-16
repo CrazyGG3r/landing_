@@ -1,5 +1,4 @@
 import { useState, useRef, useCallback, useEffect, useMemo, useId } from "react";
-import { useResizeObserver } from "../hooks/useResizeObserver.js";
 import { useMobileDetect } from "../hooks/useMobileDetect.js";
 
 export const CurvedLoop = ({ 

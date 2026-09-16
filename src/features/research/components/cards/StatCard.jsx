@@ -20,7 +20,6 @@ export const StatCard = ({ value, label, sub }) => {
 
   useResizeObserver(outerRef, onResize);
 
-  const shouldShowDetails = isMobile ? true : hovered;
   const textTransform = isMobile ? "none" : (hovered ? "translateY(-10px) scale(0.94)" : "translateY(0px) scale(1)");
   const detailsTransform = isMobile ? "translateY(0px)" : (hovered ? "translateY(0px)" : "translateY(10px)");
   const detailsOpacity = isMobile ? 1 : (hovered ? 1 : 0);

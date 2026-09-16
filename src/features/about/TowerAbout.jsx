@@ -1122,6 +1122,7 @@ export default function TowerAbout() {
         <Canvas
           camera={{ position: [0, 3.25, 16.5], fov: 41, near: 0.1, far: 80 }}
           dpr={iosDevice ? [1, 1] : [1.25, 2]}
+          frameloop={selectedPerson ? 'never' : 'always'}
           shadows={!iosDevice}
           gl={{ antialias: !iosDevice, alpha: false, powerPreference: 'high-performance' }}
           onPointerMissed={() => setHoveredId(null)}

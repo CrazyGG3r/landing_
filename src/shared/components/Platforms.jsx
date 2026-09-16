@@ -1,6 +1,6 @@
 import { useGLTF ,Outlines } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { useRef,useEffect,cloneElement,useState } from 'react'
+import { useRef, useEffect } from 'react'
 import * as THREE from 'three'
 
 
@@ -86,4 +86,3 @@ export function Platform({
     />
   )
 }
-

@@ -18,6 +18,9 @@ export function getPortfolioPerformanceProfile() {
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
       enableShadows: false,
       skipEnvironment: true,
+      crtCaptureScale: 0.62,
+      crtCaptureFps: 24,
+      crtCaptureSamples: 0,
     }
   }
 
@@ -54,6 +57,9 @@ export function getPortfolioPerformanceProfile() {
         : 'models/vhs/VHSUnit.glb',
       enableShadows: false,
       skipEnvironment: true,
+      crtCaptureScale: 0.5,
+      crtCaptureFps: 18,
+      crtCaptureSamples: 0,
     }
   }
 
@@ -69,6 +75,9 @@ export function getPortfolioPerformanceProfile() {
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
       enableShadows: false,
       skipEnvironment: true,
+      crtCaptureScale: 0.5,
+      crtCaptureFps: 18,
+      crtCaptureSamples: 0,
     }
   }
 
@@ -85,6 +94,9 @@ export function getPortfolioPerformanceProfile() {
       vhsModelPath: 'models/vhs/VHSUnit.performance.glb',
       enableShadows: false,
       skipEnvironment: true,
+      crtCaptureScale: 0.62,
+      crtCaptureFps: 24,
+      crtCaptureSamples: 0,
     }
   }
 
@@ -99,6 +111,9 @@ export function getPortfolioPerformanceProfile() {
     vhsModelPath: 'models/vhs/VHSUnit.high.glb',
     enableShadows: false,
     skipEnvironment: true,
+    crtCaptureScale: 0.75,
+    crtCaptureFps: 30,
+    crtCaptureSamples: 2,
   }
 }
 

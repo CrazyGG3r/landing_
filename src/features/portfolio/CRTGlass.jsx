@@ -149,29 +149,41 @@ export default function CRTGlass({
   refraction = 0.7,
   settings,
   excludedNodeNames = DEFAULT_EXCLUDED_NODE_NAMES,
+  captureScale = 0.62,
+  captureFps = 24,
+  captureSamples = 0,
 }) {
   const { gl, scene, camera } = useThree()
   const glassMeshRef = useRef(null)
   const excludedRootsRef = useRef([])
   const drawingBufferSizeRef = useRef(new THREE.Vector2())
+  const lastCaptureAtRef = useRef(-Infinity)
+  const adaptiveScaleRef = useRef(captureScale)
+  const frameTimeRef = useRef({ average: 1 / 60, samples: 0 })
+  const cameraStateRef = useRef(null)
+  const cameraMotionUntilRef = useRef(0)
   const transmissionSize = useMemo(() => new THREE.Vector2(1, 1), [])
   const transmissionTarget = useMemo(() => {
     const supportsHalfFloat =
       gl.extensions.has('EXT_color_buffer_half_float') ||
       gl.extensions.has('EXT_color_buffer_float')
     const target = new THREE.WebGLRenderTarget(1, 1, {
-      generateMipmaps: true,
+      generateMipmaps: false,
       type: supportsHalfFloat ? THREE.HalfFloatType : THREE.UnsignedByteType,
-      minFilter: THREE.LinearMipmapLinearFilter,
+      minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       depthBuffer: true,
       stencilBuffer: false,
       colorSpace: THREE.ColorManagement.workingColorSpace,
     })
     target.texture.name = 'CRT background-only transmission'
-    target.samples = 4
+    target.samples = captureSamples
     return target
-  }, [gl])
+  }, [captureSamples, gl])
+
+  useEffect(() => {
+    adaptiveScaleRef.current = captureScale
+  }, [captureScale])
 
   useEffect(() => () => transmissionTarget.dispose(), [transmissionTarget])
 
@@ -257,13 +269,67 @@ export default function CRTGlass({
     transmissionTarget,
   ])
 
-  useFrame(() => {
+  useFrame((state, delta) => {
     const glassMesh = glassMeshRef.current
-    if (!glassMesh) return
+    if (!glassMesh || document.visibilityState === 'hidden') return
+
+    // The capture is a secondary optical input, not the visible scene itself.
+    // Keep it responsive while avoiding a second full-resolution scene render
+    // on every display refresh. Slowly trim its resolution on sustained slow
+    // devices and recover it when the frame budget becomes healthy again.
+    const frameTime = frameTimeRef.current
+    frameTime.average = THREE.MathUtils.lerp(
+      frameTime.average,
+      Math.min(delta, 0.1),
+      0.035,
+    )
+    frameTime.samples += 1
+    if (frameTime.samples >= 180) {
+      const minimumScale = Math.min(0.42, captureScale)
+      if (frameTime.average > 1 / 42) {
+        adaptiveScaleRef.current = Math.max(
+          minimumScale,
+          adaptiveScaleRef.current - 0.08,
+        )
+      } else if (frameTime.average < 1 / 57) {
+        adaptiveScaleRef.current = Math.min(
+          captureScale,
+          adaptiveScaleRef.current + 0.04,
+        )
+      }
+      frameTime.samples = 0
+    }
+
+    const now = state.clock.elapsedTime
+    const cameraState = cameraStateRef.current
+    const cameraMoved = cameraState
+      ? camera.position.distanceToSquared(cameraState.position) > 1e-10 ||
+        1 - Math.abs(camera.quaternion.dot(cameraState.quaternion)) > 1e-9 ||
+        Math.abs(camera.fov - cameraState.fov) > 1e-4
+      : true
+
+    if (!cameraState) {
+      cameraStateRef.current = {
+        position: camera.position.clone(),
+        quaternion: camera.quaternion.clone(),
+        fov: camera.fov,
+      }
+    } else if (cameraMoved) {
+      cameraState.position.copy(camera.position)
+      cameraState.quaternion.copy(camera.quaternion)
+      cameraState.fov = camera.fov
+    }
+
+    if (cameraMoved) cameraMotionUntilRef.current = now + 0.16
+    const cameraInMotion = now < cameraMotionUntilRef.current
+    const minimumInterval = cameraInMotion ? 0 : 1 / Math.max(1, captureFps)
+    if (minimumInterval > 0 && now - lastCaptureAtRef.current < minimumInterval) return
+    lastCaptureAtRef.current = now
 
     gl.getDrawingBufferSize(drawingBufferSizeRef.current)
-    const width = Math.max(1, Math.round(drawingBufferSizeRef.current.x))
-    const height = Math.max(1, Math.round(drawingBufferSizeRef.current.y))
+    const scale = adaptiveScaleRef.current
+    const width = Math.max(1, Math.round(drawingBufferSizeRef.current.x * scale))
+    const height = Math.max(1, Math.round(drawingBufferSizeRef.current.y * scale))
     if (transmissionTarget.width !== width || transmissionTarget.height !== height) {
       transmissionTarget.setSize(width, height)
       transmissionSize.set(width, height)
