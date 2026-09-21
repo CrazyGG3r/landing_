@@ -13,20 +13,27 @@ import { useNavigate } from 'react-router-dom'
 import * as THREE from 'three'
 import SceneLoader from './SceneLoader'
 import VHSInstances from './VHSInstances'
-import { MetaballCursorR3F, buildMetaballObjects } from './MetaballCursor'
-import { MetaballCursorOverlay } from './MetaballCursorOverlay'
+import PortfolioVhsExperience from './PortfolioVhsExperience'
+import {
+  CinematicDepthSandwich,
+  CinematicHoverController,
+  CinematicHoverOverlay,
+} from './CinematicVhsHover'
+import { buildCinematicHoverObjects } from './cinematicHoverObjects'
 import {
   DEFAULT_POST_COMPOSITE,
   PostCompositeOverlay,
   buildPostCompositeFilter,
 } from './PortfolioCompositeEffects'
 import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
-import RetroTitle from './RetroTitle'   // adjust path as needed
 import { resolveVhsProjectId } from './vhsProjects'
 import { scheduleRouteWarmup, warmRoute } from '../../shared/performance/routePreloader'
 import { getPortfolioPerformanceProfile } from './performanceProfile'
 import { signalRouteReady, startRouteTransition } from '../../app/routeTransition'
 import WebGLErrorBoundary from '../home/components/WebGLErrorBoundary'
+import PortfolioEditorialOverlay from './PortfolioEditorialOverlay'
+import EditorialDepthField from './EditorialDepthField'
+import PortfolioSignalDistortion from './PortfolioSignalDistortion'
 
 const CONFIG = {
   modelPath: 'scenes/vhs/InitialScene.glb',
@@ -65,7 +72,10 @@ const CONFIG = {
   showScrollIndicator: false,
   scrollIndicatorText: 'SCROLL TO EXPLORE',
   showProgressHUD: false,
-  showMetaballCursor: true,
+  enableEditorialHover: true,
+  enableLegacyHoverPresentation: false,
+  enableLegacyEditorialLayers: false,
+  enableLegacyAtmosphere: false,
   enableClickToFocusObject: true,
   focusScrollDurationMs: 1200,
   cursorCommitDurationMs: 520,
@@ -74,7 +84,7 @@ const CONFIG = {
   transitionFadeMaxMs: 1000,
   logScrollProgress: false,
   debugMode: false,
-  useGradientSkybox: true,
+  useGradientSkybox: false,
   skyboxRadius: 500,
   startCenterColor: '#0a100f',
   startEdgeColor: '#1c1916',
@@ -99,13 +109,16 @@ const CONFIG = {
   cameraBreathingFov: 0.12,
   hoverAccentIntensity: 14,
   hoverAccentDistance: 4.8,
-  usePostComposite: true,
+  usePostComposite: false,
   postComposite: DEFAULT_POST_COMPOSITE,
 }
 
 const PROGRESS_EPSILON = 0.001
 const INITIAL_SCROLL_PERCENT = 0.01
 const PORTFOLIO_SCROLL_CLASS = 'portfolio-scroll-controls'
+const CLICK_EXPOSURE_FADE_START_MS = 1720
+const CLICK_EXPOSURE_FADE_DURATION_MS = 720
+const CLICK_HANDOFF_MS = 2800
 function configureArchiveScene(scene) {
   scene.updateMatrixWorld(true)
   scene.traverse((child) => {
@@ -974,7 +987,7 @@ function InteractiveObjectFocusScroller({
       animationRef.current = requestAnimationFrame(tick)
     }
 
-    const handleClick = async () => {
+    const handleClick = () => {
       if (clickLockedRef.current) return
 
       const activeIndex = (stateRef.current?.cs?.activeId ?? 0) - 1
@@ -983,7 +996,7 @@ function InteractiveObjectFocusScroller({
       if (!target) return
 
       clickLockedRef.current = true
-      await onFocusStart?.(activeIndex)
+      onFocusStart?.(activeIndex)
       animateToOffset(target, activeIndex)
     }
 
@@ -1388,9 +1401,6 @@ function CursorCommitFlash({ point }) {
 export default function Portfolio() {
   const navigate = useNavigate()
   const performanceProfile = useMemo(getPortfolioPerformanceProfile, [])
-  const metaballConfig = useMemo(() => ({
-    pickingFps: performanceProfile.pickingFps,
-  }), [performanceProfile])
   const postComposite = useMemo(() => ({
     ...CONFIG.postComposite,
     animate: performanceProfile.animateComposite,
@@ -1420,17 +1430,17 @@ export default function Portfolio() {
     mounted: false,
     visible: false,
     durationMs: CONFIG.transitionFadeMinMs,
+    delayMs: 0,
   })
-  const [metaballCursorCommitting, setMetaballCursorCommitting] = useState(false)
-  const [metaballCursorDismissed, setMetaballCursorDismissed] = useState(false)
-  const [metaballCommitPoint, setMetaballCommitPoint] = useState(null)
-
   const metaballStateRef = useRef(null)
   const vhsControllerRef = useRef(null)
+  const vhsExperienceRef = useRef(null)
+  const heldVhsIdRef = useRef(0)
+  const portfolioRootRef = useRef(null)
   const scrollContainerRef = useRef(null)
   const pageTransitionFrameRef = useRef(null)
   const pageTransitionTimeoutRef = useRef(null)
-  const metaballCommitTimeoutRef = useRef(null)
+  const clickStartedAtRef = useRef(0)
 
   const fullCurve = useMemo(() => buildCurveFromPoints(pathPoints), [pathPoints])
   const compositeFilter = useMemo(
@@ -1520,10 +1530,10 @@ export default function Portfolio() {
     })
 
     if (filteredMeshes.length > 0) {
-      const objects = buildMetaballObjects(filteredMeshes)
+      const objects = buildCinematicHoverObjects(filteredMeshes)
       setMetaballObjects(objects)
 
-      console.log(`🫧 MetaballCursor: ${objects.length} interactive objects registered`)
+      console.log(`🎞️ Editorial hover: ${objects.length} interactive objects registered`)
       objects.forEach((object, index) => {
         console.log(
           `   [${index}] "${object.label}" → title="${object.title}" desc="${object.desc}"` +
@@ -1534,7 +1544,7 @@ export default function Portfolio() {
       setVhsEmptyTransforms(vhsTransforms)
       console.log(`📼 ${vhsTransforms.length} VHS empties found — spawning VHSUnit.glb instances`)
     } else {
-      console.warn('⚠️ No interactive meshes (with "I_" prefix) found — MetaballCursor will be inactive.')
+      console.warn('⚠️ No interactive meshes (with "I_" prefix) found — editorial hover will be inactive.')
     }
 
     if (extractedPoints.length < 2) {
@@ -1588,7 +1598,7 @@ export default function Portfolio() {
 
   const handleVhsInstancesReady = useCallback((meshes) => {
     if (!meshes?.length) return
-    const objects = buildMetaballObjects(meshes)
+    const objects = buildCinematicHoverObjects(meshes)
     setMetaballObjects(objects)
 
     console.log(`📼 VHSInstances: ${objects.length} interactive VHS units registered`)
@@ -1603,37 +1613,20 @@ export default function Portfolio() {
     vhsControllerRef.current = api
   }, [])
 
-  const handleInteractiveObjectFocusStart = useCallback(async (activeIndex) => {
+  const handleInteractiveObjectFocusStart = useCallback((activeIndex) => {
     if (typeof activeIndex === 'number' && activeIndex >= 0) {
+      clickStartedAtRef.current = performance.now()
       const projectId = resolveVhsProjectId(activeIndex)
-      const warmup = warmRoute('/entry', {
+      warmRoute('/entry', {
         includeAssets: true,
         intent: true,
         projectId,
       })
-      const clickAnimation = vhsControllerRef.current?.playClick(activeIndex)
-      await Promise.allSettled([warmup, clickAnimation])
+      vhsExperienceRef.current?.beginClick(activeIndex)
     }
-
-    if (metaballCommitTimeoutRef.current) {
-      clearTimeout(metaballCommitTimeoutRef.current)
-    }
-
-    const cursorState = metaballStateRef.current
-    const commitPoint = cursorState?.pipeline?.getCommitPoint?.()
-
-    setMetaballCommitPoint(commitPoint)
-    setMetaballCursorCommitting(true)
-    cursorState?.cs?.commitDismiss?.()
-
-    metaballCommitTimeoutRef.current = setTimeout(() => {
-      setMetaballCursorDismissed(true)
-      setMetaballCursorCommitting(false)
-      metaballCommitTimeoutRef.current = null
-    }, CONFIG.cursorCommitDurationMs)
   }, [])
 
-  const beginPageTransition = useCallback((routePath, durationMs, vhsIndex) => {
+  const beginPageTransition = useCallback((routePath, _durationMs, vhsIndex) => {
     if (!routePath) return
 
     if (pageTransitionFrameRef.current) {
@@ -1643,10 +1636,18 @@ export default function Portfolio() {
       clearTimeout(pageTransitionTimeoutRef.current)
     }
 
+    const elapsed = clickStartedAtRef.current > 0
+      ? performance.now() - clickStartedAtRef.current
+      : CLICK_EXPOSURE_FADE_START_MS
+    const delayMs = Math.max(0, CLICK_EXPOSURE_FADE_START_MS - elapsed)
+    const remainingMs = Math.max(0, CLICK_HANDOFF_MS - elapsed)
+    const durationMs = Math.min(CLICK_EXPOSURE_FADE_DURATION_MS, Math.max(1, remainingMs - delayMs))
+
     setPageTransition({
       mounted: true,
       visible: false,
       durationMs,
+      delayMs,
     })
 
     pageTransitionFrameRef.current = requestAnimationFrame(() => {
@@ -1654,6 +1655,7 @@ export default function Portfolio() {
         mounted: true,
         visible: true,
         durationMs,
+        delayMs,
       })
     })
 
@@ -1664,6 +1666,7 @@ export default function Portfolio() {
       startRouteTransition({
         label: metaballObjects[vhsIndex]?.title || 'ENTRY',
         pathname: routePath,
+        theme: 'exposure',
       })
 
       requestAnimationFrame(() => {
@@ -1680,7 +1683,7 @@ export default function Portfolio() {
           })
         })
       })
-    }, durationMs)
+    }, remainingMs)
   }, [navigate, metaballObjects])
 
   useEffect(() => () => {
@@ -1689,9 +1692,6 @@ export default function Portfolio() {
     }
     if (pageTransitionTimeoutRef.current) {
       clearTimeout(pageTransitionTimeoutRef.current)
-    }
-    if (metaballCommitTimeoutRef.current) {
-      clearTimeout(metaballCommitTimeoutRef.current)
     }
   }, [])
 
@@ -1736,13 +1736,16 @@ export default function Portfolio() {
 
   return (
     <div
+      ref={portfolioRootRef}
+      className="comic-lab portfolio-production"
       style={{
         width: '100vw',
         height: '100vh',
         position: 'relative',
         overflow: 'hidden',
         isolation: 'isolate',
-        background: CONFIG.backgroundColor,
+        '--accent': metaballObjects[0]?.project?.accent ?? '#f01924',
+        '--support': metaballObjects[0]?.project?.support ?? '#ffe600',
       }}
     >
       {CONFIG.debugMode && (
@@ -1844,7 +1847,8 @@ export default function Portfolio() {
         style={{
           position: 'absolute',
           inset: 0,
-          cursor: CONFIG.showMetaballCursor ? 'none' : 'auto',
+          zIndex: 10,
+          cursor: CONFIG.enableEditorialHover ? 'none' : 'auto',
           isolation: 'isolate',
         }}
       >
@@ -1887,7 +1891,7 @@ export default function Portfolio() {
               fov: CONFIG.cameraFOV,
             }}
             style={{
-              background: CONFIG.useGradientSkybox ? 'transparent' : CONFIG.backgroundColor,
+              background: 'transparent',
               width: '100%',
               height: '100%',
               opacity: revealReady ? 1 : 0,
@@ -1899,7 +1903,7 @@ export default function Portfolio() {
             dpr={[1, performanceProfile.maxDpr]}
             gl={{
               antialias: performanceProfile.antialias,
-              alpha: CONFIG.useGradientSkybox,
+              alpha: true,
               powerPreference: 'high-performance',
             }}
           >
@@ -1945,7 +1949,7 @@ export default function Portfolio() {
                   vignetteFollowLerp={CONFIG.vignetteFollowLerp}
                 />
               )}
-              <AtmosphericParticles />
+              {CONFIG.enableLegacyAtmosphere && <AtmosphericParticles />}
 
               <ambientLight intensity={CONFIG.ambientIntensity} />
               {CONFIG.useGradientSkybox && (
@@ -2014,29 +2018,44 @@ export default function Portfolio() {
                 />
               )}
 
+              {CONFIG.enableLegacyEditorialLayers && (
+                <EditorialDepthField
+                  progress={effectiveProgress}
+                  enabled={performanceProfile.level !== 'reduced'}
+                  stateRef={metaballStateRef}
+                />
+              )}
+
               <ProgressTracker
                 onProgress={setProgress}
                 logToConsole={CONFIG.logScrollProgress}
                 maxFps={performanceProfile.level === 'high' ? 30 : 20}
               />
 
-              {CONFIG.showMetaballCursor && metaballObjects.length > 0 && (
+              {CONFIG.enableEditorialHover && metaballObjects.length > 0 && (
                 <>
-                  <HoverAccentLight
-                    objects={metaballObjects}
-                    stateRef={metaballStateRef}
-                  />
-                  <MetaballCursorR3F
+                  {CONFIG.enableLegacyHoverPresentation && (
+                    <HoverAccentLight
+                      objects={metaballObjects}
+                      stateRef={metaballStateRef}
+                    />
+                  )}
+                  <CinematicHoverController
                     objects={metaballObjects}
                     eventTarget={scrollContainerRef}
-                    disabled={metaballCursorDismissed}
-                    config={metaballConfig}
+                    holdActiveIdRef={heldVhsIdRef}
                     onStateReady={handleMetaballReady}
                   />
+                  {CONFIG.enableLegacyHoverPresentation && (
+                    <CinematicDepthSandwich
+                      objects={metaballObjects}
+                      stateRef={metaballStateRef}
+                    />
+                  )}
                 </>
               )}
 
-              {CONFIG.showMetaballCursor && metaballObjects.length > 0 && trimmedCurve && (
+              {CONFIG.enableEditorialHover && metaballObjects.length > 0 && trimmedCurve && (
                 <InteractiveObjectFocusScroller
                   enabled={CONFIG.enableClickToFocusObject}
                   objects={metaballObjects}
@@ -2051,6 +2070,13 @@ export default function Portfolio() {
 
               {CONFIG.enableOrbitControls && <OrbitControls makeDefault />}
             </ScrollControls>
+            {CONFIG.enableLegacyEditorialLayers && (
+              <PortfolioSignalDistortion
+                enabled={performanceProfile.level !== 'reduced' && performanceProfile.level !== 'ios'}
+                progress={effectiveProgress}
+                stateRef={metaballStateRef}
+              />
+            )}
           </Canvas>
           </WebGLErrorBoundary>
         </div>
@@ -2070,28 +2096,26 @@ export default function Portfolio() {
         )}
       </div>
 
-      {metaballCursorCommitting && (
-        <CursorCommitFlash point={metaballCommitPoint} />
+      {CONFIG.enableLegacyEditorialLayers && (
+        <PortfolioEditorialOverlay
+          progress={effectiveProgress}
+          visible={revealReady}
+          stateRef={metaballStateRef}
+        />
       )}
 
-      {CONFIG.showMetaballCursor && metaballObjects.length > 0 && !metaballCursorCommitting && !metaballCursorDismissed && (
-        <MetaballCursorOverlay
+      {CONFIG.enableLegacyHoverPresentation && CONFIG.enableEditorialHover && metaballObjects.length > 0 && (
+        <CinematicHoverOverlay objects={metaballObjects} stateRef={metaballStateRef} />
+      )}
+
+      {CONFIG.enableEditorialHover && metaballObjects.length > 0 && (
+        <PortfolioVhsExperience
+          ref={vhsExperienceRef}
           objects={metaballObjects}
           stateRef={metaballStateRef}
-          cardWidth={400}                // generous width for the retro text
-          render={({ object, visible }) => {
-            // Only render when the cursor has fully locked on (visible===true)
-            if (!visible || !object) return null;
-
-            // Force remount when the hovered object changes → animation replays
-            return (
-              <RetroTitle
-                key={object.title}
-                title={object.title}
-                description={object.desc ?? ''}
-              />
-            );
-          }}
+          vhsControllerRef={vhsControllerRef}
+          holdActiveIdRef={heldVhsIdRef}
+          rootRef={portfolioRootRef}
         />
       )}
 
@@ -2103,9 +2127,9 @@ export default function Portfolio() {
             inset: 0,
             zIndex: 5000,
             pointerEvents: 'none',
-            background: '#000000',
+            background: '#ffffff',
             opacity: pageTransition.visible ? 1 : 0,
-            transition: `opacity ${pageTransition.durationMs}ms ease-in-out`,
+            transition: `opacity ${pageTransition.durationMs}ms cubic-bezier(.22, .72, .18, 1) ${pageTransition.delayMs}ms`,
           }}
         />
       )}

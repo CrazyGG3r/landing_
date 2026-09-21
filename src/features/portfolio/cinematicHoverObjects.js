@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { resolveVhsProjectPresentation } from './vhsProjectPresentation'
 
 const CINEMATIC_PALETTE = [
   '#d84b49',
@@ -31,19 +32,47 @@ function parseInteractiveName(rawName) {
 
 export function buildCinematicHoverObjects(meshes) {
   return meshes.map((mesh, index) => {
-    const accentColor = new THREE.Color(CINEMATIC_PALETTE[index % CINEMATIC_PALETTE.length])
-    const { label, title, desc } = parseInteractiveName(mesh.name ?? `Object ${index + 1}`)
+    const authoredPalette = mesh.userData?.vhsPalette
+    const accentColor = new THREE.Color(
+      authoredPalette?.secondary ?? CINEMATIC_PALETTE[index % CINEMATIC_PALETTE.length],
+    )
+    const supportColor = new THREE.Color(
+      authoredPalette?.primary ?? '#ffe600',
+    )
+    const authoredName = mesh.userData?.interactiveName
+      ?? mesh.userData?.name
+      ?? mesh.name
+      ?? `Object ${index + 1}`
+    const { label, title, desc } = parseInteractiveName(authoredName)
+    const fallback = resolveVhsProjectPresentation(index)
+    const interactionType = authoredName.startsWith('I_') ? 'Interaction' : 'Non-Interaction'
+    const project = {
+      ...fallback,
+      id: String(index + 1).padStart(2, '0'),
+      title: title || fallback.title,
+      type: interactionType,
+      accent: accentColor.getStyle(),
+      support: supportColor.getStyle(),
+      detail: desc || fallback.detail,
+      note: desc || fallback.note,
+      tags: [interactionType, ...(fallback.tags ?? [])]
+        .filter((tag, tagIndex, tags) => tag && tags.indexOf(tag) === tagIndex)
+        .slice(0, 3),
+    }
 
     return {
       mesh,
-      renderRoot: mesh.cursorRenderRoot ?? mesh,
+      renderRoot: mesh.cursorRenderRoot ?? mesh.metaballRenderRoot ?? mesh,
       geometry: mesh.geometry,
       material: mesh.material ?? null,
       accentColor,
+      supportColor,
       stride: Math.max(1, Math.floor((mesh.geometry?.attributes?.position?.count ?? 1) / 600)),
       label,
       title,
       desc,
+      authoredName,
+      project,
     }
   })
 }

@@ -52,6 +52,13 @@ const ACTION_EPSILON = 1 / 1000
 // doesn't cause the hover to flicker.
 const HOVER_MISS_GRACE_S = 0.18
 
+// The portfolio scene intentionally presents some authored VHS instances from
+// their reverse side. Raycasting uses material.side, so a default FrontSide
+// proxy silently ignores those otherwise visible tapes.
+const VHS_HIT_PROXY_MATERIAL = new THREE.MeshBasicMaterial({
+  side: THREE.DoubleSide,
+})
+
 // ─── STATIC HIT-REGION PROXY ─────────────────────────────────────────────────
 // Earlier attempts approximated the hit region with a synthetic box (sized
 // from a template, or swept across the hover animation, or padded by various
@@ -82,9 +89,11 @@ function createStaticHitProxy(root, shellMesh) {
   const rootWorldInverse = new THREE.Matrix4().copy(root.matrixWorld).invert()
   const localToRoot = new THREE.Matrix4().multiplyMatrices(rootWorldInverse, shellMesh.matrixWorld)
 
-  const proxy = new THREE.Mesh(shellMesh.geometry)
-  proxy.matrixAutoUpdate = false
-  proxy.matrix.copy(localToRoot)
+  const proxy = new THREE.Mesh(shellMesh.geometry, VHS_HIT_PROXY_MATERIAL)
+  const baseScale = new THREE.Vector3()
+  localToRoot.decompose(proxy.position, proxy.quaternion, baseScale)
+  proxy.scale.copy(baseScale).multiplyScalar(0.94)
+  proxy.userData.hitBaseScale = baseScale
   proxy.matrixWorldNeedsUpdate = true
   proxy.visible = false
   return proxy
@@ -105,6 +114,226 @@ function resolveQueuedClick(inst) {
   const resolve = inst.clickResolve
   inst.clickResolve = null
   if (resolve) resolve()
+}
+
+function createWhiteMaskMaterial(source, uniforms) {
+  const material = new THREE.MeshBasicMaterial({
+    color: '#ffffff',
+    alphaMap: source?.alphaMap ?? null,
+    alphaTest: source?.alphaTest ?? 0,
+    transparent: true,
+    opacity: 1,
+    depthTest: true,
+    depthWrite: false,
+    side: source?.side ?? THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    toneMapped: false,
+  })
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uPortfolioMaskOrigin = uniforms.origin
+    shader.uniforms.uPortfolioMaskRadius = uniforms.radius
+    shader.uniforms.uPortfolioMaskSoftness = uniforms.softness
+    shader.uniforms.uPortfolioMaskOpacity = uniforms.opacity
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        uniform vec2 uPortfolioMaskOrigin;
+        uniform float uPortfolioMaskRadius;
+        uniform float uPortfolioMaskSoftness;
+        uniform float uPortfolioMaskOpacity;
+      `)
+      .replace('#include <opaque_fragment>', `
+        float portfolioMaskDistance = distance(gl_FragCoord.xy, uPortfolioMaskOrigin);
+        float portfolioMask = 1.0 - smoothstep(
+          uPortfolioMaskRadius - uPortfolioMaskSoftness,
+          uPortfolioMaskRadius + uPortfolioMaskSoftness,
+          portfolioMaskDistance
+        );
+        diffuseColor.rgb = vec3(1.0);
+        diffuseColor.a *= portfolioMask * uPortfolioMaskOpacity;
+        if (diffuseColor.a < 0.005) discard;
+        #include <opaque_fragment>
+      `)
+  }
+  material.customProgramCacheKey = () => 'portfolio-vhs-white-mask-v1'
+  return material
+}
+
+function addWhiteMaskShell(root) {
+  const uniforms = {
+    origin: { value: new THREE.Vector2(-10000, -10000) },
+    radius: { value: 0 },
+    softness: { value: 18 },
+    opacity: { value: 0 },
+  }
+  const materials = []
+  const sourceMeshes = []
+  root.traverse((child) => {
+    if (child.isMesh && !child.userData?.portfolioWhiteMask) sourceMeshes.push(child)
+  })
+
+  sourceMeshes.forEach((sourceMesh) => {
+    const sourceMaterials = Array.isArray(sourceMesh.material)
+      ? sourceMesh.material
+      : [sourceMesh.material]
+    const maskMaterials = sourceMaterials.map((source) => {
+      const material = createWhiteMaskMaterial(source, uniforms)
+      materials.push(material)
+      return material
+    })
+    const shell = new THREE.Mesh(
+      sourceMesh.geometry,
+      Array.isArray(sourceMesh.material) ? maskMaterials : maskMaterials[0],
+    )
+    shell.name = `${sourceMesh.name || 'VHS'}__WhiteMask`
+    shell.userData.portfolioWhiteMask = true
+    shell.frustumCulled = sourceMesh.frustumCulled
+    shell.renderOrder = 120
+    shell.raycast = () => null
+    sourceMesh.add(shell)
+  })
+
+  return { uniforms, materials, active: false, startedAt: 0 }
+}
+
+function createDoubleExposureRig(sourceScene, transform, globalScale, color, clips, container) {
+  const root = sourceScene.clone(true)
+  root.name = `${transform.name}__DoubleExposure`
+  root.position.copy(transform.position)
+  root.quaternion.copy(transform.quaternion)
+  if (transform.scale) root.scale.copy(transform.scale).multiplyScalar(globalScale)
+  else root.scale.setScalar(globalScale)
+  root.visible = false
+
+  const materials = []
+  root.traverse((child) => {
+    if (!child.isMesh) return
+    const sources = Array.isArray(child.material) ? child.material : [child.material]
+    const replacements = sources.map((source) => {
+      const material = new THREE.MeshBasicMaterial({
+        color,
+        map: source?.map ?? null,
+        alphaMap: source?.alphaMap ?? null,
+        alphaTest: source?.alphaTest ?? 0,
+        transparent: true,
+        opacity: 0,
+        depthTest: true,
+        depthWrite: false,
+        side: source?.side ?? THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: 3,
+        polygonOffsetUnits: 3,
+        toneMapped: false,
+      })
+      materials.push(material)
+      return material
+    })
+    child.material = Array.isArray(child.material) ? replacements : replacements[0]
+    child.castShadow = false
+    child.receiveShadow = false
+    child.renderOrder = -4
+    child.raycast = () => null
+  })
+
+  const mixer = new THREE.AnimationMixer(root)
+  const actions = new Map()
+  clips.forEach((clip) => {
+    const action = mixer.clipAction(clip)
+    action.play()
+    action.paused = true
+    action.weight = 0
+    action.clampWhenFinished = true
+    action.setLoop(THREE.LoopOnce, 1)
+    actions.set(clip.name, action)
+  })
+  mixer.update(0)
+  container.add(root)
+
+  return { root, mixer, actions, materials }
+}
+
+function sampleAnticipatedExposureTravel(progress) {
+  const p = THREE.MathUtils.clamp(progress, 0, 1)
+  const segment = (fromTime, toTime, fromValue, toValue) => {
+    const t = THREE.MathUtils.smoothstep(p, fromTime, toTime)
+    return THREE.MathUtils.lerp(fromValue, toValue, t)
+  }
+  if (p <= 0.1) return segment(0, 0.1, 0, -0.08)
+  if (p <= 0.62) return segment(0.1, 0.62, -0.08, 1)
+  if (p <= 0.8) return segment(0.62, 0.8, 1, 1.08)
+  if (p <= 0.94) return segment(0.8, 0.94, 1.08, -0.1)
+  return segment(0.94, 1, -0.1, 0)
+}
+
+function syncExposureActions(inst, rig) {
+  const sourceActions = [inst.idleAction, inst.hoverClickAction, inst.reelAction, inst.vhsPlayAction]
+  sourceActions.forEach((sourceAction) => {
+    if (!sourceAction) return
+    const targetAction = rig.actions.get(sourceAction.getClip().name)
+    if (!targetAction) return
+    targetAction.enabled = sourceAction.enabled
+    targetAction.paused = true
+    targetAction.time = sourceAction.time
+    targetAction.weight = sourceAction.weight
+  })
+  rig.mixer.update(0)
+}
+
+function updateDoubleExposure(inst, frameState, delta, isHovered) {
+  const exposure = inst.doubleExposure
+  if (!exposure) return
+
+  const hoverAction = inst.hoverClickAction
+  const rawProgress = hoverAction
+    ? THREE.MathUtils.clamp(
+      (hoverAction.time - FRAME_1_TIME) / Math.max(ACTION_EPSILON, FRAME_30_TIME - FRAME_1_TIME),
+      0,
+      1,
+    )
+    : 0
+  const targetStrength = isHovered && !inst.clicked ? 1 : 0
+  exposure.strength = THREE.MathUtils.damp(
+    exposure.strength,
+    targetStrength,
+    targetStrength > 0 ? 12 : 17,
+    delta,
+  )
+
+  const camera = frameState.camera
+  const viewportHeight = Math.max(1, frameState.size.height)
+  const forward = exposure.forward.set(0, 0, -1).applyQuaternion(camera.quaternion).normalize()
+  const right = exposure.right.set(1, 0, 0).applyQuaternion(camera.quaternion).normalize()
+  const up = exposure.up.set(0, 1, 0).applyQuaternion(camera.quaternion).normalize()
+  const depth = Math.max(
+    0.1,
+    exposure.worldPosition.copy(inst.root.position).sub(camera.position).dot(forward),
+  )
+  const viewportWorldHeight = camera.isPerspectiveCamera
+    ? 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5) * depth / camera.zoom
+    : Math.abs(camera.top - camera.bottom) / camera.zoom
+  const worldPerPixel = viewportWorldHeight / viewportHeight
+  const reach = Math.min(160, Math.max(82, frameState.size.width * 0.09)) * worldPerPixel
+  const behind = Math.max(worldPerPixel * 10, depth * 0.003)
+  const variants = [
+    { rig: exposure.upper, phase: rawProgress <= 0.001 ? 0 : Math.min(1, rawProgress * 1.08 + 0.025), x: 0.8, y: 0.62 },
+    { rig: exposure.lower, phase: Math.max(0, (rawProgress - 0.055) / 0.945), x: -0.8, y: -0.62 },
+  ]
+
+  variants.forEach(({ rig, phase, x, y }) => {
+    syncExposureActions(inst, rig)
+    const travel = sampleAnticipatedExposureTravel(phase)
+    rig.root.position.copy(inst.root.position)
+      .addScaledVector(right, reach * x * travel)
+      .addScaledVector(up, reach * y * travel)
+      .addScaledVector(forward, behind)
+    rig.root.quaternion.copy(inst.root.quaternion)
+    rig.root.scale.copy(inst.root.scale)
+    rig.root.visible = exposure.strength > 0.002
+    const opacity = exposure.strength * 0.055
+    rig.materials.forEach((material) => { material.opacity = opacity })
+  })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -210,13 +439,26 @@ export default function VHSInstances({
       if (proxyMesh) {
         root.add(proxyMesh)
         proxyMesh.name = transform.name
+        proxyMesh.userData.interactiveName = transform.name
         // The cursor ID proxy is intentionally static and invisible, so retain
         // the animated visual root explicitly for the foreground hover pass.
         proxyMesh.metaballRenderRoot = root
+        proxyMesh.cursorRenderRoot = root
+        proxyMesh.userData.vhsPalette = {
+          primary: colors.primary.getStyle(),
+          secondary: colors.secondary.getStyle(),
+        }
       } else if (shellMesh) {
         shellMesh.name = transform.name
         shellMesh.metaballRenderRoot = root
+        shellMesh.cursorRenderRoot = root
+        shellMesh.userData.vhsPalette = {
+          primary: colors.primary.getStyle(),
+          secondary: colors.secondary.getStyle(),
+        }
       }
+
+      const whiteMask = addWhiteMaskShell(root)
 
       const mixer = new THREE.AnimationMixer(root)
       // The shared VHSUnit.glb also ships "Entry_"-prefixed clips (used only by
@@ -264,6 +506,30 @@ export default function VHSInstances({
         action.setLoop(THREE.LoopOnce, 1)
       })
 
+      const doubleExposure = {
+        upper: createDoubleExposureRig(
+          gltf.scene,
+          transform,
+          scale,
+          colors.secondary,
+          portfolioClips,
+          container,
+        ),
+        lower: createDoubleExposureRig(
+          gltf.scene,
+          transform,
+          scale,
+          colors.primary,
+          portfolioClips,
+          container,
+        ),
+        strength: 0,
+        forward: new THREE.Vector3(),
+        right: new THREE.Vector3(),
+        up: new THREE.Vector3(),
+        worldPosition: new THREE.Vector3(),
+      }
+
       return {
         index,
         name: transform.name,
@@ -280,7 +546,10 @@ export default function VHSInstances({
         clickResolve: null,
         hoverEngaged: false,
         hoverMissTimer: 0,
+        hitboxScale: 0.94,
         prevHoverEngaged: false,
+        whiteMask,
+        doubleExposure,
       }
     })
 
@@ -307,19 +576,46 @@ export default function VHSInstances({
           inst.clickResolve = resolve
         })
       },
+      isHoverSettled(index) {
+        const inst = instancesRef.current[index]
+        return Boolean(
+          inst?.hoverClickAction
+          && inst.hoverClickAction.time >= FRAME_30_TIME - ACTION_EPSILON,
+        )
+      },
+      startWhiteMask(index, origin) {
+        const inst = instancesRef.current[index]
+        if (!inst?.whiteMask) return
+        const dpr = window.devicePixelRatio || 1
+        inst.whiteMask.uniforms.origin.value.set(
+          (origin?.x ?? window.innerWidth * 0.5) * dpr,
+          (window.innerHeight - (origin?.y ?? window.innerHeight * 0.5)) * dpr,
+        )
+        inst.whiteMask.uniforms.radius.value = 0
+        inst.whiteMask.uniforms.opacity.value = 1
+        inst.whiteMask.active = true
+        inst.whiteMask.startedAt = performance.now()
+      },
     })
 
     return () => {
       instances.forEach((inst) => {
         resolveQueuedClick(inst)
         inst.mixer.stopAllAction()
+        inst.whiteMask?.materials.forEach((material) => material.dispose())
+        ;[inst.doubleExposure?.upper, inst.doubleExposure?.lower].forEach((rig) => {
+          if (!rig) return
+          rig.mixer.stopAllAction()
+          rig.materials.forEach((material) => material.dispose())
+          container.remove(rig.root)
+        })
         container.remove(inst.root)
       })
       instancesRef.current = []
     }
   }, [gltf, emptyTransforms, palette, maskUniforms, labelUniforms, scale, envMapIntensity, maxShadowCasters, onInstancesReady, onControllerReady])
 
-  useFrame((_, rawDelta) => {
+  useFrame((frameState, rawDelta) => {
     const delta = Math.min(rawDelta, 0.1)
     const activeId = stateRef?.current?.cs?.activeId ?? 0
 
@@ -342,6 +638,23 @@ export default function VHSInstances({
         }
       }
       const isHovered = inst.hoverEngaged || inst.clickQueued
+
+      if (inst.proxyMesh?.userData?.hitBaseScale) {
+        const targetHitboxScale = isHovered ? 1.035 : 0.94
+        inst.hitboxScale = THREE.MathUtils.damp(inst.hitboxScale, targetHitboxScale, 15, delta)
+        inst.proxyMesh.scale.copy(inst.proxyMesh.userData.hitBaseScale).multiplyScalar(inst.hitboxScale)
+      }
+
+      if (inst.whiteMask?.active) {
+        const elapsed = Math.max(0, performance.now() - inst.whiteMask.startedAt)
+        const progress = THREE.MathUtils.clamp(elapsed / 620, 0, 1)
+        const anticipated = progress < 0.16
+          ? progress * 0.45
+          : 0.072 + (1 - Math.pow(1 - (progress - 0.16) / 0.84, 3)) * 0.928
+        const dpr = window.devicePixelRatio || 1
+        inst.whiteMask.uniforms.radius.value = anticipated * Math.hypot(window.innerWidth, window.innerHeight) * dpr
+        inst.whiteMask.uniforms.softness.value = 20 * dpr
+      }
 
       if (inst.clicked) {
         // A click should read as instant — full hoverClick pose right away,
@@ -410,6 +723,8 @@ export default function VHSInstances({
       if (hasRunningAction || isHovered) {
         inst.mixer.update(delta)
       }
+
+      updateDoubleExposure(inst, frameState, delta, isHovered)
 
       if (inst.hoverClickAction && !inst.clicked) {
         const hoverAction = inst.hoverClickAction

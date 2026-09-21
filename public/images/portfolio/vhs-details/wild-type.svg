@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900">
+  <rect width="1200" height="900" fill="#0b0b0b"/>
+  <g fill="#ff3b18">
+    <path d="M-90 180 430 80 300 400-20 510z"/><path d="m370 340 700-210-150 360-600 150z"/><path d="m80 680 970-180-280 380-760 70z"/>
+  </g>
+  <g fill="#14d9eb">
+    <path d="m95 110 130 10-85 360-130-5z"/><path d="m710 95 155-25-130 720-145 5z"/><path d="m1030 250 125-20-90 470-135 35z"/>
+  </g>
+  <text x="85" y="590" fill="#f0eddf" font-family="Impact, sans-serif" font-size="310" transform="rotate(-9 85 590)">WILD</text>
+</svg>

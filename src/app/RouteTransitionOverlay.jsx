@@ -34,7 +34,7 @@ function RasterRect({ className = '', children }) {
 }
 
 export default function RouteTransitionOverlay() {
-  const [state, setState] = useState({ phase: 'idle', label: '' })
+  const [state, setState] = useState({ phase: 'idle', label: '', theme: 'blackout' })
   const maskId = `route-crt-${useId().replace(/:/g, '')}`
   const timersRef = useRef({ ready: 0, reveal: 0, safety: 0 })
   const expectedPathRef = useRef('')
@@ -44,7 +44,7 @@ export default function RouteTransitionOverlay() {
     const reveal = () => {
       setState(previous => previous.phase === 'idle' ? previous : { ...previous, phase: 'revealing' })
       window.clearTimeout(timersRef.current.reveal)
-      timersRef.current.reveal = window.setTimeout(() => setState({ phase: 'idle', label: '' }), REVEAL_MS)
+      timersRef.current.reveal = window.setTimeout(() => setState({ phase: 'idle', label: '', theme: 'blackout' }), REVEAL_MS)
     }
     const requestReveal = event => {
       if (event.detail?.pathname !== expectedPathRef.current) return
@@ -55,7 +55,11 @@ export default function RouteTransitionOverlay() {
     const handleStart = event => {
       clearTimers()
       expectedPathRef.current = event.detail?.pathname || ''
-      setState({ phase: 'holding', label: event.detail?.label || 'ROUTE' })
+      setState({
+        phase: 'holding',
+        label: event.detail?.label || 'ROUTE',
+        theme: event.detail?.theme === 'exposure' ? 'exposure' : 'blackout',
+      })
       // A failed optional asset must never strand the visitor behind black.
       timersRef.current.safety = window.setTimeout(reveal, MAX_HOLD_MS)
     }
@@ -73,7 +77,7 @@ export default function RouteTransitionOverlay() {
   const revealing = state.phase === 'revealing'
 
   return (
-    <div className={`route-transition-overlay route-transition-overlay--${state.phase}`} aria-label={`Loading ${state.label}`} aria-live="polite">
+    <div className={`route-transition-overlay route-transition-overlay--${state.phase} route-transition-overlay--${state.theme}`} aria-label={`Loading ${state.label}`} aria-live="polite">
       <svg className="route-transition-stage" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
@@ -113,9 +117,11 @@ export default function RouteTransitionOverlay() {
 
       <style>{`
         .route-transition-overlay { position:fixed; inset:0; z-index:2147483000; overflow:hidden; pointer-events:auto; background:#000; isolation:isolate; }
+        .route-transition-overlay--exposure { background:#fff; }
         .route-transition-overlay--revealing { background:transparent; }
         .route-transition-stage { position:absolute; inset:0; width:100%; height:100%; }
         .route-transition-blackout { fill:#000; }
+        .route-transition-overlay--exposure .route-transition-blackout { fill:#fff; }
         .route-transition-aperture { fill:#000; }
         .route-transition-ignition { animation:route-crt-jitter ${REVEAL_MS}ms steps(2,end) both; }
         .route-transition-dot { vector-effect:non-scaling-stroke; }

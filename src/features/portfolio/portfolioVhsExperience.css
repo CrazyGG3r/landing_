@@ -1,0 +1,96 @@
+.portfolio-vhs-effects {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.portfolio-vhs-effects .vhs-click-transition {
+  z-index: 8;
+}
+
+.portfolio-vhs-effects[data-clicking='true'] ~ .vhs-name-overlay {
+  pointer-events: none;
+}
+
+.portfolio-vhs-impact {
+  --impact-x: -1000px;
+  --impact-y: -1000px;
+  display: contents;
+}
+
+.portfolio-vhs-impact__prompt {
+  position: fixed;
+  left: var(--impact-x);
+  top: var(--impact-y);
+  transform: translate(-50%, -50%);
+}
+
+.portfolio-vhs-impact__prompt-layer {
+  position: fixed;
+  z-index: 31;
+  inset: 0;
+  overflow: hidden;
+  clip-path: var(--vhs-screen-clip, inset(100%));
+  pointer-events: none;
+  mix-blend-mode: difference;
+}
+
+.portfolio-vhs-impact__blob {
+  --impact-0-x: -1000px;
+  --impact-0-y: -1000px;
+  --impact-0-rx: 0px;
+  --impact-0-ry: 0px;
+  --impact-1-x: -1000px;
+  --impact-1-y: -1000px;
+  --impact-1-rx: 0px;
+  --impact-1-ry: 0px;
+  --impact-2-x: -1000px;
+  --impact-2-y: -1000px;
+  --impact-2-rx: 0px;
+  --impact-2-ry: 0px;
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  overflow: hidden;
+  clip-path: var(--vhs-screen-clip, inset(100%));
+  pointer-events: none;
+  background: #fff;
+  mix-blend-mode: difference;
+  -webkit-mask-image:
+    radial-gradient(ellipse var(--impact-0-rx) var(--impact-0-ry) at var(--impact-0-x) var(--impact-0-y), #000 98.5%, transparent 100%),
+    radial-gradient(ellipse var(--impact-1-rx) var(--impact-1-ry) at var(--impact-1-x) var(--impact-1-y), #000 98.5%, transparent 100%),
+    radial-gradient(ellipse var(--impact-2-rx) var(--impact-2-ry) at var(--impact-2-x) var(--impact-2-y), #000 98.5%, transparent 100%);
+  mask-image:
+    radial-gradient(ellipse var(--impact-0-rx) var(--impact-0-ry) at var(--impact-0-x) var(--impact-0-y), #000 98.5%, transparent 100%),
+    radial-gradient(ellipse var(--impact-1-rx) var(--impact-1-ry) at var(--impact-1-x) var(--impact-1-y), #000 98.5%, transparent 100%),
+    radial-gradient(ellipse var(--impact-2-rx) var(--impact-2-ry) at var(--impact-2-x) var(--impact-2-y), #000 98.5%, transparent 100%);
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
+  opacity: 0;
+  will-change: opacity, -webkit-mask-image, mask-image;
+}
+
+.portfolio-vhs-impact__prompt {
+  display: grid;
+  color: #fff;
+  font-family: 'Victor Mono Portfolio', ui-monospace, monospace;
+  font-size: clamp(2rem, 3.4vw, 4.5rem);
+  font-style: italic;
+  font-weight: 200;
+  line-height: 1.08;
+  letter-spacing: -.035em;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 480ms cubic-bezier(.37, 0, .63, 1);
+}
+
+.portfolio-vhs-impact__prompt span { display: block; }
+.portfolio-vhs-impact__prompt[data-visible='true'] { opacity: 1; }
+
+@media (pointer: coarse) {
+  .portfolio-vhs-impact__blob,
+  .portfolio-vhs-impact__prompt-layer { display: none; }
+}

@@ -9,6 +9,8 @@ import * as THREE from 'three'
 
 const VISUAL_DWELL_MS = 500
 const MISS_GRACE_MS = 140
+const REENTRY_COOLDOWN_MS = 1000
+const HOVER_REGISTER_DELAY_MS = 500
 const ACTIVE_RESPONSE = 13
 const VISUAL_ENTER_RESPONSE = 10
 const VISUAL_EXIT_RESPONSE = 15
@@ -163,6 +165,26 @@ function createHoverState() {
 const localCorner = new THREE.Vector3()
 const projectedCorner = new THREE.Vector3()
 
+function convexHull(points) {
+  if (points.length < 3) return points
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y)
+  const cross = (origin, a, b) => (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x)
+  const lower = []
+  sorted.forEach((point) => {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) lower.pop()
+    lower.push(point)
+  })
+  const upper = []
+  for (let index = sorted.length - 1; index >= 0; index -= 1) {
+    const point = sorted[index]
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) upper.pop()
+    upper.push(point)
+  }
+  lower.pop()
+  upper.pop()
+  return lower.concat(upper)
+}
+
 function projectVisibleBounds(object, camera, width, height, target) {
   const root = object.renderRoot ?? object.mesh
   if (!root) return false
@@ -172,35 +194,73 @@ function projectVisibleBounds(object, camera, width, height, target) {
   let maxX = -Infinity
   let maxY = -Infinity
   let pointCount = 0
+  const screenPoints = []
+  const screenRegions = []
 
   root.updateWorldMatrix(true, true)
   root.traverse((child) => {
-    if (!child.isMesh || child.visible === false || !child.geometry) return
+    if (
+      !child.isMesh
+      || child.visible === false
+      || !child.geometry
+      || child.userData?.portfolioWhiteMask
+      || child.userData?.portfolioExposure
+    ) return
     if (!child.geometry.boundingBox) child.geometry.computeBoundingBox()
     const box = child.geometry.boundingBox
     if (!box) return
 
-    for (let xi = 0; xi < 2; xi += 1) {
-      for (let yi = 0; yi < 2; yi += 1) {
-        for (let zi = 0; zi < 2; zi += 1) {
-          localCorner.set(
-            xi ? box.max.x : box.min.x,
-            yi ? box.max.y : box.min.y,
-            zi ? box.max.z : box.min.z,
-          )
-          projectedCorner.copy(localCorner).applyMatrix4(child.matrixWorld).project(camera)
-          if (projectedCorner.z < -1.2 || projectedCorner.z > 1.2) continue
+    const regionPoints = []
+    const position = child.geometry.attributes?.position
+    if (position?.count) {
+      const stride = Math.max(1, Math.ceil(position.count / 480))
+      for (let index = 0; index < position.count; index += stride) {
+        localCorner.fromBufferAttribute(position, index)
+        projectedCorner.copy(localCorner).applyMatrix4(child.matrixWorld).project(camera)
+        if (projectedCorner.z < -1.2 || projectedCorner.z > 1.2) continue
+        const screenX = (projectedCorner.x * 0.5 + 0.5) * width
+        const screenY = (-projectedCorner.y * 0.5 + 0.5) * height
+        const point = { x: screenX, y: screenY }
+        regionPoints.push(point)
+        screenPoints.push(point)
+        minX = Math.min(minX, screenX)
+        minY = Math.min(minY, screenY)
+        maxX = Math.max(maxX, screenX)
+        maxY = Math.max(maxY, screenY)
+        pointCount += 1
+      }
+    }
 
-          const screenX = (projectedCorner.x * 0.5 + 0.5) * width
-          const screenY = (-projectedCorner.y * 0.5 + 0.5) * height
-          minX = Math.min(minX, screenX)
-          minY = Math.min(minY, screenY)
-          maxX = Math.max(maxX, screenX)
-          maxY = Math.max(maxY, screenY)
-          pointCount += 1
+    // Bounding-box corners are only a fallback. For rotated/slanted meshes
+    // they can sit well outside the real geometry and visibly leak the mask.
+    if (!position?.count) {
+      for (let xi = 0; xi < 2; xi += 1) {
+        for (let yi = 0; yi < 2; yi += 1) {
+          for (let zi = 0; zi < 2; zi += 1) {
+            localCorner.set(
+              xi ? box.max.x : box.min.x,
+              yi ? box.max.y : box.min.y,
+              zi ? box.max.z : box.min.z,
+            )
+            projectedCorner.copy(localCorner).applyMatrix4(child.matrixWorld).project(camera)
+            if (projectedCorner.z < -1.2 || projectedCorner.z > 1.2) continue
+
+            const screenX = (projectedCorner.x * 0.5 + 0.5) * width
+            const screenY = (-projectedCorner.y * 0.5 + 0.5) * height
+            const point = { x: screenX, y: screenY }
+            screenPoints.push(point)
+            regionPoints.push(point)
+            minX = Math.min(minX, screenX)
+            minY = Math.min(minY, screenY)
+            maxX = Math.max(maxX, screenX)
+            maxY = Math.max(maxY, screenY)
+            pointCount += 1
+          }
         }
       }
     }
+    const region = convexHull(regionPoints)
+    if (region.length >= 3) screenRegions.push(region)
   })
 
   if (pointCount === 0) return false
@@ -212,6 +272,8 @@ function projectVisibleBounds(object, camera, width, height, target) {
   target.w = projectedWidth
   target.h = projectedHeight
   target.r = Math.hypot(projectedWidth, projectedHeight) * 0.5
+  target.polygon = convexHull(screenPoints)
+  target.regions = screenRegions
   return true
 }
 
@@ -219,6 +281,7 @@ export function CinematicHoverController({
   objects,
   eventTarget,
   disabled = false,
+  holdActiveIdRef,
   onStateReady,
 }) {
   const { gl, camera } = useThree()
@@ -226,6 +289,8 @@ export function CinematicHoverController({
   const pointerNdcRef = useRef(new THREE.Vector2(2, 2))
   const raycasterRef = useRef(new THREE.Raycaster())
   const missStartedAtRef = useRef(null)
+  const reentryCooldownsRef = useRef(new Map())
+  const hoverCandidateRef = useRef({ id: 0, startedAt: 0 })
   const pointerInsideRef = useRef(false)
   const smoothProj = useMemo(
     () => objects.map(() => ({ cx: 0, cy: 0, r: 0, w: 0, h: 0, init: false })),
@@ -283,8 +348,20 @@ export function CinematicHoverController({
     }
     const handleEnter = (event) => handleMove(event)
     const handleLeave = () => {
+      const heldId = holdActiveIdRef?.current ?? 0
+      if (heldId > 0) {
+        cursorState.setHoveredId(heldId)
+        return
+      }
+      if (cursorState.activeId > 0) {
+        reentryCooldownsRef.current.set(
+          cursorState.activeId,
+          performance.now() + REENTRY_COOLDOWN_MS,
+        )
+      }
       pointerInsideRef.current = false
       missStartedAtRef.current = null
+      hoverCandidateRef.current = { id: 0, startedAt: 0 }
       pointerNdcRef.current.set(2, 2)
       cursorState.forceLeave()
     }
@@ -304,37 +381,75 @@ export function CinematicHoverController({
       element.removeEventListener('pointerdown', handleDown)
       window.removeEventListener('pointerup', handleUp)
     }
-  }, [cursorState, disabled, eventTarget, gl])
+  }, [cursorState, disabled, eventTarget, gl, holdActiveIdRef])
 
   useFrame((_, delta) => {
     const now = performance.now()
     cursorState.update(Math.min(delta, 0.05), now)
     if (disabled || !objects.length) return
 
-    let nextActiveId = 0
-    if (pointerInsideRef.current) {
+    let hitId = 0
+    const heldId = holdActiveIdRef?.current ?? 0
+    if (heldId > 0 && objects[heldId - 1]) {
+      hitId = heldId
+    } else if (pointerInsideRef.current) {
       const raycaster = raycasterRef.current
       raycaster.setFromCamera(pointerNdcRef.current, camera)
       let nearestDistance = Infinity
 
       objects.forEach((object, index) => {
+        const objectId = index + 1
+        const cooldownUntil = reentryCooldownsRef.current.get(objectId) ?? 0
+        if (cooldownUntil > now) return
+        if (cooldownUntil > 0) reentryCooldownsRef.current.delete(objectId)
+
         const hitMesh = object.mesh
         if (!hitMesh?.geometry) return
         hitMesh.updateWorldMatrix(true, false)
         const hit = raycaster.intersectObject(hitMesh, false)[0]
         if (hit && hit.distance < nearestDistance) {
           nearestDistance = hit.distance
-          nextActiveId = index + 1
+          hitId = objectId
         }
       })
     }
 
+    let nextActiveId = 0
+    if (heldId > 0 && hitId === heldId) {
+      // An already-engaged overlay handoff must remain seamless.
+      nextActiveId = heldId
+      hoverCandidateRef.current = { id: 0, startedAt: 0 }
+    } else if (hitId > 0 && hitId === cursorState.activeId) {
+      nextActiveId = hitId
+      hoverCandidateRef.current = { id: 0, startedAt: 0 }
+    } else if (hitId > 0) {
+      const candidate = hoverCandidateRef.current
+      if (candidate.id !== hitId) {
+        hoverCandidateRef.current = { id: hitId, startedAt: now }
+      } else if (now - candidate.startedAt >= HOVER_REGISTER_DELAY_MS) {
+        nextActiveId = hitId
+        hoverCandidateRef.current = { id: 0, startedAt: 0 }
+      }
+    } else {
+      hoverCandidateRef.current = { id: 0, startedAt: 0 }
+    }
+
     if (nextActiveId > 0) {
       missStartedAtRef.current = null
+      if (cursorState.activeId > 0 && cursorState.activeId !== nextActiveId) {
+        reentryCooldownsRef.current.set(
+          cursorState.activeId,
+          now + REENTRY_COOLDOWN_MS,
+        )
+      }
       cursorState.setHoveredId(nextActiveId)
     } else if (cursorState.activeId > 0) {
       if (missStartedAtRef.current == null) missStartedAtRef.current = now
       if (now - missStartedAtRef.current >= MISS_GRACE_MS) {
+        reentryCooldownsRef.current.set(
+          cursorState.activeId,
+          now + REENTRY_COOLDOWN_MS,
+        )
         cursorState.setHoveredId(0)
         missStartedAtRef.current = null
       }
@@ -364,6 +479,8 @@ export function CinematicHoverController({
       smooth.w += (raw.w - smooth.w) * response
       smooth.h += (raw.h - smooth.h) * response
     }
+    smooth.polygon = raw.polygon
+    smooth.regions = raw.regions
 
     lastProjRef.current = { ...smooth, id: projectedId }
   })
@@ -396,46 +513,42 @@ const rearFragmentShader = `
     return fract(p.x * p.y);
   }
 
-  float band(vec2 uv, float width, float offset) {
-    float axis = uv.y - (0.38 + (uv.x - 0.5) * (0.20 + uVariant * 0.025) + offset);
-    return 1.0 - smoothstep(width, width + 0.009, abs(axis));
-  }
-
   void main() {
     vec2 uv = vUv;
-    float revealEdge = uProgress * 1.55 - 0.22;
-    float reveal = 1.0 - smoothstep(revealEdge, revealEdge + 0.09, uv.x - uv.y * 0.22);
-    float outer = band(uv, 0.365, 0.0);
-    float inner = band(uv, 0.335, 0.0);
-    float accentField = band(uv, 0.29, -0.005);
-    float inkBorder = max(0.0, outer - inner);
-    float paperRail = band(uv, 0.045, 0.205);
-    float blackRail = band(uv, 0.018, -0.205);
+    // Keep the complete radial composition inside the plane. The outer spoke
+    // radius reaches 0.72, so this inset prevents shader-boundary cutouts.
+    vec2 p = (uv - 0.5) * 1.58;
+    p.x *= 1.12;
+    float angle = atan(p.y, p.x);
+    float radius = length(p);
+    float teeth = sin(angle * (13.0 + uVariant * 4.0)) * 0.042;
+    teeth += sin(angle * 29.0 + uVariant * 9.0) * 0.018;
+    teeth += (hash(vec2(floor(angle * 19.0), uVariant)) - 0.5) * 0.045;
+    float burstRadius = 0.37 + teeth;
+    float paperBurst = 1.0 - smoothstep(burstRadius - 0.012, burstRadius + 0.006, radius);
+    float inkOutline = smoothstep(burstRadius - 0.026, burstRadius - 0.011, radius) *
+      (1.0 - smoothstep(burstRadius + 0.006, burstRadius + 0.022, radius));
 
-    vec3 paper = vec3(0.925, 0.918, 0.855);
-    vec3 ink = vec3(0.018, 0.022, 0.021);
-    vec3 color = mix(paper, uAccent, accentField * 0.91);
-    color = mix(color, ink, inkBorder);
-    color = mix(color, paper, paperRail * 0.94);
-    color = mix(color, ink, blackRail * 0.86);
+    float spokePhase = fract((angle / 6.2831853 + 0.5) * 22.0 + uVariant * 0.23);
+    float spoke = 1.0 - smoothstep(0.035, 0.12, abs(spokePhase - 0.5));
+    float spokeRange = smoothstep(0.28, 0.39, radius) * (1.0 - smoothstep(0.57, 0.72, radius));
+    float speedBurst = spoke * spokeRange;
 
-    vec2 gridUv = uv * vec2(32.0, 17.0);
-    float gridX = 1.0 - smoothstep(0.0, 0.055, abs(fract(gridUv.x) - 0.5));
-    float gridY = 1.0 - smoothstep(0.0, 0.055, abs(fract(gridUv.y) - 0.5));
-    float grid = max(gridX, gridY) * accentField;
-    color = mix(color, paper, grid * 0.12);
+    vec2 dotGrid = fract((uv + vec2(uVariant * 0.03, 0.0)) * vec2(58.0, 34.0)) - 0.5;
+    float halftone = 1.0 - smoothstep(0.12, 0.24, length(dotGrid));
+    halftone *= paperBurst * smoothstep(0.2, 0.54, radius);
 
-    float diagonal = 1.0 - smoothstep(
-      0.0,
-      0.018,
-      abs(fract((uv.x + uv.y * 1.45) * 9.0) - 0.5)
-    );
-    color = mix(color, ink, diagonal * accentField * 0.075);
+    float revealEdge = uProgress * 1.55 - 0.2;
+    float reveal = 1.0 - smoothstep(revealEdge, revealEdge + 0.1, uv.x - uv.y * 0.18);
+    vec3 paper = vec3(0.945, 0.925, 0.84);
+    vec3 ink = vec3(0.012, 0.015, 0.014);
+    vec3 color = paper;
+    color = mix(color, ink, halftone * 0.28);
+    color = mix(color, ink, inkOutline);
+    color = mix(color, uAccent, speedBurst * 0.94);
+    color += (hash(gl_FragCoord.xy + floor(uTime * 16.0)) - 0.5) * 0.055;
 
-    float grain = hash(gl_FragCoord.xy + floor(uTime * 18.0)) - 0.5;
-    color += grain * 0.045;
-
-    float alpha = max(outer, max(paperRail, blackRail)) * reveal * uOpacity;
+    float alpha = max(max(paperBurst, inkOutline), speedBurst) * reveal * uOpacity;
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(color, alpha);
   }
@@ -458,26 +571,22 @@ const frontFragmentShader = `
 
   void main() {
     vec2 uv = vUv;
-    float edge = 0.19 + uv.x * 0.19;
-    float paperMask = 1.0 - smoothstep(edge, edge + 0.012, uv.y);
-    float inkEdge = 1.0 - smoothstep(0.0, 0.018, abs(uv.y - edge));
-    float accentTab =
-      step(0.64, uv.x) * step(uv.x, 0.82) *
-      step(edge - 0.075, uv.y) * step(uv.y, edge - 0.018);
-    float reveal = 1.0 - smoothstep(0.48, 1.08, uv.x + (1.0 - uProgress) * 0.95);
-
+    float slashA = 1.0 - smoothstep(0.0, 0.012, abs(uv.y - (0.16 + uv.x * 0.23)));
+    float slashB = 1.0 - smoothstep(0.0, 0.008, abs(uv.y - (0.77 - uv.x * 0.19)));
+    float slashC = 1.0 - smoothstep(0.0, 0.006, abs(uv.y - (0.46 + uv.x * 0.08)));
+    float clipA = step(0.02, uv.x) * step(uv.x, 0.54);
+    float clipB = step(0.58, uv.x) * step(uv.x, 0.98);
+    float clipC = step(0.12, uv.x) * step(uv.x, 0.9);
+    float accentSlash = slashA * clipA;
+    float paperSlash = slashB * clipB;
+    float inkSlash = slashC * clipC;
+    float reveal = smoothstep(0.0, 0.82, uProgress);
     vec3 paper = vec3(0.95, 0.945, 0.895);
     vec3 ink = vec3(0.016, 0.019, 0.018);
-    vec3 color = paper;
-    color = mix(color, ink, inkEdge);
-    color = mix(color, uAccent, accentTab);
-
-    float rule = step(0.08, uv.x) * step(uv.x, 0.49) *
-      (1.0 - smoothstep(0.0, 0.008, abs(uv.y - 0.105)));
-    color = mix(color, ink, rule * 0.5);
+    vec3 color = mix(ink, uAccent, accentSlash);
+    color = mix(color, paper, paperSlash);
     color += (hash(gl_FragCoord.xy + floor(uTime * 14.0)) - 0.5) * 0.032;
-
-    float alpha = max(paperMask, max(inkEdge, accentTab)) * reveal * uOpacity;
+    float alpha = max(accentSlash, max(paperSlash, inkSlash)) * reveal * uOpacity;
     if (alpha < 0.004) discard;
     gl_FragColor = vec4(color, alpha);
   }
@@ -532,10 +641,11 @@ export function CinematicDepthSandwich({ objects, stateRef }) {
   const boxRef = useRef(new THREE.Box3())
   const centerRef = useRef(new THREE.Vector3())
   const viewDirectionRef = useRef(new THREE.Vector3())
+  const overlayDirectionRef = useRef(new THREE.Vector3())
   const rearPositionRef = useRef(new THREE.Vector3())
   const frontPositionRef = useRef(new THREE.Vector3())
-  const currentScaleRef = useRef(new THREE.Vector2(1, 1))
-  const { camera, gl, size, viewport } = useThree()
+  const currentScaleRef = useRef(new THREE.Vector2(480, 320))
+  const { camera, gl, size } = useThree()
 
   useEffect(() => () => {
     rearMaterial.dispose()
@@ -569,7 +679,7 @@ export function CinematicDepthSandwich({ objects, stateRef }) {
     boxRef.current.setFromObject(activeObject.renderRoot)
     if (boxRef.current.isEmpty()) return
     boxRef.current.getCenter(centerRef.current)
-    viewDirectionRef.current.copy(centerRef.current).sub(camera.position).normalize()
+    camera.getWorldDirection(viewDirectionRef.current)
     const { minDepth, maxDepth } = getDepthRange(
       boxRef.current,
       camera.position,
@@ -577,31 +687,61 @@ export function CinematicDepthSandwich({ objects, stateRef }) {
     )
     if (!Number.isFinite(minDepth) || minDepth <= 0) return
 
-    const currentViewport = viewport.getCurrentViewport(camera, centerRef.current)
     const dpr = gl.getPixelRatio() || 1
     const projectedWidth = projection.w / dpr
     const projectedHeight = projection.h / dpr
+    const safeMargin = clamp(Math.min(size.width, size.height) * 0.035, 18, 46)
+    // The burst stays exactly on the VHS center. Its size—not its anchor—is
+    // reduced near an edge so the complete radial graphic remains visible.
+    const overlayCenterX = clamp(projection.cx / dpr, safeMargin, size.width - safeMargin)
+    const overlayCenterY = clamp(projection.cy / dpr, safeMargin, size.height - safeMargin)
+    const maxWidth = Math.max(
+      1,
+      Math.min(overlayCenterX - safeMargin, size.width - safeMargin - overlayCenterX) * 2,
+    )
+    const maxHeight = Math.max(
+      1,
+      Math.min(overlayCenterY - safeMargin, size.height - safeMargin - overlayCenterY) * 2,
+    )
     const targetWidth = clamp(
-      (projectedWidth / Math.max(1, size.width)) * currentViewport.width * 1.92,
-      1.15,
-      6.8,
+      Math.max(size.width * 0.56, projectedWidth * 1.9),
+      Math.min(280, maxWidth),
+      maxWidth,
     )
     const targetHeight = clamp(
-      (projectedHeight / Math.max(1, size.height)) * currentViewport.height * 1.72,
-      0.72,
-      4.2,
+      Math.max(size.height * 0.5, projectedHeight * 1.78),
+      Math.min(220, maxHeight),
+      maxHeight,
     )
     const scaleResponse = 1 - Math.exp(-11 * Math.min(delta, 0.05))
     currentScaleRef.current.x += (targetWidth - currentScaleRef.current.x) * scaleResponse
     currentScaleRef.current.y += (targetHeight - currentScaleRef.current.y) * scaleResponse
+    currentScaleRef.current.x = Math.min(currentScaleRef.current.x, maxWidth)
+    currentScaleRef.current.y = Math.min(currentScaleRef.current.y, maxHeight)
+
+    overlayDirectionRef.current
+      .set(
+        (overlayCenterX / Math.max(1, size.width)) * 2 - 1,
+        -(overlayCenterY / Math.max(1, size.height)) * 2 + 1,
+        0.5,
+      )
+      .unproject(camera)
+      .sub(camera.position)
+      .normalize()
 
     const depthPadding = Math.max(0.025, (maxDepth - minDepth) * 0.04)
+    const rearDepth = maxDepth + depthPadding
+    const frontDepth = Math.max(0.02, minDepth - depthPadding)
+    const rayForwardAmount = Math.max(
+      0.001,
+      overlayDirectionRef.current.dot(viewDirectionRef.current),
+    )
     rearPositionRef.current
       .copy(camera.position)
-      .addScaledVector(viewDirectionRef.current, maxDepth + depthPadding)
+      .addScaledVector(overlayDirectionRef.current, rearDepth / rayForwardAmount)
     frontPositionRef.current
       .copy(camera.position)
-      .addScaledVector(viewDirectionRef.current, Math.max(0.02, minDepth - depthPadding))
+      .addScaledVector(overlayDirectionRef.current, frontDepth / rayForwardAmount)
 
     rear.position.copy(rearPositionRef.current)
     front.position.copy(frontPositionRef.current)
@@ -610,17 +750,24 @@ export function CinematicDepthSandwich({ objects, stateRef }) {
 
     const eased = 1 - Math.pow(1 - opacity, 3)
     const settle = 0.965 + eased * 0.035
+    const viewportHeightAt = (depth) => camera.isPerspectiveCamera
+      ? 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5) * depth / camera.zoom
+      : Math.abs(camera.top - camera.bottom) / camera.zoom
+    const rearViewportHeight = viewportHeightAt(rearDepth)
+    const frontViewportHeight = viewportHeightAt(frontDepth)
+    const rearViewportWidth = rearViewportHeight * camera.aspect
+    const frontViewportWidth = frontViewportHeight * camera.aspect
     rear.scale.set(
-      currentScaleRef.current.x * settle,
-      currentScaleRef.current.y * settle,
+      (currentScaleRef.current.x / Math.max(1, size.width)) * rearViewportWidth * settle,
+      (currentScaleRef.current.y / Math.max(1, size.height)) * rearViewportHeight * settle,
       1,
     )
     front.scale.set(
-      currentScaleRef.current.x * (0.98 + eased * 0.02),
-      currentScaleRef.current.y * (0.98 + eased * 0.02),
+      (currentScaleRef.current.x / Math.max(1, size.width)) * frontViewportWidth * (0.98 + eased * 0.02),
+      (currentScaleRef.current.y / Math.max(1, size.height)) * frontViewportHeight * (0.98 + eased * 0.02),
       1,
     )
-    front.translateY(currentScaleRef.current.y * (1 - eased) * -0.045)
+    front.translateY(front.scale.y * (1 - eased) * -0.045)
 
     const accent = activeObject.accentColor
     rearMaterial.uniforms.uAccent.value.lerp(accent, 1 - Math.exp(-14 * delta))
@@ -747,6 +894,9 @@ export function CinematicHoverOverlay({ objects, stateRef, disabled = false }) {
   const rootRef = useRef(null)
   const canvasRef = useRef(null)
   const labelRef = useRef(null)
+  const labelCodeRef = useRef(null)
+  const labelTitleRef = useRef(null)
+  const labelNoteRef = useRef(null)
   const trailRef = useRef([])
 
   useEffect(() => {
@@ -761,6 +911,7 @@ export function CinematicHoverOverlay({ objects, stateRef, disabled = false }) {
       if (root && canvas && cs && pipeline) {
         const immediateIndex = cs.activeId - 1
         const visualIndex = cs.visualActiveId - 1
+        const displayIndex = immediateIndex >= 0 ? immediateIndex : visualIndex
         const colorObject = immediateIndex >= 0
           ? objects[immediateIndex]
           : visualIndex >= 0
@@ -772,18 +923,31 @@ export function CinematicHoverOverlay({ objects, stateRef, disabled = false }) {
         drawEditorialCursor(canvas, cs, accent, trailRef.current)
 
         if (label) {
-          const projection = visualIndex >= 0
-            ? pipeline.smoothProj?.[visualIndex]
+          const projection = displayIndex >= 0
+            ? pipeline.smoothProj?.[displayIndex]
             : null
-          const visible = visualIndex >= 0 && cs.anchor > 0.02 && projection?.init
+          const visible = displayIndex >= 0 && cs.anchor > 0.02 && projection?.init
           label.style.opacity = visible ? String(clamp(cs.anchor, 0, 1)) : '0'
           if (visible) {
+            const activeObject = objects[displayIndex]
             const rect = pipeline.domElement.getBoundingClientRect()
             const dpr = pipeline.pixelRatio || window.devicePixelRatio || 1
-            const x = rect.left + (projection.cx - projection.w * 0.73) / dpr
-            const y = rect.top + (projection.cy - projection.h * 0.78) / dpr
-            label.style.transform = `translate3d(${clamp(x, 18, window.innerWidth - 190)}px, ${clamp(y, 18, window.innerHeight - 52)}px, 0)`
-            label.textContent = `ARCHIVE / ${String(visualIndex + 1).padStart(2, '0')}`
+            const focus = clamp(cs.anchor, 0, 1)
+            const x = rect.left + (projection.cx - projection.w * 0.38) / dpr
+            const y = rect.top + (projection.cy + projection.h * 0.62) / dpr
+            const slideY = (1 - focus) * 26
+            const labelWidth = label.offsetWidth || 480
+            const labelHeight = label.offsetHeight || 190
+            label.style.transform = `translate3d(${clamp(x, 18, Math.max(18, window.innerWidth - labelWidth - 18))}px, ${clamp(y + slideY, 72, Math.max(72, window.innerHeight - labelHeight - 24))}px, 0)`
+            if (labelCodeRef.current) {
+              labelCodeRef.current.textContent = `ARCHIVE / ${String(displayIndex + 1).padStart(2, '0')}`
+            }
+            if (labelTitleRef.current) {
+              labelTitleRef.current.textContent = activeObject?.title || `PROJECT ${displayIndex + 1}`
+            }
+            if (labelNoteRef.current) {
+              labelNoteRef.current.textContent = activeObject?.desc || 'SELECTED WORK / OPEN TO INSPECT'
+            }
           }
         }
       }
@@ -820,27 +984,64 @@ export function CinematicHoverOverlay({ objects, stateRef, disabled = false }) {
           position: absolute;
           top: 0;
           left: 0;
-          padding: 5px 12px 5px 18px;
+          width: min(500px, 82vw);
+          display: grid;
+          justify-items: start;
           color: #f1eee1;
-          background:
-            linear-gradient(90deg, var(--cinematic-accent) 0 8px, #080a09 8px 100%);
-          clip-path: polygon(0 0, 100% 7%, 94% 100%, 3% 91%);
-          font: 700 clamp(8px, .66vw, 10px)/1 "DM Mono", "Courier New", monospace;
-          letter-spacing: .19em;
-          white-space: nowrap;
+          font-family: "BL Melody Mono", "Courier New", monospace;
           opacity: 0;
           transform-origin: left center;
           will-change: transform, opacity;
+          filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .72));
         }
 
-        .cinematic-hover-ui__label::after {
+        .cinematic-hover-ui__label::before {
           content: "";
           position: absolute;
-          left: 14px;
-          right: -34px;
-          bottom: -7px;
-          height: 1px;
-          background: linear-gradient(90deg, var(--cinematic-accent), transparent);
+          left: -14px;
+          top: -14px;
+          width: 58px;
+          height: 4px;
+          background: var(--cinematic-accent);
+          transform: rotate(-28deg);
+          transform-origin: left center;
+        }
+
+        .cinematic-hover-ui__code {
+          padding: 7px 11px;
+          color: #fff;
+          background: var(--cinematic-accent);
+          font-size: clamp(10px, .78vw, 13px);
+          font-weight: 800;
+          line-height: 1;
+          letter-spacing: .17em;
+          text-transform: uppercase;
+        }
+
+        .cinematic-hover-ui__title {
+          max-width: 100%;
+          margin-top: 8px;
+          padding: 9px 15px 12px;
+          color: #080a09;
+          background: #f1eee1;
+          font-family: "TRTCENZODEMO-ExtraBold", Impact, sans-serif;
+          font-size: clamp(40px, 5.6vw, 88px);
+          font-weight: 900;
+          line-height: .76;
+          letter-spacing: -.035em;
+          clip-path: polygon(0 3%, 100% 0, 97% 93%, 2% 100%);
+        }
+
+        .cinematic-hover-ui__note {
+          margin: 6px 0 0 10px;
+          padding: 6px 10px;
+          color: #f1eee1;
+          background: #080a09;
+          border-left: 8px solid var(--cinematic-accent);
+          font-size: clamp(9px, .72vw, 12px);
+          font-weight: 700;
+          line-height: 1.1;
+          letter-spacing: .14em;
         }
 
         @media (pointer: coarse) {
@@ -850,7 +1051,11 @@ export function CinematicHoverOverlay({ objects, stateRef, disabled = false }) {
         }
       `}</style>
       <canvas ref={canvasRef} className="cinematic-hover-ui__cursor" />
-      <span ref={labelRef} className="cinematic-hover-ui__label" />
+      <div ref={labelRef} className="cinematic-hover-ui__label">
+        <span ref={labelCodeRef} className="cinematic-hover-ui__code" />
+        <strong ref={labelTitleRef} className="cinematic-hover-ui__title" />
+        <span ref={labelNoteRef} className="cinematic-hover-ui__note" />
+      </div>
     </div>
   )
 }
