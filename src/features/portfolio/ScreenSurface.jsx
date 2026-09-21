@@ -37,6 +37,7 @@ export default function ScreenSurface({
   screenNode,
   embedSrc,
   active = false,
+  interactionEnabled = true,
   config = DEFAULT_VHS_CONFIG,
   resolution = 640,
   fps = 8,
@@ -62,6 +63,7 @@ export default function ScreenSurface({
   const originalMatRef = useRef(null)
 
   const activeRef = useRef(active)
+  const interactionEnabledRef = useRef(interactionEnabled)
   const vhsIntensityRef = useRef(clampVhsIntensity(vhsIntensity))
   const hoverRef = useRef({ hovering: false, u: 0.5, v: 0.5 })
   const timeRef = useRef(0)
@@ -75,6 +77,10 @@ export default function ScreenSurface({
   useEffect(() => {
     activeRef.current = active
   }, [active])
+
+  useEffect(() => {
+    interactionEnabledRef.current = interactionEnabled
+  }, [interactionEnabled])
 
   useEffect(() => {
     const intensity = clampVhsIntensity(vhsIntensity)
@@ -171,7 +177,7 @@ export default function ScreenSurface({
   useEffect(() => {
     const el = gl.domElement
     const forward = (kind) => () => {
-      if (!activeRef.current) return
+      if (!activeRef.current || !interactionEnabledRef.current) return
       const h = hoverRef.current
       if (!h.hovering) return
       domRef.current?.forwardPointer(kind, h.u, h.v, { buttons: kind === 'down' ? 1 : 0 })
@@ -184,7 +190,7 @@ export default function ScreenSurface({
     // listener). gl.domElement is the wheel target, so this fires before that
     // bubble-phase listener — stopPropagation there hands scroll to the reader.
     const onWheel = (e) => {
-      if (!activeRef.current || !hoverRef.current.hovering) return
+      if (!activeRef.current || !interactionEnabledRef.current || !hoverRef.current.hovering) return
       e.preventDefault()
       e.stopPropagation()
       const unit =
@@ -254,7 +260,7 @@ export default function ScreenSurface({
     }
 
     // Pointer: raycast the Screen mesh and forward hover position to the page.
-    if (activeRef.current && screenNode) {
+    if (activeRef.current && interactionEnabledRef.current && screenNode) {
       raycaster.setFromCamera(pointer, camera)
       const hit = raycaster.intersectObject(screenNode, false)[0]
       if (hit && hit.uv) {

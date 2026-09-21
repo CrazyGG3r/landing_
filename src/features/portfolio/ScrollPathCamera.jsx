@@ -113,6 +113,10 @@ function buildSmoothCurve(points, tension, sampleMultiplier) {
 export default function ScrollPathCamera({
   sceneRoot,
   active,
+  suspended = false,
+  inputEnabled = true,
+  returning = false,
+  onReturnComplete,
   config,
   initialProgress = 0,
   scrollStateRef,
@@ -125,6 +129,7 @@ export default function ScrollPathCamera({
   const currentTRef = useRef(startProgress)
   const initializedRef = useRef(false)
   const defaultFovRef = useRef(null)
+  const returnNotifiedRef = useRef(false)
 
   const positionRef = useRef(new THREE.Vector3())
   const lookAheadRef = useRef(new THREE.Vector3())
@@ -180,6 +185,8 @@ export default function ScrollPathCamera({
       if (scrollStateRef) scrollStateRef.current.progress = startProgress
     }
 
+    if (!inputEnabled) return undefined
+
     const handleWheel = (event) => {
       event.preventDefault()
       progressRef.current = THREE.MathUtils.clamp(
@@ -192,6 +199,7 @@ export default function ScrollPathCamera({
     return () => window.removeEventListener('wheel', handleWheel)
   }, [
     active,
+    inputEnabled,
     curve,
     startProgress,
     cfg.scrollSensitivity,
@@ -200,11 +208,25 @@ export default function ScrollPathCamera({
     scrollStateRef,
   ])
 
+  useEffect(() => {
+    if (!suspended) return
+    // Freeze both the eased rail position and its destination. This makes the
+    // return target exactly the point where Free Mode began, even if the rail
+    // was still settling from the user's final wheel event.
+    progressRef.current = currentTRef.current
+    if (scrollStateRef) scrollStateRef.current.progress = currentTRef.current
+  }, [suspended, scrollStateRef])
+
+  useEffect(() => {
+    if (returning) returnNotifiedRef.current = false
+  }, [returning])
+
   useFrame((_, rawDelta) => {
-    if (!active || !curve) return
+    if (!active || !curve || suspended) return
 
     const delta = Math.min(rawDelta, 0.1)
-    const alpha = 1 - Math.exp(-cfg.lerpSharpness * delta)
+    const sharpness = returning ? Math.max(cfg.lerpSharpness, 10) : cfg.lerpSharpness
+    const alpha = 1 - Math.exp(-sharpness * delta)
     currentTRef.current = THREE.MathUtils.lerp(currentTRef.current, progressRef.current, alpha)
     const t = currentTRef.current
 
@@ -256,6 +278,17 @@ export default function ScrollPathCamera({
       if (Math.abs(camera.fov - targetFov) > 1e-4) {
         camera.fov = targetFov
         camera.updateProjectionMatrix()
+      }
+    }
+
+    if (returning && !returnNotifiedRef.current) {
+      const positionError = camera.position.distanceTo(position)
+      const rotationError = camera.quaternion.angleTo(targetQuatRef.current)
+      if (positionError < 0.0005 && rotationError < 0.002) {
+        camera.position.copy(position)
+        camera.quaternion.copy(targetQuatRef.current)
+        returnNotifiedRef.current = true
+        onReturnComplete?.()
       }
     }
   })

@@ -13,12 +13,14 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { useLocation, useNavigationType } from 'react-router-dom'
 import {
   FastForward,
+  Move3D,
   Play,
   Rewind,
   SkipBack,
   SkipForward,
   Snail,
   Square,
+  Route,
 } from 'lucide-react'
 import * as THREE from 'three'
 import {
@@ -38,10 +40,12 @@ import { INTERACTIVE_OBJECT_SCROLL_TARGETS } from './PortfolioFocusTargets'
 import ScreenSurface from './ScreenSurface'
 import CRTGlass from './CRTGlass'
 import ScrollPathCamera from './ScrollPathCamera'
+import FreeCameraControls from './FreeCameraControls'
 import { resolveVhsProjectId } from './vhsProjects'
 import { warmRoute } from '../../shared/performance/routePreloader'
 import { getPortfolioPerformanceProfile } from './performanceProfile'
 import { signalRouteReady } from '../../app/routeTransition'
+import './entry-camera-mode.css'
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY SCENE
@@ -76,6 +80,7 @@ const CONFIG = {
   // and narrows it toward 32 degrees along the path.
   cameraFov: 37.29907897795257,
   vhsPointNodeName: 'VHSPoint',
+  freeRegionNodeName: 'FreeRegion',
   backgroundColor: '#111122',
   hdriPath: '/hdri/vhs/Soft 2RingHighContrast.exr',
   environmentIntensity: 0.15,
@@ -100,6 +105,7 @@ const CONFIG = {
   readerResolution: 640,
   // The Screen only powers on this long after every "Entry_" animation finishes.
   screenActivationDelayMs: 500,
+  freeCameraSpeed: 0.42,
 }
 
 function ProceduralEnvironment() {
@@ -196,12 +202,17 @@ function EntrySceneRoom({
   const { size } = useThree()
   const setDefault = useThree((state) => state.set)
 
-  const { cameraNode, vhsPointNode, screenNode } = useMemo(() => {
-    if (!gltf?.scene) return { cameraNode: null, vhsPointNode: null, screenNode: null }
+  const { cameraNode, vhsPointNode, screenNode, freeRegionNode } = useMemo(() => {
+    if (!gltf?.scene) {
+      return { cameraNode: null, vhsPointNode: null, screenNode: null, freeRegionNode: null }
+    }
+    const freeRegion = findNamedNode(gltf.scene, CONFIG.freeRegionNodeName)
+    if (freeRegion) freeRegion.visible = false
     return {
       cameraNode: findNamedNode(gltf.scene, CONFIG.cameraNodeName),
       vhsPointNode: findNamedNode(gltf.scene, CONFIG.vhsPointNodeName),
       screenNode: findNamedNode(gltf.scene, CONFIG.screenNodeName),
+      freeRegionNode: freeRegion,
     }
   }, [gltf])
 
@@ -344,8 +355,8 @@ function EntrySceneRoom({
     if (notifiedRef.current || !gltf?.scene) return
     if (!vhsPointNode && !screenNode) return
     notifiedRef.current = true
-    onReady?.({ vhsPointNode, screenNode, sceneRoot: gltf.scene })
-  }, [vhsPointNode, screenNode, gltf, onReady])
+    onReady?.({ vhsPointNode, screenNode, freeRegionNode, sceneRoot: gltf.scene })
+  }, [vhsPointNode, screenNode, freeRegionNode, gltf, onReady])
 
   useFrame((_, rawDelta) => {
     const hasActiveButton = lockedButtonsRef.current.size > 0
@@ -798,10 +809,12 @@ export default function EntryScene() {
   const [vhsIndex, setVhsIndex] = useState(initialVhsIndex)
   const [vhsPointNode, setVhsPointNode] = useState(null)
   const [screenNode, setScreenNode] = useState(null)
+  const [freeRegionNode, setFreeRegionNode] = useState(null)
   const [sceneRoot, setSceneRoot] = useState(null)
   const [fadeVisible, setFadeVisible] = useState(true)
   const [screenActive, setScreenActive] = useState(false)
   const [scrollTrackingActive, setScrollTrackingActive] = useState(false)
+  const [cameraMode, setCameraMode] = useState('immersive')
   const activationTimerRef = useRef(null)
   const buttonControllerRef = useRef(null)
   const screenControllerRef = useRef(null)
@@ -854,9 +867,15 @@ export default function EntryScene() {
     })
   }, [vhsIndex])
 
-  const handleRoomReady = useCallback(({ vhsPointNode: vp, screenNode: sn, sceneRoot: root }) => {
+  const handleRoomReady = useCallback(({
+    vhsPointNode: vp,
+    screenNode: sn,
+    freeRegionNode: freeRegion,
+    sceneRoot: root,
+  }) => {
     setVhsPointNode(vp)
     setScreenNode(sn)
+    setFreeRegionNode(freeRegion)
     setSceneRoot(root)
   }, [])
 
@@ -930,6 +949,18 @@ export default function EntryScene() {
     activationTimerRef.current = setTimeout(() => {
       setScreenActive(true)
     }, CONFIG.screenActivationDelayMs)
+  }, [])
+
+  const toggleCameraMode = useCallback(() => {
+    setCameraMode((current) => (current === 'free' ? 'returning' : 'entering-free'))
+  }, [])
+
+  const handleFreeRegionEntered = useCallback(() => {
+    setCameraMode((current) => (current === 'entering-free' ? 'free' : current))
+  }, [])
+
+  const handleCameraReturnComplete = useCallback(() => {
+    setCameraMode('immersive')
   }, [])
 
   useEffect(() => () => {
@@ -1013,7 +1044,7 @@ export default function EntryScene() {
         {sceneRoot && (
           <VhsPlayerControls
             sceneRoot={sceneRoot}
-            enabled={scrollTrackingActive}
+            enabled={scrollTrackingActive && cameraMode === 'immersive'}
             cameraScrollStateRef={cameraScrollStateRef}
             onPress={handleButtonPress}
             transportSnapshot={transportSnapshot}
@@ -1027,6 +1058,7 @@ export default function EntryScene() {
             screenNode={screenNode}
             embedSrc={embedSrc}
             active={screenActive}
+            interactionEnabled={cameraMode === 'immersive'}
             resolution={CONFIG.readerResolution}
             fps={CONFIG.readerFpsCap}
             idleFps={CONFIG.readerFpsCap}
@@ -1043,10 +1075,25 @@ export default function EntryScene() {
           <ScrollPathCamera
             sceneRoot={sceneRoot}
             active={scrollTrackingActive}
+            suspended={cameraMode === 'free' || cameraMode === 'entering-free'}
+            inputEnabled={cameraMode === 'immersive'}
+            returning={cameraMode === 'returning'}
+            onReturnComplete={handleCameraReturnComplete}
             initialProgress={initialTrackProgress}
             scrollStateRef={cameraScrollStateRef}
           />
         )}
+
+        <FreeCameraControls
+          active={
+            scrollTrackingActive &&
+            (cameraMode === 'free' || cameraMode === 'entering-free')
+          }
+          controlsEnabled={cameraMode === 'free'}
+          regionNode={freeRegionNode}
+          onEnterComplete={handleFreeRegionEntered}
+          movementSpeed={CONFIG.freeCameraSpeed}
+        />
 
         {sceneRoot && (
           <CRTGlass
@@ -1058,6 +1105,52 @@ export default function EntryScene() {
           />
         )}
       </Canvas>
+
+      <button
+        type="button"
+        className={`entry-camera-mode ${cameraMode === 'free' ? 'entry-camera-mode--free' : ''} ${!scrollTrackingActive || fadeVisible ? 'entry-camera-mode--hidden' : ''}`}
+        aria-label={
+          cameraMode === 'free'
+            ? 'Return to Immersive Mode'
+            : cameraMode === 'returning'
+              ? 'Returning to Immersive Mode'
+              : cameraMode === 'entering-free'
+                ? 'Entering Free Mode'
+              : 'Enter Free Mode'
+        }
+        aria-pressed={cameraMode === 'free'}
+        title={
+          cameraMode === 'free'
+            ? 'Return to Immersive Mode'
+            : cameraMode === 'returning'
+              ? 'Returning to Immersive Mode'
+              : cameraMode === 'entering-free'
+                ? 'Entering Free Mode'
+              : 'Enter Free Mode'
+        }
+        disabled={
+          !scrollTrackingActive ||
+          !freeRegionNode ||
+          cameraMode === 'returning' ||
+          cameraMode === 'entering-free'
+        }
+        onClick={toggleCameraMode}
+      >
+        {cameraMode === 'free' ? (
+          <Route className="entry-camera-mode__icon" aria-hidden="true" />
+        ) : (
+          <Move3D className="entry-camera-mode__icon" aria-hidden="true" />
+        )}
+        <span className="entry-camera-mode__label">
+          {cameraMode === 'free'
+            ? 'Immersive Mode'
+            : cameraMode === 'returning'
+              ? 'Returning'
+              : cameraMode === 'entering-free'
+                ? 'Entering'
+              : 'Free Mode'}
+        </span>
+      </button>
 
       <div
         aria-hidden="true"
