@@ -22,6 +22,7 @@ const Kitchen = lazy(() => import('../features/animation/Landing'))
 const Scribble = lazy(() => import('../features/model-playground/Landing'))
 const Dashboard = lazy(() => import('../features/dashboard/Landing'))
 const AdminLogin = lazy(() => import('../features/admin-auth/Login'))
+const Takezo = lazy(() => import('../features/takezo/Takezo'))
 
 export default function App() {
   return (
@@ -46,6 +47,7 @@ export default function App() {
           )}
         />
         <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/takezo" element={<Takezo />} />
         <Route path="/entry" element={<EntryScene />} />
         {/* Sandboxed embed target: the EntryScene CRT screen hosts the AMP reader
             here and rasterizes it to a texture behind the VHS filter. */}

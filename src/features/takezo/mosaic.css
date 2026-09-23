@@ -1,0 +1,212 @@
+/* Inner pages use six shared tracks on each axis. Home keeps its original CSS. */
+.takezo .tz-board.tz-mosaic {
+  gap: clamp(5px, 0.85vw, 12px);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  height: 100%;
+  min-height: 0;
+  transition:
+    grid-template-columns 0.52s cubic-bezier(0.22, 0.8, 0.2, 1),
+    grid-template-rows 0.52s cubic-bezier(0.22, 0.8, 0.2, 1);
+}
+.takezo .tz-mosaic .tz-adaptive {
+  border-radius: clamp(10px, 1.7vw, 22px);
+  cursor: pointer;
+  min-width: 0;
+  min-height: 0;
+}
+.tz-adaptive::before {
+  inset: 6px;
+  border-radius: inherit;
+}
+.tz-adaptive-content {
+  position: absolute;
+  inset: 0;
+  padding: var(--panel-pad, 16px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) 0px auto;
+  gap: clamp(3px, 0.7vw, 10px);
+  overflow: hidden;
+}
+.tz-adaptive-header,
+.tz-adaptive-footer {
+  font-family: TakezoMono, monospace;
+  font-size: 9px;
+  line-height: 1.35;
+  letter-spacing: 0.015em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  z-index: 2;
+}
+.tz-adaptive-header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #20231e40;
+}
+.tz-adaptive-footer {
+  padding-top: 7px;
+  border-top: 1px solid #20231e35;
+}
+.tz-adaptive-header > span:first-child,
+.tz-adaptive-footer > span:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+.tz-adaptive-header > span:last-child {
+  font-size: 17px;
+  flex: none;
+  line-height: 1;
+}
+.tz-adaptive-size {
+  flex: none;
+  font-size: 8px;
+  opacity: 0.65;
+}
+.tz-adaptive-title {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+}
+.takezo .tz-mosaic .tz-adaptive-title h2 {
+  margin: 0;
+  max-width: 100%;
+  width: 100%;
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.tz-adaptive[data-vertical="true"] .tz-adaptive-title {
+  justify-content: center;
+  align-items: center;
+}
+.takezo .tz-mosaic .tz-adaptive[data-vertical="true"] h2 {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  white-space: nowrap;
+  width: auto;
+  max-width: none;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+.tz-adaptive-interior {
+  opacity: 0;
+  visibility: hidden;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 14px;
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s;
+}
+.tz-adaptive-interior p {
+  font-size: clamp(11px, 1.1vw, 15px);
+  line-height: 1.45;
+  text-align: left;
+}
+.tz-adaptive-interior:not(:has(.tz-adaptive-art)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.tz-adaptive-art {
+  align-self: stretch;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tz-mosaic .tz-adaptive-art .tz-art {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  opacity: 0.9;
+  filter: none;
+}
+.tz-adaptive[data-full="true"] .tz-adaptive-content {
+  grid-template-rows: auto minmax(0, 0.85fr) minmax(0, 1fr) auto;
+}
+.tz-adaptive[data-full="true"] .tz-adaptive-interior {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0.12s;
+}
+.tz-adaptive[data-expanded="true"] .tz-adaptive-header > span:first-child,
+.tz-adaptive[data-expanded="true"] .tz-adaptive-footer > span:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+.tz-adaptive[data-expanded="true"] {
+  z-index: 4;
+}
+.tz-adaptive[data-tiny="true"] .tz-adaptive-header,
+.tz-adaptive[data-tiny="true"] .tz-adaptive-footer {
+  font-size: 7px;
+  padding-block: 2px;
+}
+.tz-adaptive[data-tiny="true"] .tz-adaptive-content {
+  gap: 3px;
+}
+.tz-adaptive[data-tiny="true"] .tz-adaptive-size {
+  display: none;
+}
+.tz-adaptive[data-tiny="true"] .tz-adaptive-header > span:last-child {
+  font-size: 11px;
+}
+@container (max-width: 300px) {
+  .tz-adaptive-interior {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 7px;
+  }
+  .tz-adaptive-interior p {
+    font-size: 11px;
+  }
+}
+@media (max-width: 760px) {
+  .tz-mosaic-page.takezo {
+    padding-inline: 10px;
+  }
+  .tz-mosaic .tz-adaptive-header,
+  .tz-mosaic .tz-adaptive-footer {
+    font-size: 8px;
+  }
+  .tz-mosaic .tz-adaptive-header > span:last-child {
+    font-size: 12px;
+  }
+}
+@media (max-width: 360px) {
+  .tz-mosaic-page.takezo {
+    height: 100svh;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+.tz-reduced .tz-mosaic,
+.tz-reduced .tz-adaptive-interior {
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .takezo .tz-mosaic,
+  .takezo .tz-adaptive-interior {
+    transition: none;
+  }
+}
