@@ -7,6 +7,9 @@ import "./takezo.css";
 import AdaptivePanel from "./AdaptivePanel";
 import { layoutFor, trackStyle } from "./mosaicLayout";
 import "./mosaic.css";
+import { panelFeatures, surfaceStyle } from "./panelFeatures";
+import PanelSurface from "./PanelSurface";
+import "./panelFeatures.css";
 
 function Artwork({ kind }) {
   const artId = useId().replaceAll(":", "");
@@ -132,13 +135,14 @@ function Artwork({ kind }) {
   );
 }
 
-function Panel({ card, index, isHome, onOpen }) {
+function Panel({ card, index, isHome, onOpen, features }) {
   const Tag = card.id ? "button" : "article";
   return (
     <Tag
       className={`tz-panel tz-panel-${index} tz-${card.color} ${card.art ? "" : "tz-reading"}`}
       data-panel={index}
       data-destination={card.id || undefined}
+      style={surfaceStyle(features)}
       {...(card.id
         ? {
             onClick: (e) => onOpen(card.id, e.currentTarget),
@@ -147,6 +151,7 @@ function Panel({ card, index, isHome, onOpen }) {
           }
         : {})}
     >
+      <PanelSurface features={features} />
       <div className="tz-panel-content">
         <div className="tz-panel-top">
           <span>{card.kicker}</span>
@@ -207,8 +212,14 @@ export default function Takezo() {
   const [expanded, setExpanded] = useState(null);
   const [boardSize, setBoardSize] = useState({ width: 1, height: 1 });
   const node = nodes[view];
-  const mosaic = view !== "home";
-  const rectangles = mosaic ? layoutFor(node) : null;
+  const adaptiveHome = view === "home" && node.cards.some((card) => {
+    const features = panelFeatures(card, node.panelDefaults);
+    return features.logo || features.max;
+  });
+  const mosaic = view !== "home" || adaptiveHome;
+  const rectangles = mosaic ? layoutFor(adaptiveHome ? {
+    ...node, layout: node.layout || [[1, 1, 2, 6], [3, 1, 4, 3], [3, 4, 2, 3], [5, 4, 2, 3]],
+  } : node) : null;
   const active = !busy && expanded?.view === view ? expanded.index : -1;
   const [reduced, setReduced] = useState(
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -220,6 +231,7 @@ export default function Takezo() {
   const current = useRef(target);
   const heading = useRef(null);
   const initial = useRef(true);
+  const hoverPoint = useRef(null);
 
   useLayoutEffect(() => {
     if (!mosaic) return;
@@ -228,6 +240,7 @@ export default function Takezo() {
       setBoardSize({
         width: element.clientWidth,
         height: element.clientHeight,
+        gap: parseFloat(getComputedStyle(element).columnGap) || 0,
       });
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -442,16 +455,20 @@ export default function Takezo() {
         </div>
       </div>
       <div
-        className={`tz-board ${view === "home" ? "tz-home" : "tz-mosaic"} ${busy ? "tz-busy" : ""}`}
+        className={`tz-board ${mosaic ? "tz-mosaic" : "tz-home"} ${busy ? "tz-busy" : ""}`}
         style={
           mosaic
-            ? trackStyle(rectangles, active, boardSize.width, boardSize.height)
+            ? trackStyle(rectangles, active, boardSize.width, boardSize.height,
+                active >= 0 && panelFeatures(node.cards[active], node.panelDefaults).max, boardSize.gap)
             : undefined
         }
         onPointerLeave={
           mosaic
             ? (e) => {
-                if (e.pointerType === "mouse") setExpanded(null);
+                if (e.pointerType === "mouse") {
+                  hoverPoint.current = null;
+                  setExpanded(null);
+                }
               }
             : undefined
         }
@@ -478,11 +495,18 @@ export default function Takezo() {
               index={index}
               rect={rectangles[index]}
               expanded={active === index}
-              onExpand={(index) =>
-                setExpanded(index < 0 ? null : { view, index })
-              }
+              onExpand={(index, event) => {
+                if (event) {
+                  const previous = hoverPoint.current;
+                  // Moving grid edges must not select panels beneath a still pointer.
+                  if (previous && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 2) return;
+                  hoverPoint.current = { x: event.clientX, y: event.clientY };
+                }
+                setExpanded(index < 0 ? null : { view, index });
+              }}
               onOpen={open}
               artwork={Artwork}
+              features={panelFeatures(card, node.panelDefaults)}
             />
           ) : (
             <Panel
@@ -491,6 +515,7 @@ export default function Takezo() {
               index={index}
               isHome={view === "home"}
               onOpen={open}
+              features={panelFeatures(card, node.panelDefaults)}
             />
           ),
         )}

@@ -1,7 +1,27 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { nodes, trailFor } from "./takezoData.js";
-import { layoutFor, expandedTracks, generateLayout } from "./mosaicLayout.js";
+import { layoutFor, expandedTracks, generateLayout, maximumTracks } from "./mosaicLayout.js";
+import { panelFeatures } from "./panelFeatures.js";
+
+test("maximum expansion leaves the minimum track size without overflow", () => {
+  for (const pixels of [180, 390, 1200]) {
+    for (let span = 1; span < 6; span++) {
+      const tracks = maximumTracks(1, span, pixels, 8);
+      const available = pixels - 40;
+      assert.ok(tracks.every((n) => n > 0));
+      assert.ok(Math.abs(tracks.reduce((a, b) => a + b) - 6) < 1e-9);
+      assert.ok(Math.abs(tracks[5] * available / 6 - Math.min(available / 6, pixels < 600 ? 28 : 44)) < 1e-9);
+    }
+  }
+});
+
+test("panel tags inherit page defaults and allow explicit opt-out", () => {
+  const defaults = { tags: ["logo", "gradient", "Dirty", "expansion-max"] };
+  assert.equal(panelFeatures({ color: "red" }, defaults).max, true);
+  assert.equal(panelFeatures({ color: "red", tags: [] }, defaults).logo, null);
+  assert.equal(panelFeatures({ color: "red", tags: ["Halftone"] }, defaults).overlay, "Halftone");
+});
 
 test("every inner page tiles all 36 cells exactly once", () => {
   for (const [id, node] of Object.entries(nodes)) {

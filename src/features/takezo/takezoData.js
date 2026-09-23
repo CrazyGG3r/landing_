@@ -532,6 +532,22 @@ nodes.process = {
   })),
 };
 
+// Modular surface studies. Home intentionally has no feature defaults.
+nodes.materials.panelDefaults = { tags: ["logo", "gradient", "Dirty", "expansion-max"] };
+nodes.atlas.panelDefaults = { tags: ["logo", "gradient", "Halftone", "expansion-max"] };
+nodes.process.panelDefaults = { tags: ["logo", "gradient", "Halftone", "expansion-max"] };
+nodes.nine.panelDefaults = { tags: ["gradient", "Dirty"] };
+["materials", "atlas", "process"].forEach((id) => {
+  nodes[id].cards.forEach((panel, i) => {
+    panel.logo = ["/images/takezo/mark.svg", "/images/takezo/orbit.svg", "/images/takezo/fold.svg"][i % 3];
+  });
+});
+Object.assign(nodes.work.cards[0], {
+  tags: ["logo", "gradient", "Halftone", "expansion-max"],
+  logo: "/images/takezo/fold.svg",
+});
+Object.assign(nodes.work.cards[1], { tags: ["gradient", "Dirty"], baseColor: "#B95745" });
+
 export function trailFor(id) {
   const trail = [];
   for (let key = id; key; key = nodes[key].parent) trail.unshift(key);

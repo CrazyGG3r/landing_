@@ -344,11 +344,13 @@
   pointer-events: none;
   background: linear-gradient(
     110deg,
-    transparent 38%,
-    #fff8d900 45%,
-    #fff8d955 49%,
-    #fff8d900 55%,
-    transparent 62%
+    transparent 36%,
+    #fff8d900 42%,
+    #fff8d92e 46%,
+    #fffef0ad 50%,
+    #fff8d944 54%,
+    #fff8d900 61%,
+    transparent 66%
   );
   transform: translateX(-75%) rotate(-10deg);
   z-index: 5;
@@ -465,7 +467,7 @@
     grid-template-rows: minmax(0, 1fr) minmax(0, 1.06fr);
   }
   .tz-panel:is(button):hover::after {
-    animation: tz-shine 0.58s ease-out;
+    animation: tz-shine 1.2s cubic-bezier(0.85, 0, 0.15, 1);
   }
   .tz-panel:is(button):hover .tz-sculpture {
     transform: translate(-4px, -6px) rotate(3deg);

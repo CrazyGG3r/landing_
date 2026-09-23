@@ -85,6 +85,7 @@
   white-space: normal;
   overflow-wrap: anywhere;
   text-align: left;
+  transition: opacity 90ms ease-out;
 }
 .tz-adaptive[data-vertical="true"] .tz-adaptive-title {
   justify-content: center;
@@ -102,6 +103,8 @@
 .tz-adaptive-interior {
   opacity: 0;
   visibility: hidden;
+  transform: translateY(7px) scale(0.975);
+  filter: blur(2px);
   min-height: 0;
   min-width: 0;
   overflow: hidden;
@@ -110,13 +113,21 @@
   align-items: end;
   gap: 14px;
   transition:
-    opacity 0.2s ease,
-    visibility 0.2s;
+    opacity 0.16s ease-out,
+    transform 0.2s cubic-bezier(0.4, 0, 1, 1),
+    filter 0.16s ease-out,
+    visibility 0s linear 0.2s;
+  will-change: opacity, transform, filter;
 }
 .tz-adaptive-interior p {
   font-size: clamp(11px, 1.1vw, 15px);
   line-height: 1.45;
   text-align: left;
+  opacity: 0;
+  transform: translateY(5px);
+  transition:
+    opacity 0.13s ease-out,
+    transform 0.16s ease-out;
 }
 .tz-adaptive-interior:not(:has(.tz-adaptive-art)) {
   grid-template-columns: minmax(0, 1fr);
@@ -129,6 +140,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0;
+  transform: scale(0.92) rotate(-1.5deg);
+  transition:
+    opacity 0.14s ease-out,
+    transform 0.2s cubic-bezier(0.4, 0, 1, 1);
+  will-change: opacity, transform;
 }
 .tz-mosaic .tz-adaptive-art .tz-art {
   position: relative;
@@ -139,6 +156,9 @@
   max-width: 100%;
   opacity: 0.9;
   filter: none;
+  transition:
+    opacity 0.16s ease-out,
+    transform 0.24s cubic-bezier(0.22, 0.8, 0.2, 1);
 }
 .tz-adaptive[data-full="true"] .tz-adaptive-content {
   grid-template-rows: auto minmax(0, 0.85fr) minmax(0, 1fr) auto;
@@ -146,7 +166,27 @@
 .tz-adaptive[data-full="true"] .tz-adaptive-interior {
   opacity: 1;
   visibility: visible;
-  transition-delay: 0.12s;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+  transition:
+    visibility 0s,
+    opacity 0.2s ease-out 0.1s,
+    transform 0.28s cubic-bezier(0.22, 0.8, 0.2, 1) 0.07s,
+    filter 0.2s ease-out 0.07s;
+}
+.tz-adaptive[data-full="true"] .tz-adaptive-interior p {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.2s ease-out 0.14s,
+    transform 0.24s cubic-bezier(0.22, 0.8, 0.2, 1) 0.12s;
+}
+.tz-adaptive[data-full="true"] .tz-adaptive-art {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+  transition:
+    opacity 0.22s ease-out 0.11s,
+    transform 0.3s cubic-bezier(0.22, 0.8, 0.2, 1) 0.08s;
 }
 .tz-adaptive[data-expanded="true"] .tz-adaptive-header > span:first-child,
 .tz-adaptive[data-expanded="true"] .tz-adaptive-footer > span:first-child {
@@ -201,12 +241,20 @@
   }
 }
 .tz-reduced .tz-mosaic,
-.tz-reduced .tz-adaptive-interior {
+.tz-reduced .tz-adaptive-title h2,
+.tz-reduced .tz-adaptive-interior,
+.tz-reduced .tz-adaptive-interior p,
+.tz-reduced .tz-adaptive-art,
+.tz-reduced .tz-adaptive-art .tz-art {
   transition: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .takezo .tz-mosaic,
-  .takezo .tz-adaptive-interior {
+  .takezo .tz-adaptive-title h2,
+  .takezo .tz-adaptive-interior,
+  .takezo .tz-adaptive-interior p,
+  .takezo .tz-adaptive-art,
+  .takezo .tz-adaptive-art .tz-art {
     transition: none;
   }
 }

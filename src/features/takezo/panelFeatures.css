@@ -1,0 +1,103 @@
+/* Surface layers stay below the reading plane, clipped by the panel itself. */
+.tz-surface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+  mask-image: linear-gradient(135deg, transparent 12%, #0008 60%, #000 100%);
+}
+.tz-surface-texture {
+  position: absolute;
+  right: -14px;
+  bottom: -14px;
+  width: max(100%, 440px);
+  height: max(100%, 440px);
+  background: var(--panel-dark);
+  mask: var(--texture) right bottom / cover no-repeat;
+  opacity: .22;
+  transform: translate(0, 0);
+  transition: transform .65s cubic-bezier(.22,.8,.2,1), opacity .4s ease;
+}
+.tz-surface[data-overlay="Dirty"] .tz-surface-texture {
+  width: max(100%, 680px);
+  opacity: .3;
+}
+.tz-surface[data-overlay="Dirty"] .tz-surface-shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at bottom right, var(--panel-dark), transparent 72%);
+  opacity: .13;
+}
+.tz-panel:is(:hover, :focus-visible, [data-expanded="true"]) .tz-surface-texture {
+  transform: translate(-10px, -7px);
+  opacity: .16;
+}
+.tz-panel:has(.tz-surface) > :is(.tz-panel-content, .tz-adaptive-content) {
+  z-index: 1;
+}
+.tz-title-composition {
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+.tz-title-composition .tz-adaptive-title { flex: 1; }
+.tz-compact-logo {
+  position: absolute;
+  width: min(50%, 64px);
+  height: min(50%, 64px);
+  opacity: 0;
+  background: currentColor;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  transform: scale(.9);
+  transition: opacity .22s ease, transform .3s ease;
+  pointer-events: none;
+}
+.tz-adaptive[data-logo-mode="icon"] .tz-compact-logo {
+  width: min(70%, 72px);
+  height: 80%;
+  left: 50%;
+  top: 50%;
+  opacity: .9;
+  transform: translate(-50%, -50%) scale(1);
+}
+.tz-adaptive[data-logo-mode="icon"] .tz-adaptive-title { opacity: 0; }
+.tz-adaptive[data-micro="true"]:not([data-expanded="true"]) .tz-adaptive-content {
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+  padding: 5px;
+}
+.tz-adaptive[data-micro="true"]:not([data-expanded="true"]) :is(.tz-adaptive-header, .tz-adaptive-footer, .tz-adaptive-interior) { display: none; }
+.tz-adaptive-title { transition: opacity .18s ease; }
+.tz-adaptive[data-logo-mode="above"] .tz-title-composition {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.tz-adaptive[data-logo-mode="above"] .tz-compact-logo {
+  position: relative;
+  flex: 0 1 52px;
+  min-height: 0;
+  width: min(70%, 52px);
+  height: 52px;
+  align-self: center;
+  opacity: .65;
+  transform: scale(1);
+}
+.tz-adaptive[data-logo-mode="left"] .tz-title-composition { gap: 16px; }
+.tz-adaptive[data-logo-mode="left"] .tz-compact-logo {
+  position: relative;
+  flex: 0 0 min(15%, 64px);
+  width: 64px;
+  height: 100%;
+  opacity: .65;
+  transform: scale(1);
+}
+.tz-reduced :is(.tz-surface-texture, .tz-compact-logo, .tz-adaptive-title) { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .takezo :is(.tz-surface-texture, .tz-compact-logo, .tz-adaptive-title) { transition: none; }
+}
