@@ -4,11 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run takezo:artworks && vite",
+    "build": "npm run takezo:artworks && vite build",
     "lint": "eslint .",
     "assets:check": "node scripts/check-critical-assets.mjs",
     "takezo:showcase": "python scripts/build-takezo-showcase.py",
+    "takezo:artworks": "node scripts/build-takezo-artworks.mjs",
     "check": "npm run lint && npm run assets:check && npm run build",
     "preview": "vite preview"
   },

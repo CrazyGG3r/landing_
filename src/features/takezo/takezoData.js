@@ -1,5 +1,6 @@
 import { layouts } from "./mosaicLayout.js";
 import showcase from "./showcaseManifest.js";
+import artworks from "./artworkManifest.js";
 
 const card = (id, title, kicker, color, art, description) => ({
   id,
@@ -563,8 +564,8 @@ const showcaseByYear = [...showcase].map((project, index) => ({ project, index }
   .map(({ project }) => project);
 
 nodes.gallery = {
-  title: "The showcase",
-  parent: "work",
+  title: "Projects",
+  parent: "home",
   mode: "gallery",
   cards: showcaseByYear.map((project) => ({
     ...card(`showcase-${project.id}`, project.title, project.year, "bone", null, project.short),
@@ -576,6 +577,25 @@ showcase.forEach((project) => {
     title: project.title,
     parent: "gallery",
     mode: project.video ? "video" : "image",
+    project,
+    cards: [card(null, project.title, project.year, "bone", null, project.short)],
+  };
+});
+
+nodes.artworks = {
+  title: "Artworks",
+  parent: "home",
+  mode: "artworks-gallery",
+  cards: artworks.map((project) => ({
+    ...card(`artwork-${project.id}`, project.title, project.year, "bone", null, project.short),
+    project,
+  })),
+};
+artworks.forEach((project) => {
+  nodes[`artwork-${project.id}`] = {
+    title: project.title,
+    parent: "artworks",
+    mode: "image",
     project,
     cards: [card(null, project.title, project.year, "bone", null, project.short)],
   };
@@ -604,6 +624,63 @@ These are sample portfolio notes, intended to demonstrate the reading behavior. 
     { tag: "hovered", text: readingStudy },
   ];
 });
+
+Object.assign(nodes.home.cards[3], {
+  tags: ["breakdown"],
+  breakdown: {
+    caption: "Connect\nOn",
+    links: [
+      { name: "X", icon: "/images/socials/x.svg", href: "https://x.com/RentAsunderer" },
+      { name: "Facebook", icon: "/images/socials/facebook.svg", href: "https://www.facebook.com/profile.php?id=61587874779147" },
+      { name: "itch.io", icon: "/images/socials/itch.svg", iconScale: 1.2, href: "https://takezoshinmen.itch.io/" },
+      { name: "LinkedIn", icon: "/images/socials/linkedin.svg", href: "https://www.linkedin.com/in/muhammad-uzair-940685172/" },
+      { name: "Instagram", icon: "/images/socials/instagram.svg", href: "https://www.instagram.com/rentasundererx/" },
+      { name: "Sketchfab", icon: "/images/socials/sketchfab.svg", href: "https://sketchfab.com/takezoshinmen" },
+      { name: "ArtStation", icon: "/images/socials/artstation.svg", iconScale: 1.85, href: "https://takezoshinmenx.artstation.com/" },
+      { name: "Discord", icon: "/images/socials/discord.svg", href: "https://discord.com/users/436117892816175134" },
+    ],
+  },
+});
+
+Object.assign(nodes.home.cards[1], {
+  title: "SHOWCASE",
+  kicker: "02 / THE SHOWCASE",
+  description: "Projects and artworks, gathered in one place.",
+  tags: ["breakdown"],
+  breakdown: {
+    layout: "strips",
+    ariaLabel: "Showcase gallery choices",
+    strips: [
+      { name: "SHOWCASE\nGALLERY", arrow: true },
+      { name: "PROJECTS", destination: "gallery" },
+      { name: "ARTWORKS", destination: "artworks" },
+    ],
+  },
+});
+
+const skills = [
+  ["Blender", "Blender"], ["JavaScript", "JS"], ["Adobe Photoshop", "PS"],
+  ["Substance 3D", "SP3D"], ["Unity 3D", "Unity3D"],
+  ["ZBrush", "ZBrush"], ["Adobe After Effects", "AE"],
+  ["Marvelous Designer 3D", "MD3D"],
+];
+Object.assign(nodes.home.cards[2], {
+  title: "SKILLSET",
+  kicker: "03 / THE SKILLSET",
+  description: "A toolkit in constant motion.",
+  tags: ["breakdown"],
+  breakdown: {
+    ariaLabel: "Skillset",
+    centre: { name: "Adept\nat", destination: "skillset" },
+    links: skills.map(([name, icon]) => ({ name, icon: `/takezo/${icon}.svg` })),
+  },
+});
+nodes.skillset = {
+  title: "Skillset",
+  parent: "home",
+  layout: layouts.cabinet,
+  cards: skills.map(([name, icon], index) => card(null, name.toUpperCase(), `03.${index + 1} / TOOL`, ["sage", "bone", "ochre", "red"][index % 4], `skill:${icon}`, "Tools for form, motion, and interaction.")),
+};
 
 export function trailFor(id) {
   const trail = [];

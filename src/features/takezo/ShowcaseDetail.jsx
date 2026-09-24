@@ -60,7 +60,7 @@ export function ProjectInfo({ project, reduced }) {
     <PanelSurface features={infoSurface} />
     <button type="button" className="tz-info-tab" aria-expanded={pinned}
       onClick={() => setPinned((value) => !value)}>
-      <span>PROJECT / INFO</span><span aria-hidden="true">{pinned ? "→" : "←"}</span>
+      <span>{project.kind === "artwork" ? "ARTWORK / INFO" : "PROJECT / INFO"}</span><span aria-hidden="true">{pinned ? "→" : "←"}</span>
     </button>
     <div ref={body} className="tz-info-body" onScroll={updateEdges} onWheel={stopNavigation} onTouchStart={stopNavigation}>
       <div className="tz-info-content">

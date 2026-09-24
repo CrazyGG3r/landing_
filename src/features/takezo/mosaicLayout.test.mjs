@@ -52,7 +52,7 @@ test("showcase project media and software marks resolve locally", () => {
 
 test("every inner page tiles all 36 cells exactly once", () => {
   for (const [id, node] of Object.entries(nodes)) {
-    if (id === "home") continue;
+    if (id === "home" || node.mode) continue;
     const occupied = new Set();
     for (const [x, y, w, h] of layoutFor(node)) {
       assert.ok(
@@ -73,6 +73,13 @@ test("every inner page tiles all 36 cells exactly once", () => {
     });
   }
   assert.equal(nodes.atlas.cards.length, 36);
+});
+
+test("artwork gallery starts empty and its media folders exist", () => {
+  assert.equal(nodes.artworks.mode, "artworks-gallery");
+  assert.deepEqual(nodes.artworks.cards, []);
+  assert.ok(existsSync(resolve("public/takezo/showcase/artworks/images")));
+  assert.ok(existsSync(resolve("public/takezo/showcase/artworks/thumbnails")));
 });
 
 test("expansion preserves the track budget and gives every neighbor space", () => {

@@ -14,10 +14,13 @@ import ShowcaseGallery from "./ShowcaseGallery";
 import { ImageDetail, VideoDetail } from "./ShowcaseDetail";
 import "./showcase.css";
 import useMotionPreference from "./useMotionPreference";
+import BreakdownPanel from "./BreakdownPanel";
 import "./motion.css";
 
 function Artwork({ kind }) {
   const artId = useId().replaceAll(":", "");
+  if (kind?.startsWith("skill:"))
+    return <img className="tz-art tz-skill-art" src={`/takezo/${kind.slice(6)}.svg`} alt="" aria-hidden="true" />;
   if (kind === "gallery")
     return <span className="tz-art tz-gallery-symbol" aria-hidden="true" />;
   if (kind === "arrow")
@@ -143,14 +146,15 @@ function Artwork({ kind }) {
 }
 
 function Panel({ card, index, isHome, onOpen, features }) {
-  const Tag = card.id ? "button" : "article";
+  const breakdown = card.tags?.includes("breakdown") && card.breakdown;
+  const Tag = breakdown ? BreakdownPanel : card.id ? "button" : "article";
   return (
     <Tag
       className={`tz-panel tz-panel-${index} tz-${card.color} ${card.art ? "" : "tz-reading"}`}
       data-panel={index}
       data-destination={card.id || undefined}
       style={surfaceStyle(features)}
-      {...(card.id
+      {...(breakdown ? { breakdown, onOpen } : card.id
         ? {
             onClick: (e) => onOpen(card.id, e.currentTarget),
             type: "button",
@@ -292,8 +296,9 @@ export default function Takezo() {
     const panels = [...board.current.querySelectorAll(".tz-panel")];
     let activePanels = panels;
     const previousView = current.current;
-    const returnToGallery = target === "gallery" && ["image", "video"].includes(nodes[previousView].mode);
-    if (target === "gallery") galleryFocus.current = returnToGallery ? previousView : null;
+    const galleryTarget = target === "gallery" || target === "artworks";
+    const returnToGallery = galleryTarget && nodes[previousView].parent === target && ["image", "video"].includes(nodes[previousView].mode);
+    if (galleryTarget) galleryFocus.current = returnToGallery ? previousView : null;
     const selected = source.current?.isConnected
       ? source.current
       : panels.find((panel) => panel.dataset.destination === target) ||
@@ -438,7 +443,7 @@ export default function Takezo() {
       )
       .call(() => {
         commit();
-        const next = [...board.current.querySelectorAll(target === "gallery"
+        const next = [...board.current.querySelectorAll(galleryTarget
           ? ".tz-gallery-cycle:nth-child(2) .tz-panel"
           : ".tz-panel")];
         activePanels = next;
@@ -574,7 +579,7 @@ export default function Takezo() {
         inert={busy ? true : undefined}
         key={view}
       >
-        {special === "gallery" ? <ShowcaseGallery cards={node.cards} onOpen={open} reduced={reduced} paused={busy} focusId={galleryFocus.current} />
+        {special === "gallery" || special === "artworks-gallery" ? <ShowcaseGallery cards={node.cards} onOpen={open} reduced={reduced} paused={busy} focusId={galleryFocus.current} artwork={special === "artworks-gallery"} />
           : special === "image" ? <ImageDetail project={node.project} reduced={reduced} />
           : special === "video" ? <VideoDetail project={node.project} ready={!busy} reduced={reduced} />
           : node.cards.map((card, index) =>

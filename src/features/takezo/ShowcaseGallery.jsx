@@ -15,7 +15,7 @@ function Preview({ project }) {
     style={{ animationDuration: `${duration}s`, animationDelay: `${1.2 - index * 2.8}s` }} />);
 }
 
-export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false, focusId = null }) {
+export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false, focusId = null, artwork = false }) {
   const viewport = useRef(null);
   const rail = useRef(null);
   const position = useRef(0);
@@ -33,7 +33,9 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
       setHeight(root.clientHeight);
       cycle.current = rail.current.firstElementChild.getBoundingClientRect().width + 18;
       const middleCards = [...rail.current.children[1].children];
-      const focusIndex = Math.max(0, middleCards.findIndex((card) => card.dataset.destination === focusId));
+      const focusIndex = Math.max(0, middleCards.findIndex((card) => artwork
+        ? card.querySelector(`[data-destination="${focusId}"]`)
+        : card.dataset.destination === focusId));
       const focusWidth = middleCards[focusIndex]?.getBoundingClientRect().width || 0;
       const offset = middleCards.slice(0, focusIndex).reduce((sum, card) => sum + card.getBoundingClientRect().width + 18, 0);
       position.current = -cycle.current - offset + (root.clientWidth - focusWidth) / 2;
@@ -43,7 +45,7 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
     observer.observe(root);
     measure();
     return () => observer.disconnect();
-  }, [cards, height, focusId]);
+  }, [cards, height, focusId, artwork]);
 
   const paintPosition = () => {
     const width = cycle.current;
@@ -112,13 +114,13 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
     };
   }, [cards, paused, reduced]);
 
-  const instances = (clone) => cards.map((card, index) => {
+  const makeCard = (card, index, clone, artworkHeight) => {
     const project = card.project;
     const ratio = project.video ? 16 / 9 : project.images[0].width / project.images[0].height;
-    const width = Math.max(210, Math.min(750, height * .72 * ratio));
+    const width = artwork ? Math.max(160, Math.min(480, height * .27 * ratio)) : Math.max(210, Math.min(750, height * .72 * ratio));
     return <button key={`${clone}-${card.id}`} type="button" className="tz-panel tz-gallery-card"
       data-panel={index} data-destination={card.id} tabIndex={clone === 1 ? 0 : -1}
-      style={{ width: `${width}px` }} onClick={(e) => { if (!dragged.current) onOpen(card.id, e.currentTarget); }}
+      style={{ width: artwork ? undefined : `${width}px`, height: artwork ? `${artworkHeight}px` : undefined }} onClick={(e) => { if (!dragged.current) onOpen(card.id, e.currentTarget); }}
       aria-label={`View ${project.title}`}>
       <span className="tz-gallery-media-wrap" data-count={project.images.length}><Preview project={project} /></span>
       <span className="tz-gallery-caption">
@@ -130,9 +132,22 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
       <span className="tz-gallery-year">{project.year}</span>
       <span className="tz-gallery-arrow" aria-hidden="true">↗</span>
     </button>;
-  });
+  };
+  const instances = (clone) => artwork
+    ? (cards.length ? Array.from({ length: Math.ceil(cards.length / 3) }, (_, column) => {
+        const group = cards.slice(column * 3, column * 3 + 3);
+        const ratios = group.map((card) => card.project.images[0].width / card.project.images[0].height);
+        const available = height * .9 - 18 * (group.length - 1);
+        const width = Math.max(130, Math.min(780, available / ratios.reduce((sum, ratio) => sum + 1 / ratio, 0)));
+        return <div className="tz-artwork-column" key={`${clone}-column-${column}`} style={{ width }}>
+          {group.map((card, row) => makeCard(card, column * 3 + row, clone, width / ratios[row]))}
+        </div>;
+      }) : <div className="tz-artwork-column tz-artwork-empty-column" key={`${clone}-empty`}>
+        <div className="tz-panel tz-artwork-empty"><span>ARTWORKS / 00</span><strong>A SPACE<br />FOR WHAT’S NEXT.</strong><small>New work will appear here.</small></div>
+      </div>)
+    : cards.map((card, index) => makeCard(card, index, clone));
 
-  return <section className="tz-showcase-gallery" ref={viewport} aria-label="Project gallery"
+  return <section className={`tz-showcase-gallery ${artwork ? "tz-artwork-gallery" : ""}`} ref={viewport} aria-label={artwork ? "Artwork gallery" : "Project gallery"}
     onPointerDown={(e) => {
       dragged.current = false;
       if (e.pointerType === "mouse") return;
@@ -176,6 +191,6 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
           aria-hidden={clone !== 1 || undefined}>{instances(clone)}</div>)}
       </div>
     </div>
-    <div className="tz-gallery-guide" aria-hidden="true"><span>← EXPLORE</span><span>SHOWCASE / {cards.length} PROJECTS</span><span>EXPLORE →</span></div>
+    <div className="tz-gallery-guide" aria-hidden="true"><span>← EXPLORE</span><span>{artwork ? "ARTWORKS" : "SHOWCASE"} / {cards.length} {artwork ? "PIECES" : "PROJECTS"}</span><span>EXPLORE →</span></div>
   </section>;
 }
