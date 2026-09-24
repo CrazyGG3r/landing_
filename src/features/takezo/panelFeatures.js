@@ -5,8 +5,9 @@ export function panelFeatures(card, defaults = {}) {
   const options = { ...defaults, ...card };
   const tags = new Set(options.tags || []);
   return {
-    logo: tags.has("logo") ? options.logo || "/images/takezo/mark.svg" : null,
+    logo: tags.has("logo") ? options.logo || "/takezo/mark.svg" : null,
     max: tags.has("expansion-max"),
+    cursorRead: tags.has("cursor-read"),
     gradient: tags.has("gradient"),
     overlay: tags.has("Dirty") ? "Dirty" : tags.has("Halftone") ? "Halftone" : null,
     base: /^#[0-9a-f]{6}$/i.test(options.baseColor || "") ? options.baseColor : palette[card.color] || palette.red,

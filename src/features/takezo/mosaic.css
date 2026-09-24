@@ -80,12 +80,12 @@
   max-width: 100%;
   width: 100%;
   font-weight: 700;
-  line-height: 0.98;
+  line-height: 1.08;
   letter-spacing: -0.055em;
   white-space: normal;
   overflow-wrap: anywhere;
   text-align: left;
-  transition: opacity 90ms ease-out;
+
 }
 .tz-adaptive[data-vertical="true"] .tz-adaptive-title {
   justify-content: center;
@@ -257,4 +257,72 @@
   .takezo .tz-adaptive-art .tz-art {
     transition: none;
   }
+}
+
+/* The reading viewport owns overflow; the title and panel padding never do. */
+.tz-adaptive[data-full="false"] .tz-adaptive-interior,
+.tz-adaptive[data-compressed="true"] .tz-adaptive-interior {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+.tz-adaptive[data-full="false"] .tz-copy-layer { visibility: hidden !important; pointer-events: none; }
+.tz-adaptive[data-full="true"] .tz-adaptive-content {
+  grid-template-rows: auto minmax(0, .55fr) minmax(0, 1fr) auto;
+}
+.tz-adaptive-interior { align-items: stretch; }
+.tz-copy-layers {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+}
+.tz-copy-layer {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity .16s ease-out, visibility 0s linear .16s;
+}
+.tz-copy-layers[data-reading="unhovered"] .tz-copy-summary,
+.tz-copy-layers[data-reading="hovered"] .tz-copy-detail {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity .16s ease-out;
+}
+.tz-copy-summary { display: flex; align-items: flex-end; overflow: hidden; }
+.tz-copy-detail { overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.tz-copy-detail::-webkit-scrollbar { display: none; }
+.tz-copy-flow { min-height: 100%; padding: 8px 0; }
+.tz-adaptive .tz-copy-layers p {
+  margin: 0;
+  white-space: pre-line;
+  font-size: clamp(12px, 1.15vw, 16px);
+  line-height: 1.5;
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+.tz-copy-detail[data-axis="x"] .tz-copy-flow {
+  height: 100%;
+  min-height: 0;
+  column-width: 240px;
+  column-gap: 28px;
+  column-fill: auto;
+}
+.tz-copy-detail[data-overflow="true"][data-axis="y"] {
+  mask-image: linear-gradient(to bottom, var(--reading-start, transparent), #000 min(18%, 56px), #000 calc(100% - min(18%, 56px)), var(--reading-end, transparent));
+}
+.tz-copy-detail[data-overflow="true"][data-axis="x"] {
+  mask-image: linear-gradient(to right, var(--reading-start, transparent), #000 min(18%, 72px), #000 calc(100% - min(18%, 72px)), var(--reading-end, transparent));
+}
+.tz-copy-detail[data-start="true"] { --reading-start: #000; }
+.tz-copy-detail[data-end="true"] { --reading-end: #000; }
+@container (max-width: 300px) {
+  .tz-adaptive-interior { grid-template-rows: minmax(0, .8fr) minmax(0, 1fr); }
+  .tz-adaptive-interior:not(:has(.tz-adaptive-art)) { grid-template-rows: minmax(0, 1fr); }
 }

@@ -1,4 +1,5 @@
 import { layouts } from "./mosaicLayout.js";
+import showcase from "./showcaseManifest.js";
 
 const card = (id, title, kicker, color, art, description) => ({
   id,
@@ -339,7 +340,7 @@ Object.entries(details).forEach(
 
 // Home deliberately retains its original composition and content.
 Object.assign(nodes.identity, { layout: layouts.spire });
-Object.assign(nodes.work, { layout: layouts.work });
+Object.assign(nodes.work, { layout: layouts.workGallery });
 nodes.work.cards.push(
   card(
     "archive",
@@ -358,6 +359,12 @@ nodes.work.cards.push(
     "Six stages. One continuous thread from the initial question to the final detail.",
   ),
 );
+nodes.work.cards.push({
+  ...card("gallery", "GALLERY", "02.6 / THE GALLERY", "ochre", "gallery",
+    "Thirteen projects. Images, motion, and work in progress."),
+  tags: ["logo", "gradient", "Halftone", "expansion-max"],
+  logo: "/takezo/gallery.svg",
+});
 Object.assign(nodes.experiments, { layout: layouts.cabinet });
 nodes.experiments.cards.push(
   card(
@@ -539,14 +546,64 @@ nodes.process.panelDefaults = { tags: ["logo", "gradient", "Halftone", "expansio
 nodes.nine.panelDefaults = { tags: ["gradient", "Dirty"] };
 ["materials", "atlas", "process"].forEach((id) => {
   nodes[id].cards.forEach((panel, i) => {
-    panel.logo = ["/images/takezo/mark.svg", "/images/takezo/orbit.svg", "/images/takezo/fold.svg"][i % 3];
+    panel.logo = ["/takezo/mark.svg", "/takezo/orbit.svg", "/takezo/fold.svg"][i % 3];
   });
 });
 Object.assign(nodes.work.cards[0], {
   tags: ["logo", "gradient", "Halftone", "expansion-max"],
-  logo: "/images/takezo/fold.svg",
+  logo: "/takezo/fold.svg",
 });
 Object.assign(nodes.work.cards[1], { tags: ["gradient", "Dirty"], baseColor: "#B95745" });
+
+const showcaseByYear = [...showcase].map((project, index) => ({ project, index }))
+  .sort((a, b) => {
+    const latestYear = (item) => Math.max(0, ...[...item.project.year.matchAll(/\b(?:19|20)\d{2}\b/g)].map(([year]) => Number(year)));
+    return latestYear(b) - latestYear(a) || b.index - a.index;
+  })
+  .map(({ project }) => project);
+
+nodes.gallery = {
+  title: "The showcase",
+  parent: "work",
+  mode: "gallery",
+  cards: showcaseByYear.map((project) => ({
+    ...card(`showcase-${project.id}`, project.title, project.year, "bone", null, project.short),
+    project,
+  })),
+};
+showcase.forEach((project) => {
+  nodes[`showcase-${project.id}`] = {
+    title: project.title,
+    parent: "gallery",
+    mode: project.video ? "video" : "image",
+    project,
+    cards: [card(null, project.title, project.year, "bone", null, project.short)],
+  };
+});
+
+const readingStudy = `A practice built around attention.
+
+Every project begins by looking closely at the people who will use it. What do they notice first? What do they need to understand? Where does the experience ask for too much effort? These questions guide the composition before color, typography, or movement enters the picture.
+
+The first direction is deliberately tangible. A sketch becomes a small working surface: a sequence of panels, a relationship between words, or a movement that makes an idea easier to follow. The purpose is to discover what the design actually feels like in use. A polished still image can suggest a direction, but interaction reveals whether that direction holds together.
+
+Form and behavior develop together. A compact mark becomes a recognizable point of return. A title gives each space a clear identity. Supporting text offers enough context to invite exploration, then reveals more when the reader chooses to spend time with it. The composition should make these changes feel like parts of the same object.
+
+The quieter decisions matter just as much. Internal margins protect the words. Type follows the available space without asking the reader to wait. Surface texture adds character while leaving the reading area calm. Movement communicates which object is active and how it relates to the surrounding pieces.
+
+Refinement means checking the edges of the experience. Move quickly between panels. Read it on a narrow screen. Use a keyboard. Return to the beginning. A system that works only when approached in one perfect way is still a sketch. The finished direction must remain understandable when the reader brings their own pace.
+
+These are sample portfolio notes, intended to demonstrate the reading behavior. The final case studies can replace them with project context, decisions, observations, and outcomes. Each panel can carry its own short introduction and extended narrative while sharing the same responsive structure.`;
+[[nodes.work.cards[0], "A collection of ideas made tangible."],
+ [nodes.work.cards[1], "A human interface for a world of information."],
+ [nodes.materials.cards[0], "Space gives the surrounding forms room to speak."],
+ [nodes.process.cards[0], "Observe closely before choosing a direction."]].forEach(([panel, summary]) => {
+  panel.tags = [...(panel.tags || ["logo", "gradient", "Dirty", "expansion-max"]), "cursor-read"];
+  panel.content = [
+    { tag: "unhovered", text: summary },
+    { tag: "hovered", text: readingStudy },
+  ];
+});
 
 export function trailFor(id) {
   const trail = [];

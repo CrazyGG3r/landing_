@@ -27,7 +27,7 @@ Set `tags` on a card, or `panelDefaults` on a node to apply features to every ca
 ```js
 panelDefaults: {
   tags: ["logo", "expansion-max", "gradient", "Dirty"],
-  logo: "/images/takezo/mark.svg",
+  logo: "/takezo/mark.svg",
   baseColor: "#B95745",
 }
 ```
@@ -38,8 +38,38 @@ A card inherits the defaults and can override `logo` or `baseColor`. A card's ex
 - `expansion-max`: all tracks outside the selected panel shrink to a 44px minimum, or 28px on axes smaller than 600px, accounting for grid gaps. Small viewports use equal tracks if there is no spare room. Rectangular panels sharing the selected tracks retain those shared dimensions; this preserves the tiling without overlaps. Hover, keyboard focus, and touch expansion use the same sizing.
 - `gradient`: derives two restrained warm/light and deep/muted endpoints from `baseColor` (six-digit hex), falling back to the card palette. The base remains available for navigation's traveling circle.
 - `Dirty`: discovers `public/images/grunge/Dirty*.png` at build time. Randomly selects one transparent texture per mounted panel and keeps it stable during resizing. Adding files requires a dev-server restart or rebuild. Uses alpha masking to tint the artwork a dark version of the base, plus a faint bottom-right shade.
-- `Halftone`: uses `/images/takezo/halftone.svg`, a baked code-generated field of dots with increasing radius toward the bottom right. No PNG or live canvas is required.
+- `Halftone`: uses `/takezo/halftone.svg`, a baked code-generated field of dots with increasing radius toward the bottom right. No PNG or live canvas is required.
 
 Textures are anchored bottom-right with a minimum physical size, clipped to the panel, and move slightly on interaction. A diagonal mask reduces detail near the reading area; low opacity keeps labels and body text legible. Reduced-motion settings disable surface movement. Home has no feature tags: its original presentation is preserved. If logo or maximum-expansion tags are explicitly assigned there, it opts into the adaptive renderer with the equivalent four-panel grid.
 
 Examples: `/takezo#materials` (Dirty + tall logos + max expansion), `#process` (halftone + horizontal logos), `#atlas` (36 logo tiles), `#nine` (Dirty surfaces), and two selectively tagged panels on `#work`.
+
+## Responsive reading layers
+
+Panels can provide independently tagged text layers:
+
+```js
+{
+  tags: ["gradient", "cursor-read"],
+  content: [
+    { tag: "unhovered", text: "A short introduction." },
+    { tag: "hovered", text: "The extended narrative, with paragraphs..." },
+  ],
+}
+```
+
+Without a layer, `description` is the fallback. Resting panels with adequate space show only the unhovered layer. Expanded panels crossfade to the hovered layer. Compressed neighbors and compact panels hide both layers and graphics, including from the accessibility tree. The `cursor-read` tag enables overflow navigation: square/tall panels read vertically, panels wider than 1.6 times their height read horizontally through columns. The middle 64% of the panel maps the cursor to the complete scroll range, with an 80ms smoothing response and soft edge masks. Native touch scrolling and keyboard arrows, Page Up/Down, Home, and End also work. Reduced motion follows the cursor directly.
+
+Title fitting now runs on every geometry frame without delayed growth or settling timers. Dedicated logo layers keep fixed positioning during their opacity fades, avoiding the former relative/absolute positioning switch. Compact padding is protected before font size is calculated. `Work Index`, `Signal`, the first Materials panel, and the first Process panel demonstrate tagged reading layers.
+
+Reading edge fades span up to 18% of the viewport (56px vertically, 72px horizontally). The starting edge is fully opaque at 0%; the ending edge is fully opaque at 100%. Native scrolling and cursor movement update those endpoints alike. Inline logos use the fitted title's actual glyph metrics to match its visible height and vertical center; use tightly cropped SVG viewBoxes for replacement marks.
+
+## Showcase gallery and media
+
+The Showcase panel on `/takezo#work` opens `/takezo#gallery`. Cards loop horizontally; the cursor accelerates near either edge and comes to rest around the middle. Touch dragging, a wheel, and left/right arrow keys also move the rail. Project card width follows the aspect ratio of its main image. Groups crossfade their gallery preview images, while PolyCrate uses its WebM preview. Hover reveals the title, short introduction, and the supplied software SVG marks.
+
+Project text and media assignments come from `public/takezo/showcase/showcase info.md`. To update or add work, edit that file and its referenced assets, then run `npm run takezo:showcase`. The script validates every referenced image, generates `showcaseManifest.js`, and exports WebP previews into `public/takezo/showcase/thumbnails`. The originals remain untouched for detail pages. The script needs Pillow (`python -m pip install Pillow`) in its authoring environment; it does not run in production or add browser dependencies. There are currently 13 projects and 22 image previews.
+
+Individual images open in a panel viewer with zoom, reset, and bounded drag pan. Groups have a vertical, magnetic image selector and a numbered filmstrip; selecting an image enters inspect mode. PolyCrate opens the modular video panel with a play/pause control and seek bar. The selected gallery panel transitions to the video play button. Image and video pages share the right-edge project information panel; hover, keyboard focus, or a tap opens it. All destinations remain `/takezo#...` so browser Back and breadcrumbs continue to work.
+
+Takezo's SVG assets now live under `public/takezo`. The Dirty PNGs remain under `public/images/grunge`.

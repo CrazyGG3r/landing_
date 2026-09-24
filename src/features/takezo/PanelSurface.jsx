@@ -9,7 +9,7 @@ export default function PanelSurface({ features }) {
   if (!features.overlay) return null;
   const texture = features.overlay === "Dirty"
     ? dirtyAssets[variant]
-    : "/images/takezo/halftone.svg";
+    : "/takezo/halftone.svg";
   return (
     <div className="tz-surface" data-overlay={features.overlay} aria-hidden="true">
       <div className="tz-surface-shade" />

@@ -10,9 +10,14 @@ import "./mosaic.css";
 import { panelFeatures, surfaceStyle } from "./panelFeatures";
 import PanelSurface from "./PanelSurface";
 import "./panelFeatures.css";
+import ShowcaseGallery from "./ShowcaseGallery";
+import { ImageDetail, VideoDetail } from "./ShowcaseDetail";
+import "./showcase.css";
 
 function Artwork({ kind }) {
   const artId = useId().replaceAll(":", "");
+  if (kind === "gallery")
+    return <span className="tz-art tz-gallery-symbol" aria-hidden="true" />;
   if (kind === "arrow")
     return (
       <svg className="tz-art tz-arrow" viewBox="0 0 200 200" aria-hidden="true">
@@ -216,7 +221,8 @@ export default function Takezo() {
     const features = panelFeatures(card, node.panelDefaults);
     return features.logo || features.max;
   });
-  const mosaic = view !== "home" || adaptiveHome;
+  const special = node.mode;
+  const mosaic = !special && (view !== "home" || adaptiveHome);
   const rectangles = mosaic ? layoutFor(adaptiveHome ? {
     ...node, layout: node.layout || [[1, 1, 2, 6], [3, 1, 4, 3], [3, 4, 2, 3], [5, 4, 2, 3]],
   } : node) : null;
@@ -364,7 +370,9 @@ export default function Takezo() {
       )
       .call(() => {
         commit();
-        const next = [...board.current.querySelectorAll(".tz-panel")];
+        const next = [...board.current.querySelectorAll(target === "gallery"
+          ? ".tz-gallery-cycle:nth-child(2) .tz-panel"
+          : ".tz-panel")];
         activePanels = next;
         gsap.set(next, { opacity: 0 });
         const anchor = next[destinationIndex];
@@ -455,7 +463,7 @@ export default function Takezo() {
         </div>
       </div>
       <div
-        className={`tz-board ${mosaic ? "tz-mosaic" : "tz-home"} ${busy ? "tz-busy" : ""}`}
+        className={`tz-board ${special ? "tz-special" : mosaic ? "tz-mosaic" : "tz-home"} ${busy ? "tz-busy" : ""}`}
         style={
           mosaic
             ? trackStyle(rectangles, active, boardSize.width, boardSize.height,
@@ -487,7 +495,10 @@ export default function Takezo() {
         inert={busy ? true : undefined}
         key={view}
       >
-        {node.cards.map((card, index) =>
+        {special === "gallery" ? <ShowcaseGallery cards={node.cards} onOpen={open} reduced={reduced} />
+          : special === "image" ? <ImageDetail project={node.project} />
+          : special === "video" ? <VideoDetail project={node.project} ready={!busy} />
+          : node.cards.map((card, index) =>
           mosaic ? (
             <AdaptivePanel
               key={`${view}-${index}`}
@@ -495,6 +506,7 @@ export default function Takezo() {
               index={index}
               rect={rectangles[index]}
               expanded={active === index}
+              compressed={active >= 0 && active !== index}
               onExpand={(index, event) => {
                 if (event) {
                   const previous = hoverPoint.current;

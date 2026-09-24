@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "assets:check": "node scripts/check-critical-assets.mjs",
+    "takezo:showcase": "python scripts/build-takezo-showcase.py",
     "check": "npm run lint && npm run assets:check && npm run build",
     "preview": "vite preview"
   },

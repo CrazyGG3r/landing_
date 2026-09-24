@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { nodes, trailFor } from "./takezoData.js";
 import { layoutFor, expandedTracks, generateLayout, maximumTracks } from "./mosaicLayout.js";
 import { panelFeatures } from "./panelFeatures.js";
@@ -21,6 +23,28 @@ test("panel tags inherit page defaults and allow explicit opt-out", () => {
   assert.equal(panelFeatures({ color: "red" }, defaults).max, true);
   assert.equal(panelFeatures({ color: "red", tags: [] }, defaults).logo, null);
   assert.equal(panelFeatures({ color: "red", tags: ["Halftone"] }, defaults).overlay, "Halftone");
+});
+
+test("showcase project media and software marks resolve locally", () => {
+  assert.equal(nodes.gallery.cards.length, 13);
+  const years = nodes.gallery.cards.map(({ project }) =>
+    Math.max(0, ...[...project.year.matchAll(/\b(?:19|20)\d{2}\b/g)].map(([year]) => Number(year))));
+  assert.equal(nodes.gallery.cards[0].project.id, "polycrate");
+  assert.deepEqual(years, [...years].sort((a, b) => b - a));
+  for (const card of nodes.gallery.cards) {
+    const project = card.project;
+    assert.ok(nodes[card.id]);
+    for (const image of project.images) {
+      assert.ok(existsSync(resolve(`public${image.src}`)), image.src);
+      assert.ok(existsSync(resolve(`public${image.thumb}`)), image.thumb);
+      assert.ok(image.width > 0 && image.height > 0);
+    }
+    if (project.video)
+      for (const path of Object.values(project.video))
+        assert.ok(existsSync(resolve(`public${path}`)), path);
+    for (const mark of project.software)
+      assert.ok(existsSync(resolve(`public/takezo/${mark}.svg`)), mark);
+  }
 });
 
 test("every inner page tiles all 36 cells exactly once", () => {
