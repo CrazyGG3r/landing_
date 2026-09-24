@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react"
 
 const clamp = (n) => Math.max(0, Math.min(1, n));
 
-export default forwardRef(function PanelCopy({ card, expanded, enabled, panel }, ref) {
+export default forwardRef(function PanelCopy({ card, expanded, enabled, panel, reduced }, ref) {
   const viewport = useRef(null);
   const frame = useRef(0);
   const target = useRef(0);
@@ -25,6 +25,11 @@ export default forwardRef(function PanelCopy({ card, expanded, enabled, panel },
 
   useLayoutEffect(() => {
     const el = viewport.current;
+    // Closed reading layers do not need three resize subscriptions each.
+    if (!enabled || !expanded) {
+      el.dataset.overflow = "false";
+      return;
+    }
     const panelElement = el.closest(".tz-adaptive");
     const measure = () => {
       axis.current = panelElement.clientWidth > panelElement.clientHeight * 1.6 ? "x" : "y";
@@ -60,7 +65,6 @@ export default forwardRef(function PanelCopy({ card, expanded, enabled, panel },
       const prop = horizontal ? "scrollLeft" : "scrollTop";
       let position = el[prop];
       const tick = (now) => {
-        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const blend = reduced ? 1 : 1 - Math.exp(-(now - previous) / 80);
         previous = now;
         const delta = target.current - position;

@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import PanelSurface from "./PanelSurface";
+import { panelFeatures, surfaceStyle } from "./panelFeatures";
+import VideoTimeline from "./VideoTimeline";
+
+const infoSurface = panelFeatures({ color: "bone", baseColor: "#D2D0BB", tags: ["gradient", "Prototype"] });
 
 const softwareNames = {
   SP3D: "Adobe Substance 3D Painter",
@@ -8,14 +13,57 @@ const softwareNames = {
   Unity3D: "Unity 3D",
 };
 
-export function ProjectInfo({ project }) {
+export function ProjectInfo({ project, reduced }) {
   const [pinned, setPinned] = useState(false);
-  return <aside className={`tz-project-info ${pinned ? "tz-info-open" : ""}`}>
+  const body = useRef(null);
+  const motion = useRef(0);
+  const destination = useRef(0);
+  const updateEdges = () => {
+    const el = body.current;
+    if (!el) return;
+    el.dataset.overflow = String(el.scrollHeight > el.clientHeight + 1);
+    el.dataset.start = String(el.scrollTop <= 1);
+    el.dataset.end = String(el.scrollTop >= el.scrollHeight - el.clientHeight - 1);
+  };
+  useEffect(() => {
+    const el = body.current;
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(el);
+    observer.observe(el.firstElementChild);
+    updateEdges();
+    return () => { observer.disconnect(); cancelAnimationFrame(motion.current); };
+  }, [project]);
+  const navigate = (event) => {
+    const el = body.current;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 1) return;
+    const bounds = el.getBoundingClientRect();
+    const fraction = (event.clientY - bounds.top) / bounds.height;
+    destination.current = Math.max(0, Math.min(1, (fraction - .18) / .64)) * max;
+    if (motion.current) return;
+    let previous = performance.now();
+    let position = el.scrollTop;
+    const tick = (now) => {
+      const blend = reduced ? 1 : 1 - Math.exp(-(now - previous) / 80);
+      previous = now;
+      const delta = destination.current - position;
+      position += delta * blend;
+      el.scrollTop = position;
+      if (Math.abs(delta) > .5) motion.current = requestAnimationFrame(tick);
+      else { el.scrollTop = destination.current; motion.current = 0; }
+      updateEdges();
+    };
+    motion.current = requestAnimationFrame(tick);
+  };
+  const stopNavigation = () => { cancelAnimationFrame(motion.current); motion.current = 0; };
+  return <aside className={`tz-project-info ${pinned ? "tz-info-open" : ""}`} style={surfaceStyle(infoSurface)} onMouseMove={navigate}>
+    <PanelSurface features={infoSurface} />
     <button type="button" className="tz-info-tab" aria-expanded={pinned}
       onClick={() => setPinned((value) => !value)}>
       <span>PROJECT / INFO</span><span aria-hidden="true">{pinned ? "→" : "←"}</span>
     </button>
-    <div className="tz-info-body">
+    <div ref={body} className="tz-info-body" onScroll={updateEdges} onWheel={stopNavigation} onTouchStart={stopNavigation}>
+      <div className="tz-info-content">
       <p className="tz-info-index">TAKEZO / SHOWCASE / {project.year}</p>
       <h2>{project.title}</h2>
       <p className="tz-info-short">{project.short}</p>
@@ -24,11 +72,12 @@ export function ProjectInfo({ project }) {
       </span>)}</div>
       <div className="tz-info-story">{project.description.split(/\n\s*\n/).map((paragraph, i) =>
         <p key={i}>{paragraph}</p>)}</div>
+      </div>
     </div>
   </aside>;
 }
 
-export function ImageDetail({ project }) {
+export function ImageDetail({ project, reduced }) {
   const frame = useRef(null);
   const drag = useRef(null);
   const [index, setIndex] = useState(0);
@@ -110,43 +159,62 @@ export function ImageDetail({ project }) {
           drag.current = { x: e.clientX, y: e.clientY, pan };
         }} />
     </div>
-    <ProjectInfo project={project} />
+    <ProjectInfo project={project} reduced={reduced} />
   </section>;
 }
 
-const time = (value) => `${Math.floor(value / 60).toString().padStart(2, "0")}:${Math.floor(value % 60).toString().padStart(2, "0")}`;
-
-export function VideoDetail({ project, ready = true }) {
+export function VideoDetail({ project, ready = true, reduced }) {
   const player = useRef(null);
+  const ambient = useRef(null);
   const [playing, setPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const [controlsFocused, setControlsFocused] = useState(false);
+  const [started, setStarted] = useState(false);
   const [duration, setDuration] = useState(0);
+  useEffect(() => {
+    const video = ambient.current;
+    const sync = () => {
+      if (!reduced && ready && !playing && !started && !document.hidden) video.play().catch(() => {});
+      else video.pause();
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => { video.pause(); document.removeEventListener("visibilitychange", sync); };
+  }, [reduced, ready, playing, started]);
   const toggle = () => {
     const video = player.current;
-    if (video.paused) video.play().catch(() => setPlaying(false));
+    if (video.paused) {
+      if (video.ended) video.currentTime = 0;
+      video.play().catch(() => setPlaying(false));
+    }
     else video.pause();
   };
-  return <section className={`tz-showcase-detail tz-video-detail ${ready ? "tz-video-ready" : ""}`}>
-    <div className="tz-video-panel">
-      <video className="tz-video-ambient" src={project.video.thumb} muted loop autoPlay playsInline aria-hidden="true" />
-      <video ref={player} className={`tz-video-main ${playing || position > 0 ? "active" : ""}`}
+  return <section className={`tz-showcase-detail tz-video-detail ${ready ? "tz-video-ready" : ""} ${playing ? "tz-video-playing" : ""} ${controlsVisible ? "tz-controls-visible" : ""}`}>
+    <div className="tz-video-panel"
+      onFocusCapture={() => setControlsFocused(true)}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setControlsFocused(false); }}
+      onPointerEnter={(e) => { if (e.pointerType === "mouse") setControlsVisible(true); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") setControlsVisible(false); }}
+      onPointerDown={(e) => { if (e.pointerType !== "mouse") setControlsVisible(true); }}>
+      <video ref={ambient} className="tz-video-ambient" src={project.video.thumb} muted loop playsInline preload="metadata" aria-hidden="true" />
+      <video ref={player} className={`tz-video-main ${playing || started ? "active" : ""}`}
         src={project.video.src} playsInline preload="metadata"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
-        onTimeUpdate={(e) => setPosition(e.currentTarget.currentTime)}
+        onTimeUpdate={(e) => setStarted(e.currentTarget.currentTime > 0)}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)} />
-      <div className="tz-video-title"><span>FILM / 01</span><h2>{project.title}</h2><p>{project.short}</p></div>
+      <div className="tz-video-title"><span>TAKEZO / MOTION STUDY</span><h2>{project.title}</h2><p>{project.short}</p></div>
       <div className="tz-video-controls">
         <button className="tz-panel tz-video-play" data-panel="0" type="button" onClick={toggle}
-          aria-label={playing ? "Pause video" : "Play video"}>{playing ? "Ⅱ" : "▶"}</button>
-        <div className="tz-video-seek">
-          <span>{time(position)}</span>
-          <input aria-label="Seek video" type="range" min="0" max={duration || 1} step="0.1" value={position}
-            onChange={(e) => { player.current.currentTime = Number(e.target.value); setPosition(Number(e.target.value)); }} />
-          <span>{time(duration)}</span>
-        </div>
+          aria-label={playing ? "Pause video" : "Play video"}>
+          <svg viewBox="0 0 48 48" aria-hidden="true">
+            {playing ? <><path d="M17 15v18M31 15v18" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></>
+              : <path d="m19 14 15 10-15 10z" fill="currentColor" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" />}
+          </svg>
+        </button>
+        <VideoTimeline player={player} playing={playing} visible={controlsVisible || controlsFocused} duration={duration} />
       </div>
     </div>
-    <ProjectInfo project={project} />
+    <ProjectInfo project={project} reduced={reduced} />
   </section>;
 }

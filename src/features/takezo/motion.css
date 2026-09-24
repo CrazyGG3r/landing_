@@ -1,0 +1,28 @@
+/* This control sits in the outer gutter, above the navigation traveler. */
+.takezo { padding-bottom: max(42px, calc(env(safe-area-inset-bottom) + 39px)); }
+.takezo .tz-motion-toggle {
+  position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(7px, env(safe-area-inset-bottom));
+  z-index: 60; display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px; border: 1px solid #d5d1c22e; border-radius: 999px;
+  background: #171b17ed; color: #b7b9a9; cursor: pointer;
+  box-shadow: 0 3px 12px #0003; font: 8px TakezoMono, monospace; letter-spacing: .055em;
+}
+.tz-motion-toggle strong { color: #e2d9bf; font-weight: 400; }
+.tz-motion-track { width: 25px; height: 14px; padding: 3px; border-radius: 99px; background: #727f594a; }
+.tz-motion-track > span { display: block; width: 8px; height: 8px; border-radius: 50%; background: #a9b789; transform: translateX(11px); transition: transform .16s ease, background .16s ease; }
+.tz-motion-toggle[aria-checked="false"] .tz-motion-track > span { transform: translateX(0); background: #adafa4; }
+
+/* A single runtime preference covers decorative CSS, including pseudo-elements.
+   Functional navigation, zoom, reading, and the main video remain available. */
+.takezo.tz-reduced *, .takezo.tz-reduced *::before, .takezo.tz-reduced *::after {
+  animation: none !important;
+  transition-property: opacity !important;
+  transition-duration: .12s !important;
+  transition-delay: 0s !important;
+  will-change: auto !important;
+}
+.tz-reduced .tz-gallery-media:not(:only-child) { opacity: 0; }
+.tz-reduced .tz-gallery-media:first-child { opacity: 1; }
+.tz-reduced .tz-gallery-card:is(:hover,:focus-visible) { transform: none; }
+.tz-reduced .tz-gallery-card:is(:hover,:focus-visible) .tz-gallery-media { transform: scale(1.07); }
+.tz-reduced .tz-surface-texture { transform: none !important; }

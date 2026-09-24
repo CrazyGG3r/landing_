@@ -9,7 +9,7 @@ export function panelFeatures(card, defaults = {}) {
     max: tags.has("expansion-max"),
     cursorRead: tags.has("cursor-read"),
     gradient: tags.has("gradient"),
-    overlay: tags.has("Dirty") ? "Dirty" : tags.has("Halftone") ? "Halftone" : null,
+    overlay: tags.has("Prototype") ? "Prototype" : tags.has("Dirty") ? "Dirty" : tags.has("Halftone") ? "Halftone" : null,
     base: /^#[0-9a-f]{6}$/i.test(options.baseColor || "") ? options.baseColor : palette[card.color] || palette.red,
   };
 }

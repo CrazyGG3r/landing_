@@ -7,7 +7,7 @@ function Marks({ software }) {
 
 function Preview({ project }) {
   if (project.video) {
-    return <video className="tz-gallery-media" src={project.video.thumb} muted loop autoPlay playsInline preload="auto" />;
+    return <video className="tz-gallery-media" src={project.video.thumb} muted loop playsInline preload="metadata" />;
   }
   const duration = Math.max(1, project.images.length) * 2.8;
   return project.images.map((image, index) => <img key={image.src} className="tz-gallery-media"
@@ -15,7 +15,7 @@ function Preview({ project }) {
     style={{ animationDuration: `${duration}s`, animationDelay: `${1.2 - index * 2.8}s` }} />);
 }
 
-export default function ShowcaseGallery({ cards, onOpen, reduced }) {
+export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false, focusId = null }) {
   const viewport = useRef(null);
   const rail = useRef(null);
   const position = useRef(0);
@@ -24,6 +24,7 @@ export default function ShowcaseGallery({ cards, onOpen, reduced }) {
   const cycle = useRef(1);
   const touch = useRef(null);
   const dragged = useRef(false);
+  const wake = useRef(() => {});
   const [height, setHeight] = useState(600);
 
   useLayoutEffect(() => {
@@ -31,33 +32,85 @@ export default function ShowcaseGallery({ cards, onOpen, reduced }) {
     const measure = () => {
       setHeight(root.clientHeight);
       cycle.current = rail.current.firstElementChild.getBoundingClientRect().width + 18;
-      const firstCard = rail.current.children[1]?.firstElementChild;
-      const firstWidth = firstCard?.getBoundingClientRect().width || 0;
-      position.current = -cycle.current + (root.clientWidth - firstWidth) / 2;
+      const middleCards = [...rail.current.children[1].children];
+      const focusIndex = Math.max(0, middleCards.findIndex((card) => card.dataset.destination === focusId));
+      const focusWidth = middleCards[focusIndex]?.getBoundingClientRect().width || 0;
+      const offset = middleCards.slice(0, focusIndex).reduce((sum, card) => sum + card.getBoundingClientRect().width + 18, 0);
+      position.current = -cycle.current - offset + (root.clientWidth - focusWidth) / 2;
       rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
     };
     const observer = new ResizeObserver(measure);
     observer.observe(root);
     measure();
     return () => observer.disconnect();
-  }, [cards]);
+  }, [cards, height, focusId]);
+
+  const paintPosition = () => {
+    const width = cycle.current;
+    // Wheel and touch can cross multiple copies in one event.
+    if (width > 1) {
+      while (position.current < -2 * width) position.current += width;
+      while (position.current > 0) position.current -= width;
+    }
+    rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
+  };
 
   useEffect(() => {
-    if (reduced) return;
-    let frame, previous = performance.now();
+    if (paused) return;
+    const element = rail.current;
+    let frame = 0, previous = 0;
     const tick = (now) => {
-      const dt = Math.min(40, now - previous);
+      const dt = Math.min(40, now - previous || 16);
       previous = now;
-      speed.current += (desired.current - speed.current) * Math.min(1, dt / 170);
+      speed.current += (desired.current - speed.current) * (reduced ? 1 : Math.min(1, dt / 170));
       position.current += speed.current * dt / 16;
-      if (position.current < -2 * cycle.current) position.current += cycle.current;
-      if (position.current > 0) position.current -= cycle.current;
-      rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
-      frame = requestAnimationFrame(tick);
+      paintPosition();
+      if (Math.abs(speed.current) > .01 || Math.abs(desired.current) > .01) frame = requestAnimationFrame(tick);
+      else { frame = 0; speed.current = 0; element.style.willChange = "auto"; }
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [reduced]);
+    wake.current = () => {
+      if (!frame && !document.hidden) {
+        previous = performance.now();
+        element.style.willChange = "transform";
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    const stop = () => {
+      cancelAnimationFrame(frame); frame = 0;
+      desired.current = 0; speed.current = 0;
+      element.style.willChange = "auto";
+    };
+    const visibility = () => { if (document.hidden) stop(); };
+    document.addEventListener("visibilitychange", visibility);
+    return () => { stop(); wake.current = () => {}; document.removeEventListener("visibilitychange", visibility); };
+  }, [reduced, paused]);
+
+  useEffect(() => {
+    const elements = [...viewport.current.querySelectorAll(".tz-gallery-media-wrap")];
+    const visible = new Set();
+    const update = (element) => {
+      const active = visible.has(element) && !paused && !reduced && !document.hidden;
+      element.dataset.active = String(active);
+      const video = element.querySelector("video");
+      if (video) {
+        if (active) video.play().catch(() => {});
+        else video.pause();
+      }
+    };
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) visible.add(entry.target); else visible.delete(entry.target);
+        update(entry.target);
+      }
+    }, { root: viewport.current, rootMargin: "80px" });
+    elements.forEach((element) => observer.observe(element));
+    const visibility = () => elements.forEach(update);
+    document.addEventListener("visibilitychange", visibility);
+    return () => {
+      observer.disconnect(); document.removeEventListener("visibilitychange", visibility);
+      elements.forEach((element) => { element.dataset.active = "false"; element.querySelector("video")?.pause(); });
+    };
+  }, [cards, paused, reduced]);
 
   const instances = (clone) => cards.map((card, index) => {
     const project = card.project;
@@ -87,29 +140,34 @@ export default function ShowcaseGallery({ cards, onOpen, reduced }) {
       dragged.current = false;
     }}
     onPointerMove={(e) => {
+      if (paused) return;
       if (touch.current && e.pointerType !== "mouse") {
         if (Math.abs(e.clientX - touch.current.x) > 7) dragged.current = true;
         position.current += e.clientX - touch.current.last;
         touch.current.last = e.clientX;
-        rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
+        paintPosition();
         return;
       }
       if (e.pointerType !== "mouse") return;
       const b = viewport.current.getBoundingClientRect();
       const n = (e.clientX - b.left) / b.width - .5;
       desired.current = Math.sign(n) * Math.pow(Math.max(0, Math.abs(n) - .12) / .38, 1.45) * -15;
+      if (Math.abs(desired.current) > .01 || Math.abs(speed.current) > .01) wake.current();
     }}
-    onPointerLeave={() => { desired.current = 0; }}
+    onPointerLeave={() => { desired.current = 0; if (Math.abs(speed.current) > .01) wake.current(); }}
     onPointerUp={() => { touch.current = null; }}
     onPointerCancel={() => { touch.current = null; }}
     onWheel={(e) => {
+      if (paused) return;
       position.current -= e.deltaY * .65;
-      if (reduced) rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
+      paintPosition();
     }}
     onKeyDown={(e) => {
+      if (paused) return;
       if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
         e.preventDefault();
         position.current += e.key === "ArrowRight" ? -250 : 250;
+        paintPosition();
       }
     }}>
     <div className="tz-gallery-window">

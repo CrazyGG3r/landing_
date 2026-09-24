@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import PanelSurface from "./PanelSurface";
 import PanelCopy from "./PanelCopy";
 import { surfaceStyle } from "./panelFeatures";
+import { observePanelFit } from "./panelFit";
 
 export default function AdaptivePanel({
   card,
@@ -13,6 +14,7 @@ export default function AdaptivePanel({
   onOpen,
   artwork,
   features,
+  reduced,
 }) {
   const Artwork = artwork;
   const panel = useRef(null);
@@ -22,83 +24,10 @@ export default function AdaptivePanel({
   const reader = useRef(null);
   const text = card.title.replace(/\s+/g, " ").trim();
 
-  useLayoutEffect(() => {
-    const el = panel.current;
-    const label = title.current;
-    const metricsContext = document.createElement("canvas").getContext("2d");
-    const inkMetrics = () => {
-      const style = getComputedStyle(label);
-      metricsContext.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const metrics = metricsContext.measureText(text);
-      const ascent = metrics.fontBoundingBoxAscent ?? metrics.actualBoundingBoxAscent;
-      const descent = metrics.fontBoundingBoxDescent ?? metrics.actualBoundingBoxDescent;
-      const top = (parseFloat(style.lineHeight) - ascent - descent) / 2 + ascent - metrics.actualBoundingBoxAscent;
-      return { top, height: metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent };
-    };
-    let frame = 0;
-    let disposed = false;
-    const fit = () => {
-      const width = el.clientWidth;
-      const height = el.clientHeight;
-      const narrow = width < 190;
-      const short = height < 180;
-      const mode = !expanded && features.logo
-        ? narrow && short ? "icon" : narrow ? "above" : short ? "left" : "none"
-        : "none";
-      el.dataset.logoMode = mode;
-      el.dataset.vertical = String(!expanded && width < 180 && height > width * 1.7);
-      const full = !compressed && width > 200 && height > 200 && (expanded || (width > 275 && height > 300));
-      el.dataset.full = String(full);
-      const interior = el.querySelector(".tz-adaptive-interior");
-      interior.setAttribute("aria-hidden", String(!full));
-      interior.inert = !full;
-      el.dataset.tiny = String(width < 105 || height < 150);
-      el.dataset.micro = String(width < 60 || height < 85);
-      // Insets have a real lower bound; the type yields before the padding does.
-      el.style.setProperty("--panel-pad", `${Math.max(10, Math.min(23, width * .075, height * .12))}px`);
-      const box = titleBox.current;
-      if (mode === "left") {
-        const available = Math.max(1, box.parentElement.clientHeight - 4);
-        el.style.setProperty("--logo-reserve", `${Math.min(64.8, available) + 12}px`);
-      }
-      const vertical = el.dataset.vertical === "true";
-      // Fit immediately to each geometry frame. A second pass lets the logo
-      // reserve exactly the fitted title height, including long compact titles.
-      for (let pass = 0; pass < (mode === "left" ? 3 : 1); pass++) {
-        let low = 1;
-        let high = vertical ? Math.min(64, width * .65) : Math.min(60, Math.max(18, width * .18));
-        for (let i = 0; i < 12; i++) {
-          const size = (low + high) / 2;
-          label.style.fontSize = `${size}px`;
-          if (label.scrollWidth <= box.clientWidth - 4 && label.scrollHeight <= box.clientHeight - 4) low = size;
-          else high = size;
-        }
-        label.style.fontSize = `${low}px`;
-        if (mode === "left") {
-          el.style.setProperty("--logo-reserve", `${inkMetrics().height + 12}px`);
-        }
-      }
-      if (mode === "left") {
-        const ink = inkMetrics();
-        el.style.setProperty("--inline-logo-size", `${ink.height}px`);
-        el.style.setProperty("--inline-logo-y", `${box.offsetTop + 2 + ink.top + ink.height / 2}px`);
-      }
-    };
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(fit);
-    };
-    const observer = new ResizeObserver(schedule);
-    observer.observe(el);
-    observer.observe(titleBox.current);
-    fit();
-    document.fonts.ready.then(() => { if (!disposed) schedule(); });
-    return () => {
-      disposed = true;
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
-  }, [expanded, compressed, text, features.logo]);
+  useLayoutEffect(() => observePanelFit({
+    el: panel.current, label: title.current, box: titleBox.current,
+    expanded, compressed, text, logo: features.logo,
+  }), [expanded, compressed, text, features.logo]);
 
   return (
     <button
@@ -162,7 +91,7 @@ export default function AdaptivePanel({
               <Artwork kind={card.art} />
             </div>
           )}
-          <PanelCopy ref={reader} card={card} expanded={expanded} enabled={features.cursorRead} panel={panel} />
+          <PanelCopy ref={reader} card={card} expanded={expanded} enabled={features.cursorRead} panel={panel} reduced={reduced} />
         </div>
         <div className="tz-adaptive-footer">
           <span>{card.footer || `${card.kicker} / TAKEZO — BOLTFORGED`}</span>

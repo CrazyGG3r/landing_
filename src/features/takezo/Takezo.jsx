@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import gsap from "gsap";
@@ -13,6 +13,8 @@ import "./panelFeatures.css";
 import ShowcaseGallery from "./ShowcaseGallery";
 import { ImageDetail, VideoDetail } from "./ShowcaseDetail";
 import "./showcase.css";
+import useMotionPreference from "./useMotionPreference";
+import "./motion.css";
 
 function Artwork({ kind }) {
   const artId = useId().replaceAll(":", "");
@@ -217,19 +219,19 @@ export default function Takezo() {
   const [expanded, setExpanded] = useState(null);
   const [boardSize, setBoardSize] = useState({ width: 1, height: 1 });
   const node = nodes[view];
+  const features = useMemo(() => node.cards.map((card) => panelFeatures(card, node.panelDefaults)), [node]);
   const adaptiveHome = view === "home" && node.cards.some((card) => {
     const features = panelFeatures(card, node.panelDefaults);
     return features.logo || features.max;
   });
   const special = node.mode;
   const mosaic = !special && (view !== "home" || adaptiveHome);
-  const rectangles = mosaic ? layoutFor(adaptiveHome ? {
+  const rectangles = useMemo(() => mosaic ? layoutFor(adaptiveHome ? {
     ...node, layout: node.layout || [[1, 1, 2, 6], [3, 1, 4, 3], [3, 4, 2, 3], [5, 4, 2, 3]],
-  } : node) : null;
+  } : node) : null, [mosaic, adaptiveHome, node]);
   const active = !busy && expanded?.view === view ? expanded.index : -1;
-  const [reduced, setReduced] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
+  const [reduced, toggleMotion] = useMotionPreference();
+  const settleTransition = useRef(null);
   const board = useRef(null);
   const traveler = useRef(null);
   const source = useRef(null);
@@ -238,6 +240,7 @@ export default function Takezo() {
   const heading = useRef(null);
   const initial = useRef(true);
   const hoverPoint = useRef(null);
+  const galleryFocus = useRef(null);
 
   useLayoutEffect(() => {
     if (!mosaic) return;
@@ -257,12 +260,8 @@ export default function Takezo() {
   useEffect(() => {
     const oldTitle = document.title;
     document.title = "Takezo — A BoltForged Practice";
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(media.matches);
-    media.addEventListener("change", update);
     return () => {
       document.title = oldTitle;
-      media.removeEventListener("change", update);
     };
   }, []);
 
@@ -293,6 +292,8 @@ export default function Takezo() {
     const panels = [...board.current.querySelectorAll(".tz-panel")];
     let activePanels = panels;
     const previousView = current.current;
+    const returnToGallery = target === "gallery" && ["image", "video"].includes(nodes[previousView].mode);
+    if (target === "gallery") galleryFocus.current = returnToGallery ? previousView : null;
     const selected = source.current?.isConnected
       ? source.current
       : panels.find((panel) => panel.dataset.destination === target) ||
@@ -304,15 +305,22 @@ export default function Takezo() {
       ),
     );
     source.current = null;
-    const start = selected.getBoundingClientRect();
-    const color = getComputedStyle(selected).backgroundColor;
+    const transitionSource = returnToGallery
+      ? board.current.querySelector(".tz-image-panel, .tz-video-panel") || selected
+      : selected;
+    const start = transitionSource.getBoundingClientRect();
+    const color = getComputedStyle(transitionSource).backgroundColor;
     const commit = () => {
       current.current = target;
       flushSync(() => { setExpanded(null); setView(target); });
       window.scrollTo({ top: 0, behavior: "instant" });
     };
     const finish = () => {
+      settleTransition.current = null;
+      timeline.current = null;
       gsap.set(traveler.current, { display: "none" });
+      traveler.current.replaceChildren();
+      traveler.current.classList.remove("tz-traveler-return");
       gsap.set(board.current.querySelectorAll(".tz-panel"), {
         clearProps: "opacity,transform",
       });
@@ -329,6 +337,66 @@ export default function Takezo() {
     }
     setBusy(true);
     const dot = traveler.current;
+    if (returnToGallery) {
+      const media = document.createElement(nodes[previousView].mode === "video" ? "video" : "img");
+      media.className = "tz-traveler-media";
+      if (media instanceof HTMLVideoElement) {
+        media.src = nodes[previousView].project.video.thumb;
+        media.muted = true;
+        media.loop = true;
+        media.autoplay = true;
+        media.playsInline = true;
+      } else {
+        media.src = transitionSource.querySelector(".tz-detail-image.tz-image-active")?.src
+          || nodes[previousView].project.images[0].src;
+      }
+      dot.replaceChildren(media);
+      dot.classList.add("tz-traveler-return");
+      gsap.set(dot, {
+        display: "block", left: start.left, top: start.top,
+        width: start.width, height: start.height, borderRadius: 22,
+        backgroundColor: color, opacity: 1,
+      });
+      gsap.set(media, { scale: 1.13, xPercent: -3 });
+      if (media instanceof HTMLVideoElement) media.play().catch(() => {});
+      const tl = gsap.timeline();
+      timeline.current = tl;
+      tl.call(() => {
+        commit();
+        const next = [...board.current.querySelectorAll(".tz-gallery-cycle:nth-child(2) .tz-panel")];
+        activePanels = next;
+        const anchor = next[destinationIndex];
+        gsap.set(next, { opacity: 0 });
+        const end = anchor.getBoundingClientRect();
+        tl.to(dot, {
+          left: end.left, top: end.top, width: end.width, height: end.height,
+          borderRadius: 20, duration: .76, ease: "expo.inOut",
+        })
+          .to(media, { scale: 1, xPercent: 0, duration: .76, ease: "power2.inOut" }, "<")
+          .fromTo(next.filter((panel) => panel !== anchor),
+            { opacity: 0, scale: .94, y: 15 },
+            { opacity: 1, scale: 1, y: 0, duration: .44, stagger: .025, ease: "power2.out" }, "-=.44")
+          .to(anchor, { opacity: 1, duration: .18 }, "-=.16")
+          .to(dot, { opacity: 0, duration: .18 }, "<")
+          .call(finish);
+      }, [], .01);
+      const settleOnResize = () => {
+        tl.kill();
+        if (current.current !== target) commit();
+        finish();
+      };
+      settleTransition.current = settleOnResize;
+      window.addEventListener("resize", settleOnResize, { once: true });
+      return () => {
+        settleTransition.current = null;
+        window.removeEventListener("resize", settleOnResize);
+        tl.kill();
+        dot.replaceChildren();
+        dot.classList.remove("tz-traveler-return");
+        gsap.set(dot, { display: "none" });
+        gsap.set(activePanels, { clearProps: "opacity,transform" });
+      };
+    }
     const size = 52;
     gsap.set(dot, {
       display: "block",
@@ -417,8 +485,10 @@ export default function Takezo() {
       if (current.current !== target) commit();
       finish();
     };
+    settleTransition.current = settleOnResize;
     window.addEventListener("resize", settleOnResize, { once: true });
     return () => {
+      settleTransition.current = null;
       window.removeEventListener("resize", settleOnResize);
       tl.kill();
       gsap.set(dot, { display: "none" });
@@ -426,15 +496,24 @@ export default function Takezo() {
     };
   }, [target, reduced]);
 
-  const open = (id, element) => {
+  const open = useCallback((id, element) => {
     if (busy || id === view) return;
     source.current = element || null;
     navigate({ pathname: "/takezo", hash: id === "home" ? "" : id });
-  };
+  }, [busy, view, navigate]);
+  const expand = useCallback((index, event) => {
+    if (event) {
+      const previous = hoverPoint.current;
+      if (previous && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 2) return;
+      hoverPoint.current = { x: event.clientX, y: event.clientY };
+    }
+    setExpanded((previous) => index < 0 ? null : previous?.view === view && previous.index === index ? previous : { view, index });
+  }, [view]);
   const trail = trailFor(view);
   return (
     <main
       className={`takezo ${mosaic ? "tz-mosaic-page" : ""} ${reduced ? "tz-reduced" : ""}`}
+      onContextMenu={(event) => event.preventDefault()}
     >
       <h1 className="tz-sr-only" ref={heading} tabIndex={-1}>
         {view === "home" ? "Takezo" : node.title}
@@ -467,7 +546,7 @@ export default function Takezo() {
         style={
           mosaic
             ? trackStyle(rectangles, active, boardSize.width, boardSize.height,
-                active >= 0 && panelFeatures(node.cards[active], node.panelDefaults).max, boardSize.gap)
+                active >= 0 && features[active].max, boardSize.gap)
             : undefined
         }
         onPointerLeave={
@@ -495,9 +574,9 @@ export default function Takezo() {
         inert={busy ? true : undefined}
         key={view}
       >
-        {special === "gallery" ? <ShowcaseGallery cards={node.cards} onOpen={open} reduced={reduced} />
-          : special === "image" ? <ImageDetail project={node.project} />
-          : special === "video" ? <VideoDetail project={node.project} ready={!busy} />
+        {special === "gallery" ? <ShowcaseGallery cards={node.cards} onOpen={open} reduced={reduced} paused={busy} focusId={galleryFocus.current} />
+          : special === "image" ? <ImageDetail project={node.project} reduced={reduced} />
+          : special === "video" ? <VideoDetail project={node.project} ready={!busy} reduced={reduced} />
           : node.cards.map((card, index) =>
           mosaic ? (
             <AdaptivePanel
@@ -507,18 +586,11 @@ export default function Takezo() {
               rect={rectangles[index]}
               expanded={active === index}
               compressed={active >= 0 && active !== index}
-              onExpand={(index, event) => {
-                if (event) {
-                  const previous = hoverPoint.current;
-                  // Moving grid edges must not select panels beneath a still pointer.
-                  if (previous && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 2) return;
-                  hoverPoint.current = { x: event.clientX, y: event.clientY };
-                }
-                setExpanded(index < 0 ? null : { view, index });
-              }}
+              onExpand={expand}
               onOpen={open}
               artwork={Artwork}
-              features={panelFeatures(card, node.panelDefaults)}
+              features={features[index]}
+              reduced={reduced}
             />
           ) : (
             <Panel
@@ -527,12 +599,18 @@ export default function Takezo() {
               index={index}
               isHome={view === "home"}
               onOpen={open}
-              features={panelFeatures(card, node.panelDefaults)}
+              features={features[index]}
             />
           ),
         )}
       </div>
       <div className="tz-traveler" ref={traveler} aria-hidden="true" />
+      <button className="tz-motion-toggle" type="button" role="switch" aria-checked={!reduced}
+        aria-label="Full animation" title={reduced ? "Enable full animation" : "Reduce decorative animation"}
+        onClick={() => { settleTransition.current?.(); toggleMotion(); }}>
+        <span>MOTION <strong>{reduced ? "REDUCED" : "FULL"}</strong></span>
+        <span className="tz-motion-track" aria-hidden="true"><span /></span>
+      </button>
       <div className="tz-sr-only" role="status" aria-live="polite">
         {node.title}
       </div>

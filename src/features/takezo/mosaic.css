@@ -10,6 +10,7 @@
     grid-template-rows 0.52s cubic-bezier(0.22, 0.8, 0.2, 1);
 }
 .takezo .tz-mosaic .tz-adaptive {
+  contain: layout paint;
   border-radius: clamp(10px, 1.7vw, 22px);
   cursor: pointer;
   min-width: 0;
@@ -117,7 +118,6 @@
     transform 0.2s cubic-bezier(0.4, 0, 1, 1),
     filter 0.16s ease-out,
     visibility 0s linear 0.2s;
-  will-change: opacity, transform, filter;
 }
 .tz-adaptive-interior p {
   font-size: clamp(11px, 1.1vw, 15px);
@@ -145,7 +145,6 @@
   transition:
     opacity 0.14s ease-out,
     transform 0.2s cubic-bezier(0.4, 0, 1, 1);
-  will-change: opacity, transform;
 }
 .tz-mosaic .tz-adaptive-art .tz-art {
   position: relative;
@@ -248,16 +247,7 @@
 .tz-reduced .tz-adaptive-art .tz-art {
   transition: none !important;
 }
-@media (prefers-reduced-motion: reduce) {
-  .takezo .tz-mosaic,
-  .takezo .tz-adaptive-title h2,
-  .takezo .tz-adaptive-interior,
-  .takezo .tz-adaptive-interior p,
-  .takezo .tz-adaptive-art,
-  .takezo .tz-adaptive-art .tz-art {
-    transition: none;
-  }
-}
+
 
 /* The reading viewport owns overflow; the title and panel padding never do. */
 .tz-adaptive[data-full="false"] .tz-adaptive-interior,

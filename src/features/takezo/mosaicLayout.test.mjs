@@ -23,6 +23,9 @@ test("panel tags inherit page defaults and allow explicit opt-out", () => {
   assert.equal(panelFeatures({ color: "red" }, defaults).max, true);
   assert.equal(panelFeatures({ color: "red", tags: [] }, defaults).logo, null);
   assert.equal(panelFeatures({ color: "red", tags: ["Halftone"] }, defaults).overlay, "Halftone");
+  assert.equal(panelFeatures({ color: "red", tags: ["gradient", "Prototype"] }, defaults).overlay, "Prototype");
+  for (let i = 1; i <= 5; i++)
+    assert.ok(existsSync(resolve(`public/images/grunge/Prototype${i}.png`)));
 });
 
 test("showcase project media and software marks resolve locally", () => {

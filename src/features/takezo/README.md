@@ -32,17 +32,26 @@ panelDefaults: {
 }
 ```
 
-A card inherits the defaults and can override `logo` or `baseColor`. A card's explicit `tags` replaces the inherited list; `tags: []` opts out. Use `Halftone` instead of `Dirty` to choose the baked vector dot pattern. If both are present, Dirty takes precedence. Tags are case-sensitive.
+A card inherits the defaults and can override `logo` or `baseColor`. A card's explicit `tags` replaces the inherited list; `tags: []` opts out. Use `Halftone` for the baked vector dot pattern or `Prototype` for the distressed geometric textures. Overlay priority is Prototype, Dirty, then Halftone. Tags are case-sensitive.
 
 - `logo`: supply a dedicated SVG URL in `logo`; the default is the sample Takezo mark. Compact 1×1 tiles show the mark in place of the visual title (the accessible title remains). Tall strips place it above the title, horizontal strips before it. Actual measured dimensions also activate these modes as neighboring panels shrink. Expansion restores the title and fades the mark away. The sample marks are placeholders and can be replaced independently for each panel.
 - `expansion-max`: all tracks outside the selected panel shrink to a 44px minimum, or 28px on axes smaller than 600px, accounting for grid gaps. Small viewports use equal tracks if there is no spare room. Rectangular panels sharing the selected tracks retain those shared dimensions; this preserves the tiling without overlaps. Hover, keyboard focus, and touch expansion use the same sizing.
 - `gradient`: derives two restrained warm/light and deep/muted endpoints from `baseColor` (six-digit hex), falling back to the card palette. The base remains available for navigation's traveling circle.
 - `Dirty`: discovers `public/images/grunge/Dirty*.png` at build time. Randomly selects one transparent texture per mounted panel and keeps it stable during resizing. Adding files requires a dev-server restart or rebuild. Uses alpha masking to tint the artwork a dark version of the base, plus a faint bottom-right shade.
 - `Halftone`: uses `/takezo/halftone.svg`, a baked code-generated field of dots with increasing radius toward the bottom right. No PNG or live canvas is required.
+- `Prototype`: discovers `public/images/grunge/Prototype*.png` at build time, randomly assigning one set per mounted panel. It combines with the `gradient` tag, concentrates its darker base-color tint toward the bottom right, and fades through the reading area.
 
 Textures are anchored bottom-right with a minimum physical size, clipped to the panel, and move slightly on interaction. A diagonal mask reduces detail near the reading area; low opacity keeps labels and body text legible. Reduced-motion settings disable surface movement. Home has no feature tags: its original presentation is preserved. If logo or maximum-expansion tags are explicitly assigned there, it opts into the adaptive renderer with the equivalent four-panel grid.
 
-Examples: `/takezo#materials` (Dirty + tall logos + max expansion), `#process` (halftone + horizontal logos), `#atlas` (36 logo tiles), `#nine` (Dirty surfaces), and two selectively tagged panels on `#work`.
+Examples: `/takezo#materials` (Dirty + tall logos + max expansion), `#process` (halftone + horizontal logos), `#atlas` (36 logo tiles), `#nine` (Dirty surfaces), and the leaking project-info panel in image/video views (gradient + randomly selected Prototype texture).
+
+## Motion and rendering
+
+The bottom-right **Motion Full / Reduced** switch is saved locally. With no saved choice, the system's reduced-motion preference supplies the default. Switching settles any navigation in progress without remounting the current viewer or resetting video time, image zoom, or gallery position. Reduced mode removes decorative motion while preserving gallery movement, cursor reading, media controls, and image inspection.
+
+Adaptive titles share a resize observer and one queued fitting frame. Geometry reads and font writes are batched across panels, unchanged sizes are skipped, icon-only tiles skip invisible typography, and text keeps DOM-based wrapping and subpixel fitting. Layout and paint containment isolates adaptive panels; hidden reading layers do not subscribe to resize events. The gallery rail sleeps when stationary; offscreen/hidden previews pause. Video progress updates its own DOM while visible, without rerendering the viewer or information panel every frame. Main video playback is independent of the motion preference.
+
+Verification: `node --test src/features/takezo/*.test.mjs` covers track layouts, feature tags, asset resolution, and the fitting scheduler's batching, precision, idle behavior, and cleanup.
 
 ## Responsive reading layers
 
@@ -70,6 +79,6 @@ The Showcase panel on `/takezo#work` opens `/takezo#gallery`. Cards loop horizon
 
 Project text and media assignments come from `public/takezo/showcase/showcase info.md`. To update or add work, edit that file and its referenced assets, then run `npm run takezo:showcase`. The script validates every referenced image, generates `showcaseManifest.js`, and exports WebP previews into `public/takezo/showcase/thumbnails`. The originals remain untouched for detail pages. The script needs Pillow (`python -m pip install Pillow`) in its authoring environment; it does not run in production or add browser dependencies. There are currently 13 projects and 22 image previews.
 
-Individual images open in a panel viewer with zoom, reset, and bounded drag pan. Groups have a vertical, magnetic image selector and a numbered filmstrip; selecting an image enters inspect mode. PolyCrate opens the modular video panel with a play/pause control and seek bar. The selected gallery panel transitions to the video play button. Image and video pages share the right-edge project information panel; hover, keyboard focus, or a tap opens it. All destinations remain `/takezo#...` so browser Back and breadcrumbs continue to work.
+Individual images open in a panel viewer with zoom, reset, and bounded drag pan. Groups have a vertical, magnetic image selector and a numbered filmstrip; selecting an image enters inspect mode. PolyCrate opens the modular video panel with custom play/pause and seek controls. The selected gallery panel transitions to the video play button; returning from an image or video zooms the masked media back into its centered gallery card. Image and video pages share the right-edge project information panel; hover, keyboard focus, or a tap opens it. All destinations remain `/takezo#...` so browser Back and breadcrumbs continue to work.
 
-Takezo's SVG assets now live under `public/takezo`. The Dirty PNGs remain under `public/images/grunge`.
+Takezo's SVG assets now live under `public/takezo`. Dirty and Prototype PNGs remain under `public/images/grunge`.

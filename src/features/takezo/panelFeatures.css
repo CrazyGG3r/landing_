@@ -30,6 +30,20 @@
   background: radial-gradient(ellipse at bottom right, var(--panel-dark), transparent 72%);
   opacity: .13;
 }
+.tz-surface[data-overlay="Prototype"] {
+  mask-image: radial-gradient(ellipse at 94% 93%, #000 0%, #000e 30%, #0007 62%, transparent 95%);
+}
+.tz-surface[data-overlay="Prototype"] .tz-surface-texture {
+  right: -2%; bottom: -3%;
+  width: max(110%, 580px); height: max(110%, 580px);
+  opacity: .55;
+}
+.tz-surface[data-overlay="Prototype"] .tz-surface-shade {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 90% 90%, var(--panel-dark), transparent 68%);
+  opacity: .09;
+}
+.tz-panel:is(:hover, :focus-visible, [data-expanded="true"]) .tz-surface[data-overlay="Prototype"] .tz-surface-texture { opacity: .45; }
 .tz-panel:is(:hover, :focus-visible, [data-expanded="true"]) .tz-surface-texture {
   transform: translate(-10px, -7px);
   opacity: .16;
@@ -77,6 +91,4 @@
 }
 .tz-adaptive[data-micro="true"]:not([data-expanded="true"]) :is(.tz-adaptive-header, .tz-adaptive-footer, .tz-adaptive-interior) { display: none; }
 .tz-reduced :is(.tz-surface-texture, .tz-compact-logo, .tz-adaptive-title, .tz-copy-layer) { transition: none; }
-@media (prefers-reduced-motion: reduce) {
-  .takezo :is(.tz-surface-texture, .tz-compact-logo, .tz-adaptive-title, .tz-copy-layer) { transition: none; }
-}
+
