@@ -13,6 +13,8 @@
   mask-image: linear-gradient(90deg, transparent 0%, #000 7%, #000 93%, transparent 100%);
 }
 .tz-gallery-rail {
+  perspective: 1800px;
+  perspective-origin: var(--gallery-origin, 50%) 50%;
   position: absolute;
   inset: 5% auto 7% 0;
   display: flex;
@@ -20,18 +22,18 @@
   width: max-content;
   height: 88%;
 }
-.tz-gallery-cycle { display: flex; gap: 18px; width: max-content; height: 100%; }
+.tz-gallery-cycle { display: flex; gap: 18px; width: max-content; height: 100%; transform-style: preserve-3d; }
 .tz-artwork-gallery .tz-gallery-rail { inset: 4% auto 6% 0; height: 90%; }
 .tz-artwork-gallery .tz-gallery-cycle { align-items: stretch; }
-.tz-artwork-column { flex: none; display: flex; flex-direction: column; gap: 18px; min-width: 160px; }
+.tz-artwork-column { flex: none; display: flex; flex-direction: column; gap: 18px; min-width: 0; transform-style: preserve-3d; }
 .tz-artwork-column .tz-gallery-card { flex: none; width: 100%; min-height: 0; }
-.tz-artwork-column .tz-gallery-caption strong { font-size: clamp(21px, 2.8vw, 39px); }
 .tz-artwork-empty-column { width: min(65vw, 500px); }
 .tz-artwork-empty { width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: clamp(22px, 4vw, 44px); border-radius: 20px; background: #bcad91; color: #20241e; }
 .tz-artwork-empty span, .tz-artwork-empty small { font: 11px TakezoMono, monospace; }
 .tz-artwork-empty strong { font: 700 clamp(34px, 5vw, 68px)/.9 Takezo, sans-serif; letter-spacing: -.06em; }
-.tz-board.tz-busy .tz-gallery-cycle:not(:nth-child(2)) { opacity: 0; }
 .takezo .tz-gallery-card {
+  container-type: size;
+  rotate: y var(--gallery-turn, 0deg);
   flex: none;
   height: 100%;
   padding: 0;
@@ -40,7 +42,7 @@
   color: #f3efdf;
   cursor: pointer;
   transform: translateY(0);
-  transition: transform .42s cubic-bezier(.22,.8,.2,1), box-shadow .4s ease;
+  transition: transform .42s cubic-bezier(.22,.8,.2,1), rotate .22s ease-out, box-shadow .4s ease;
 }
 .takezo .tz-gallery-card:is(:hover,:focus-visible) {
   transform: translateY(-10px);
@@ -70,8 +72,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 28% clamp(16px,2vw,28px) 24px;
+  gap: clamp(4px, 2cqh, 8px);
+  padding: clamp(18px, 14cqh, 90px) clamp(12px, 5cqw, 28px) clamp(12px, 5cqh, 24px);
   background: linear-gradient(transparent, #111714d9 60%, #101511f2);
   text-align: left;
   transform: translateY(calc(100% - 98px));
@@ -80,6 +82,8 @@
   overflow: hidden;
 }
 .tz-gallery-card:is(:hover,:focus-visible) .tz-gallery-caption { transform: translateY(0); }
+.tz-artwork-gallery .tz-gallery-caption { opacity: 0; transform: translateY(12px); transition: opacity .2s ease, transform .3s cubic-bezier(.22,.8,.2,1); }
+.tz-artwork-gallery .tz-gallery-card:is(:hover,:focus-visible) .tz-gallery-caption { opacity: 1; transform: translateY(0); }
 .tz-gallery-year {
   position: absolute; top: 20px; left: 22px; z-index: 2;
   color: #f3efdf; font: 11px TakezoMono, monospace;
@@ -93,7 +97,15 @@
   font-size: 11px;
   line-height: 1.45;
 }
-.tz-gallery-caption strong { font-size: clamp(27px,4vw,54px); line-height: .94; letter-spacing: -.06em; text-wrap: balance; }
+.tz-gallery-caption strong { font-size: clamp(14px,min(10cqw, 15cqh),54px); line-height: .98; letter-spacing: -.05em; text-wrap: balance; overflow-wrap: anywhere; }
+.tz-gallery-caption > span:not(.tz-showcase-marks) { font-size: clamp(9px, min(3.5cqw, 4cqh), 12px); }
+.tz-gallery-caption > span:not(.tz-gallery-number):not(.tz-showcase-marks) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; text-wrap: pretty; }
+@container (max-height: 260px) {
+  .tz-gallery-caption > span:not(.tz-gallery-number):not(.tz-showcase-marks) { -webkit-line-clamp: 3; }
+  .tz-gallery-caption .tz-gallery-number { display: none; }
+  .tz-gallery-caption strong { font-size: clamp(14px, 9cqw, 28px); }
+  .tz-gallery-caption { padding-top: 30px; }
+}
 .tz-gallery-caption > span:not(.tz-gallery-number) { max-width: 35ch; }
 .tz-showcase-marks { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 6px; }
 .tz-showcase-marks img { width: 22px; height: 22px; object-fit: contain; filter: invert(1); opacity: .86; }

@@ -75,9 +75,17 @@ test("every inner page tiles all 36 cells exactly once", () => {
   assert.equal(nodes.atlas.cards.length, 36);
 });
 
-test("artwork gallery starts empty and its media folders exist", () => {
+test("artwork gallery media resolves and remains in date order", () => {
   assert.equal(nodes.artworks.mode, "artworks-gallery");
-  assert.deepEqual(nodes.artworks.cards, []);
+  const dates = nodes.artworks.cards.map(({ project }) => project.date);
+  assert.deepEqual(dates, [...dates].sort().reverse());
+  for (const { id, project } of nodes.artworks.cards) {
+    assert.equal(nodes[id].parent, "artworks");
+    for (const image of project.images) {
+      assert.ok(existsSync(resolve(`public${decodeURIComponent(image.src)}`)));
+      assert.ok(existsSync(resolve(`public${decodeURIComponent(image.thumb)}`)));
+    }
+  }
   assert.ok(existsSync(resolve("public/takezo/showcase/artworks/images")));
   assert.ok(existsSync(resolve("public/takezo/showcase/artworks/thumbnails")));
 });

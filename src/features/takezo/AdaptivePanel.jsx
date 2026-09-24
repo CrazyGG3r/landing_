@@ -70,7 +70,7 @@ export default function AdaptivePanel({
         else onExpand(touch.current && expanded ? -1 : index);
       }}
     >
-      <PanelSurface features={features} />
+      <PanelSurface features={features} reduced={reduced} />
       <div className="tz-adaptive-content">
         <div className="tz-adaptive-header">
           <span>{card.kicker}</span>

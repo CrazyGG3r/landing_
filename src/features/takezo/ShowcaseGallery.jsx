@@ -25,27 +25,49 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
   const touch = useRef(null);
   const dragged = useRef(false);
   const wake = useRef(() => {});
+  const curve = useRef(() => {});
+  const measured = useRef(null);
   const [height, setHeight] = useState(600);
 
   useLayoutEffect(() => {
     const root = viewport.current;
     const measure = () => {
       setHeight(root.clientHeight);
-      cycle.current = rail.current.firstElementChild.getBoundingClientRect().width + 18;
+      cycle.current = rail.current.firstElementChild.offsetWidth + 18;
       const middleCards = [...rail.current.children[1].children];
       const focusIndex = Math.max(0, middleCards.findIndex((card) => artwork
         ? card.querySelector(`[data-destination="${focusId}"]`)
         : card.dataset.destination === focusId));
-      const focusWidth = middleCards[focusIndex]?.getBoundingClientRect().width || 0;
-      const offset = middleCards.slice(0, focusIndex).reduce((sum, card) => sum + card.getBoundingClientRect().width + 18, 0);
-      position.current = -cycle.current - offset + (root.clientWidth - focusWidth) / 2;
+      const focusWidth = middleCards[focusIndex]?.offsetWidth || 0;
+      const offset = middleCards.slice(0, focusIndex).reduce((sum, card) => sum + card.offsetWidth + 18, 0);
+      const previous = measured.current;
+      if (!previous || previous.cards !== cards || previous.focusId !== focusId || previous.width !== root.clientWidth || previous.height !== root.clientHeight || previous.renderHeight !== height) {
+        position.current = -cycle.current - offset + (root.clientWidth - focusWidth) / 2;
+      }
+      measured.current = { cards, focusId, width: root.clientWidth, height: root.clientHeight, renderHeight: height };
       rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
+      const width = root.clientWidth;
+      const tiles = [...rail.current.querySelectorAll('.tz-gallery-card')].map((element) => {
+        let left = 0;
+        for (let parent = element; parent && parent !== rail.current; parent = parent.offsetParent) left += parent.offsetLeft;
+        return { element, center: left + element.offsetWidth / 2, half: element.offsetWidth / 2 };
+      });
+      curve.current = () => {
+        rail.current.style.setProperty('--gallery-origin', `${width / 2 - position.current}px`);
+        for (const tile of tiles) {
+          const x = tile.center + position.current;
+          if (x + tile.half < -150 || x - tile.half > width + 150) continue;
+          const n = Math.max(-1, Math.min(1, (x - width / 2) / (width / 2)));
+          tile.element.style.setProperty('--gallery-turn', `${reduced || paused ? 0 : -n * Math.abs(n) * 27}deg`);
+        }
+      };
+      curve.current();
     };
     const observer = new ResizeObserver(measure);
     observer.observe(root);
     measure();
     return () => observer.disconnect();
-  }, [cards, height, focusId, artwork]);
+  }, [cards, height, focusId, artwork, reduced, paused]);
 
   const paintPosition = () => {
     const width = cycle.current;
@@ -55,6 +77,7 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
       while (position.current > 0) position.current -= width;
     }
     rail.current.style.transform = `translate3d(${position.current}px,0,0)`;
+    curve.current();
   };
 
   useEffect(() => {
@@ -133,14 +156,24 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
       <span className="tz-gallery-arrow" aria-hidden="true">↗</span>
     </button>;
   };
+  const groups = [];
+  if (artwork) {
+    const landscape = (card) => card.project.images[0].width / card.project.images[0].height >= 1.3;
+    for (let index = 0; index < cards.length;) {
+      const start = index;
+      const wide = landscape(cards[index]);
+      const limit = wide ? 2 : 3;
+      while (index < cards.length && index - start < limit && landscape(cards[index]) === wide) index++;
+      groups.push({ start, cards: cards.slice(start, index) });
+    }
+  }
   const instances = (clone) => artwork
-    ? (cards.length ? Array.from({ length: Math.ceil(cards.length / 3) }, (_, column) => {
-        const group = cards.slice(column * 3, column * 3 + 3);
+    ? (cards.length ? groups.map(({ cards: group, start }, column) => {
         const ratios = group.map((card) => card.project.images[0].width / card.project.images[0].height);
         const available = height * .9 - 18 * (group.length - 1);
-        const width = Math.max(130, Math.min(780, available / ratios.reduce((sum, ratio) => sum + 1 / ratio, 0)));
+        const width = Math.min(950, available / ratios.reduce((sum, ratio) => sum + 1 / ratio, 0));
         return <div className="tz-artwork-column" key={`${clone}-column-${column}`} style={{ width }}>
-          {group.map((card, row) => makeCard(card, column * 3 + row, clone, width / ratios[row]))}
+          {group.map((card, row) => makeCard(card, start + row, clone, width / ratios[row]))}
         </div>;
       }) : <div className="tz-artwork-column tz-artwork-empty-column" key={`${clone}-empty`}>
         <div className="tz-panel tz-artwork-empty"><span>ARTWORKS / 00</span><strong>A SPACE<br />FOR WHAT’S NEXT.</strong><small>New work will appear here.</small></div>

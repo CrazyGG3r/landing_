@@ -77,6 +77,26 @@ Reading edge fades span up to 18% of the viewport (56px vertically, 72px horizon
 
 ## Showcase gallery and media
 
+Breakdown chunks remain opaque while their gaps and corners close; the original content returns after their reunion. Both galleries curve tiles toward the centre using their horizontal position. The shared rail updates only while moving, and reduced motion disables this tilt. Entrances include visible repeated copies on both sides. Artwork landscapes group at most two per column, while portrait/square images group up to three; caption sizing follows each tile's width and height.
+
+### Assigned image motion
+
+Add `spreading` or `falling` to a card's `tags`, then set `assetImages` to a single URL or an array of PNG/WebP/SVG URLs. These optional, masked layers respond to hover/focus and cursor parallax. The sample page is `/takezo#asset-motion`.
+
+```js
+tags: ["spreading"],
+assetImages: ["/takezo/example.webp", "/takezo/mark.svg"],
+assetMotion: {
+  x: 73, y: 55, width: 48, // percentages of panel
+  spread: 34, rotation: 22, // fan offset (%) and degrees
+  startScale: 1.8, endScale: 1,
+  duration: .76, stagger: .055, // seconds
+  parallax: 14, opacity: .9,
+},
+```
+
+An individual image can be `{ src, x, y, rotation, scale }` to override its fan placement. `falling` uses `startScale` for its overhead arrival. The motion toggle retains the resting composition with a short visibility fade; parallax stops. No animation loop runs while a layer is idle.
+
 The Showcase panel on `/takezo#work` opens `/takezo#gallery`. Cards loop horizontally; the cursor accelerates near either edge and comes to rest around the middle. Touch dragging, a wheel, and left/right arrow keys also move the rail. Project card width follows the aspect ratio of its main image. Groups crossfade their gallery preview images, while PolyCrate uses its WebM preview. Hover reveals the title, short introduction, and the supplied software SVG marks.
 
 Project text and media assignments come from `public/takezo/showcase/projects/showcase info.md`. To update or add work, edit that file and its referenced assets, then run `npm run takezo:showcase`. The script validates every referenced image, generates `showcaseManifest.js`, and exports WebP previews into `public/takezo/showcase/projects/thumbnails`. The originals remain untouched for detail pages. The script needs Pillow (`python -m pip install Pillow`) in its authoring environment; it does not run in production or add browser dependencies. There are currently 13 projects and 22 image previews.

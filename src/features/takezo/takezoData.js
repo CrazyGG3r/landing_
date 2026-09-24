@@ -682,6 +682,17 @@ nodes.skillset = {
   cards: skills.map(([name, icon], index) => card(null, name.toUpperCase(), `03.${index + 1} / TOOL`, ["sage", "bone", "ochre", "red"][index % 4], `skill:${icon}`, "Tools for form, motion, and interaction.")),
 };
 
+const motionImages = showcase.filter((project) => project.images.length).slice(0, 3).map((project) => project.images[0].thumb);
+nodes["asset-motion"] = {
+  title: "Asset motion studies",
+  parent: "home",
+  layout: [[1, 1, 3, 6], [4, 1, 3, 6]],
+  cards: [
+    { ...card(null, "SPREAD\nTHE FIELD", "01 / SPREADING", "ochre", null, "A deck of images unfolding from the edge."), tags: ["spreading"], assetImages: motionImages, assetMotion: { x: 70, y: 60, width: 52, spread: 35, rotation: 23 } },
+    { ...card(null, "A SOFTER\nLANDING", "02 / FALLING", "sage", null, "Scale, gravity, and a quiet landing."), tags: ["falling"], assetImages: motionImages, assetMotion: { x: 68, y: 60, width: 52, startScale: 2, endScale: .9 } },
+  ],
+};
+
 export function trailFor(id) {
   const trail = [];
   for (let key = id; key; key = nodes[key].parent) trail.unshift(key);

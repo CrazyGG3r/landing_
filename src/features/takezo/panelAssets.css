@@ -1,0 +1,9 @@
+.tz-asset-motion { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; opacity: var(--asset-opacity); mask-image: linear-gradient(90deg, transparent 12%, #000 72%), linear-gradient(180deg, transparent 20%, #000 48%, #000 84%, transparent 99%); mask-composite: intersect; }
+.tz-asset-drift { position: absolute; inset: 0; transform: translate3d(var(--asset-px, 0px), var(--asset-py, 0px), 0); }
+.tz-asset-drift img { position: absolute; left: var(--asset-x); top: var(--asset-y); width: var(--asset-width); height: 68%; object-fit: contain; opacity: 0; transform-origin: 50% 80%; transition: transform var(--asset-duration) cubic-bezier(.16,1,.3,1), opacity .2s ease; }
+.tz-asset-motion[data-effect="spreading"] img { transform: translate(150%, -35%) rotate(-12deg) scale(.7); }
+.tz-asset-motion[data-effect="falling"] img { transform: translate(calc(-50% + var(--fan-x)), -230%) rotate(calc(var(--fan-angle) - 15deg)) scale(var(--asset-start-scale)); }
+.tz-asset-motion[data-active="true"] img { opacity: 1; transform: translate(calc(-50% + var(--fan-x)), calc(-50% + var(--fan-y))) rotate(var(--fan-angle)) scale(var(--asset-scale)); transition-delay: var(--asset-delay); }
+.tz-panel:has(.tz-asset-motion) > :is(.tz-panel-content, .tz-adaptive-content) { z-index: 1; }
+.tz-reduced .tz-asset-drift { transform: none; }
+.tz-reduced .tz-asset-motion img { transform: translate(calc(-50% + var(--fan-x)), calc(-50% + var(--fan-y))) rotate(var(--fan-angle)) scale(var(--asset-scale)); }

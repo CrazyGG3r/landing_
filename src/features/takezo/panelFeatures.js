@@ -9,6 +9,9 @@ export function panelFeatures(card, defaults = {}) {
     max: tags.has("expansion-max"),
     cursorRead: tags.has("cursor-read"),
     gradient: tags.has("gradient"),
+    assetEffect: tags.has("spreading") ? "spreading" : tags.has("falling") ? "falling" : null,
+    assetImages: Array.isArray(options.assetImages) ? options.assetImages : options.assetImages ? [options.assetImages] : [],
+    assetMotion: options.assetMotion || {},
     overlay: tags.has("Prototype") ? "Prototype" : tags.has("Dirty") ? "Dirty" : tags.has("Halftone") ? "Halftone" : null,
     base: /^#[0-9a-f]{6}$/i.test(options.baseColor || "") ? options.baseColor : palette[card.color] || palette.red,
   };

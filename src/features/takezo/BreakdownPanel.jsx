@@ -37,7 +37,7 @@ export default function BreakdownPanel({ children, breakdown, onOpen, className,
     style={style} tabIndex={0} role="group" aria-label={breakdown.ariaLabel || "Panel options"}
     data-open={open} data-active={active}
     onPointerEnter={(event) => { if (event.pointerType === "mouse") setOpen(true); }}
-    onPointerLeave={(event) => { if (event.pointerType === "mouse" && !event.currentTarget.contains(document.activeElement)) { setOpen(false); setActive(-1); } }}
+    onPointerLeave={(event) => { if (event.pointerType === "mouse" && !(event.currentTarget.contains(document.activeElement) && document.activeElement.matches(":focus-visible"))) { setOpen(false); setActive(-1); } }}
     onClick={() => setOpen(true)} onFocusCapture={() => setOpen(true)}
     onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget) && !event.currentTarget.matches(":hover")) { setOpen(false); setActive(-1); } }}
     onKeyDown={(event) => {

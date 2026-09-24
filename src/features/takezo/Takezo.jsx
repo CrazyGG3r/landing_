@@ -145,7 +145,7 @@ function Artwork({ kind }) {
   );
 }
 
-function Panel({ card, index, isHome, onOpen, features }) {
+function Panel({ card, index, isHome, onOpen, features, reduced }) {
   const breakdown = card.tags?.includes("breakdown") && card.breakdown;
   const Tag = breakdown ? BreakdownPanel : card.id ? "button" : "article";
   return (
@@ -162,7 +162,7 @@ function Panel({ card, index, isHome, onOpen, features }) {
           }
         : {})}
     >
-      <PanelSurface features={features} />
+      <PanelSurface features={features} reduced={reduced} />
       <div className="tz-panel-content">
         <div className="tz-panel-top">
           <span>{card.kicker}</span>
@@ -320,6 +320,18 @@ export default function Takezo() {
       flushSync(() => { setExpanded(null); setView(target); });
       window.scrollTo({ top: 0, behavior: "instant" });
     };
+    const destinationPanels = () => {
+      const all = [...board.current.querySelectorAll(".tz-panel")];
+      const anchor = galleryTarget
+        ? board.current.querySelectorAll(".tz-gallery-cycle:nth-child(2) .tz-panel")[destinationIndex]
+        : all[destinationIndex];
+      const bounds = board.current.getBoundingClientRect();
+      const next = galleryTarget ? all.filter((panel) => {
+        const rect = panel.getBoundingClientRect();
+        return panel === anchor || (rect.right > bounds.left - 80 && rect.left < bounds.right + 80);
+      }) : all;
+      return { next, anchor };
+    };
     const finish = () => {
       settleTransition.current = null;
       timeline.current = null;
@@ -368,9 +380,8 @@ export default function Takezo() {
       timeline.current = tl;
       tl.call(() => {
         commit();
-        const next = [...board.current.querySelectorAll(".tz-gallery-cycle:nth-child(2) .tz-panel")];
+        const { next, anchor } = destinationPanels();
         activePanels = next;
-        const anchor = next[destinationIndex];
         gsap.set(next, { opacity: 0 });
         const end = anchor.getBoundingClientRect();
         tl.to(dot, {
@@ -443,12 +454,9 @@ export default function Takezo() {
       )
       .call(() => {
         commit();
-        const next = [...board.current.querySelectorAll(galleryTarget
-          ? ".tz-gallery-cycle:nth-child(2) .tz-panel"
-          : ".tz-panel")];
+        const { next, anchor } = destinationPanels();
         activePanels = next;
         gsap.set(next, { opacity: 0 });
-        const anchor = next[destinationIndex];
         const end = anchor.getBoundingClientRect();
         const endColor = getComputedStyle(anchor).backgroundColor;
         const destinationY = end.top + end.height / 2 - size / 2;
@@ -599,6 +607,7 @@ export default function Takezo() {
             />
           ) : (
             <Panel
+              reduced={reduced}
               key={`${view}-${index}`}
               card={card}
               index={index}

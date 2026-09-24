@@ -6,7 +6,7 @@
 .tz-breakdown-grid {
   position: absolute; inset: 0; display: grid;
   grid-template: repeat(3, minmax(0, 1fr)) / repeat(3, minmax(0, 1fr));
-  gap: 0; opacity: 0; transition: gap .46s cubic-bezier(.22,.8,.2,1), opacity .16s ease;
+  gap: 0; opacity: 1; transition: gap .46s cubic-bezier(.22,.8,.2,1);
 }
 .takezo .tz-breakdown-chunk {
   min-width: 0; min-height: 0; position: relative; display: flex;
@@ -15,12 +15,12 @@
   text-decoration: none;
   transition: border-radius .44s cubic-bezier(.22,.8,.2,1), background .2s ease, box-shadow .2s ease;
 }
-.tz-breakdown-cover { position: absolute; inset: 0; background: var(--panel-base); opacity: 1; pointer-events: none; transition: opacity .15s ease .16s; }
+.tz-breakdown-cover { position: absolute; inset: 0; background: transparent; opacity: 1; pointer-events: none; transition: opacity .18s ease .4s; }
 .tz-breakdown[data-open="true"] .tz-breakdown-cover { opacity: 0; transition-delay: 0s; }
 .tz-breakdown[data-open="true"] .tz-breakdown-grid { gap: clamp(5px, 2cqw, 9px); opacity: 1; }
 .tz-breakdown[data-open="true"] .tz-breakdown-chunk { border-radius: clamp(9px, 4cqw, 17px); }
-.tz-breakdown::before { transition: opacity .16s ease; }
-.tz-breakdown[data-open="true"]::before { opacity: 0; }
+.tz-breakdown::before { transition: opacity .16s ease .4s; }
+.tz-breakdown[data-open="true"]::before { opacity: 0; transition-delay: 0s; }
 .tz-breakdown[data-open="true"]::after { opacity: 0; }
 .tz-breakdown-icon {
   display: block; width: clamp(22px, 10cqw, 40px); aspect-ratio: 1;
