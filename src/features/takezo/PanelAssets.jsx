@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 import "./panelAssets.css";
 
-export default function PanelAssets({ effect, images, options = {}, reduced }) {
+export default function PanelAssets({ effect, images, options = {}, reduced, activationSelector = ".tz-panel" }) {
   const layer = useRef(null);
   useEffect(() => {
     const element = layer.current;
-    const panel = element.closest(".tz-panel");
+    const panel = element.closest(activationSelector);
     if (!panel) return;
     let frame = 0, bounds = null, active = false, x = 0, y = 0, tx = 0, ty = 0, previous = 0;
     const paint = (now) => {
@@ -44,7 +44,7 @@ export default function PanelAssets({ effect, images, options = {}, reduced }) {
       panel.removeEventListener("pointerleave", leave); panel.removeEventListener("focusin", enter); panel.removeEventListener("focusout", blur);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [options.parallax, reduced]);
+  }, [activationSelector, options.parallax, reduced]);
 
   return <div ref={layer} className="tz-asset-motion" data-effect={effect} aria-hidden="true"
     style={{ "--asset-x": `${options.x ?? 73}%`, "--asset-y": `${options.y ?? 55}%`, "--asset-width": `${options.width ?? 48}%`,

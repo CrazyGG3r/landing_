@@ -15,6 +15,7 @@ import { ImageDetail, VideoDetail } from "./ShowcaseDetail";
 import "./showcase.css";
 import useMotionPreference from "./useMotionPreference";
 import BreakdownPanel from "./BreakdownPanel";
+import TakezoCursor from "./TakezoCursor";
 import "./motion.css";
 
 function Artwork({ kind }) {
@@ -154,7 +155,7 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
       data-panel={index}
       data-destination={card.id || undefined}
       style={surfaceStyle(features)}
-      {...(breakdown ? { breakdown, onOpen } : card.id
+      {...(breakdown ? { breakdown, onOpen, reduced } : card.id
         ? {
             onClick: (e) => onOpen(card.id, e.currentTarget),
             type: "button",
@@ -237,6 +238,7 @@ export default function Takezo() {
   const [reduced, toggleMotion] = useMotionPreference();
   const settleTransition = useRef(null);
   const board = useRef(null);
+  const page = useRef(null);
   const traveler = useRef(null);
   const source = useRef(null);
   const timeline = useRef(null);
@@ -273,8 +275,13 @@ export default function Takezo() {
     if (!initial.current) return;
     initial.current = false;
     const ctx = gsap.context(() => {
-      if (!reduced)
-        gsap.from(".tz-panel", {
+      if (!reduced) {
+        const bounds = board.current.getBoundingClientRect();
+        const panels = [...board.current.querySelectorAll(".tz-panel")].filter((panel) => {
+          const rect = panel.getBoundingClientRect();
+          return rect.right > bounds.left - 80 && rect.left < bounds.right + 80;
+        });
+        gsap.from(panels, {
           y: 65,
           opacity: 0,
           scale: 0.88,
@@ -283,6 +290,7 @@ export default function Takezo() {
           ease: "expo.out",
           clearProps: "opacity,transform",
         });
+      }
     }, board);
     return () => ctx.revert();
   }, [reduced, node.cards.length]);
@@ -294,7 +302,6 @@ export default function Takezo() {
     }
     timeline.current?.kill();
     const panels = [...board.current.querySelectorAll(".tz-panel")];
-    let activePanels = panels;
     const previousView = current.current;
     const galleryTarget = target === "gallery" || target === "artworks";
     const returnToGallery = galleryTarget && nodes[previousView].parent === target && ["image", "video"].includes(nodes[previousView].mode);
@@ -303,6 +310,18 @@ export default function Takezo() {
       ? source.current
       : panels.find((panel) => panel.dataset.destination === target) ||
         panels[0];
+    const visibleAround = (all, anchor) => {
+      const index = all.indexOf(anchor);
+      if (index < 0) return all;
+      const bounds = board.current.getBoundingClientRect();
+      let first = index, last = index;
+      while (first > 0 && all[first - 1].getBoundingClientRect().right > bounds.left - 80) first--;
+      while (last < all.length - 1 && all[last + 1].getBoundingClientRect().left < bounds.right + 80) last++;
+      return all.slice(first, last + 1);
+    };
+    const visibleSource = nodes[previousView].mode?.includes("gallery")
+      ? visibleAround(panels, selected) : panels;
+    let activePanels = visibleSource;
     const destinationIndex = Math.max(
       0,
       nodes[target].cards.findIndex(
@@ -325,11 +344,7 @@ export default function Takezo() {
       const anchor = galleryTarget
         ? board.current.querySelectorAll(".tz-gallery-cycle:nth-child(2) .tz-panel")[destinationIndex]
         : all[destinationIndex];
-      const bounds = board.current.getBoundingClientRect();
-      const next = galleryTarget ? all.filter((panel) => {
-        const rect = panel.getBoundingClientRect();
-        return panel === anchor || (rect.right > bounds.left - 80 && rect.left < bounds.right + 80);
-      }) : all;
+      const next = galleryTarget ? visibleAround(all, anchor) : all;
       return { next, anchor };
     };
     const finish = () => {
@@ -338,7 +353,7 @@ export default function Takezo() {
       gsap.set(traveler.current, { display: "none" });
       traveler.current.replaceChildren();
       traveler.current.classList.remove("tz-traveler-return");
-      gsap.set(board.current.querySelectorAll(".tz-panel"), {
+      gsap.set(activePanels, {
         clearProps: "opacity,transform",
       });
       setBusy(false);
@@ -364,8 +379,9 @@ export default function Takezo() {
         media.autoplay = true;
         media.playsInline = true;
       } else {
-        media.src = transitionSource.querySelector(".tz-detail-image.tz-image-active")?.src
-          || nodes[previousView].project.images[0].src;
+        const activeSource = transitionSource.querySelector(".tz-image-original.tz-image-active")?.src;
+        media.src = nodes[previousView].project.images.find((image) => image.src === activeSource)?.thumb
+          || nodes[previousView].project.images[0].thumb;
       }
       dot.replaceChildren(media);
       dot.classList.add("tz-traveler-return");
@@ -428,7 +444,7 @@ export default function Takezo() {
     const tl = gsap.timeline();
     timeline.current = tl;
     tl.to(
-      panels.filter((p) => p !== selected),
+      visibleSource.filter((p) => p !== selected),
       {
         opacity: 0,
         scale: 0.91,
@@ -525,9 +541,11 @@ export default function Takezo() {
   const trail = trailFor(view);
   return (
     <main
+      ref={page}
       className={`takezo ${mosaic ? "tz-mosaic-page" : ""} ${reduced ? "tz-reduced" : ""}`}
       onContextMenu={(event) => event.preventDefault()}
     >
+      <TakezoCursor host={page} />
       <h1 className="tz-sr-only" ref={heading} tabIndex={-1}>
         {view === "home" ? "Takezo" : node.title}
       </h1>
@@ -620,7 +638,7 @@ export default function Takezo() {
       </div>
       <div className="tz-traveler" ref={traveler} aria-hidden="true" />
       <button className="tz-motion-toggle" type="button" role="switch" aria-checked={!reduced}
-        aria-label="Full animation" title={reduced ? "Enable full animation" : "Reduce decorative animation"}
+        aria-label="Full animation"
         onClick={() => { settleTransition.current?.(); toggleMotion(); }}>
         <span>MOTION <strong>{reduced ? "REDUCED" : "FULL"}</strong></span>
         <span className="tz-motion-track" aria-hidden="true"><span /></span>

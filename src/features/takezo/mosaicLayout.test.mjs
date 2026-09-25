@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { nodes, trailFor } from "./takezoData.js";
 import { layoutFor, expandedTracks, generateLayout, maximumTracks } from "./mosaicLayout.js";
 import { panelFeatures } from "./panelFeatures.js";
+import { artworkColumns, artworkPositions, singleRowArtworkHeight } from "./artworkColumns.js";
 
 test("maximum expansion leaves the minimum track size without overflow", () => {
   for (const pixels of [180, 390, 1200]) {
@@ -26,6 +27,18 @@ test("panel tags inherit page defaults and allow explicit opt-out", () => {
   assert.equal(panelFeatures({ color: "red", tags: ["gradient", "Prototype"] }, defaults).overlay, "Prototype");
   for (let i = 1; i <= 5; i++)
     assert.ok(existsSync(resolve(`public/images/grunge/Prototype${i}.png`)));
+});
+
+test("home breakdown modes and Showcase motion assets resolve", () => {
+  const [showcase, skillset, connection] = nodes.home.cards.slice(1);
+  assert.equal(skillset.breakdown.hoverMode, "expand");
+  assert.equal(connection.breakdown.hoverMode, "contract");
+  assert.equal(connection.breakdown.showLinkArrows, false);
+  const [, projects, artworks] = showcase.breakdown.strips;
+  assert.ok(projects.tags.includes("spreading"));
+  assert.ok(artworks.tags.includes("falling"));
+  for (const path of [...projects.assetImages, ...artworks.assetImages])
+    assert.ok(existsSync(resolve(`public${path}`)), path);
 });
 
 test("showcase project media and software marks resolve locally", () => {
@@ -75,12 +88,17 @@ test("every inner page tiles all 36 cells exactly once", () => {
   assert.equal(nodes.atlas.cards.length, 36);
 });
 
-test("artwork gallery media resolves and remains in date order", () => {
+test("artwork gallery media resolves and remains in ascending year and title order", () => {
   assert.equal(nodes.artworks.mode, "artworks-gallery");
-  const dates = nodes.artworks.cards.map(({ project }) => project.date);
-  assert.deepEqual(dates, [...dates].sort().reverse());
+  const names = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+  const projects = nodes.artworks.cards.map(({ project }) => project);
+  assert.deepEqual(projects, [...projects].sort((a, b) => Number(a.year) - Number(b.year)
+    || names.compare(a.title, b.title)));
   for (const { id, project } of nodes.artworks.cards) {
     assert.equal(nodes[id].parent, "artworks");
+    assert.match(project.year, /^\d{4}$/);
+    assert.ok(["concept", "digital", "traditional"].includes(project.category));
+    assert.ok(project.short && project.description);
     for (const image of project.images) {
       assert.ok(existsSync(resolve(`public${decodeURIComponent(image.src)}`)));
       assert.ok(existsSync(resolve(`public${decodeURIComponent(image.thumb)}`)));
@@ -88,6 +106,33 @@ test("artwork gallery media resolves and remains in date order", () => {
   }
   assert.ok(existsSync(resolve("public/takezo/showcase/artworks/images")));
   assert.ok(existsSync(resolve("public/takezo/showcase/artworks/thumbnails")));
+});
+
+test("artwork mosaic preserves full image proportions in one row and sizes other rows", () => {
+  const cards = nodes.artworks.cards;
+  for (const railHeight of [420, 640, 850]) {
+    for (let rows = 1; rows <= 5; rows++) {
+      const tileHeight = rows === 1 ? singleRowArtworkHeight(cards, 920, railHeight) : railHeight;
+      const columns = artworkColumns(cards, tileHeight, 18, rows);
+      const positions = artworkPositions(columns);
+      assert.deepEqual(columns.flatMap((column) => column.cards), cards);
+      assert.deepEqual(positions.items.map(({ card }) => card), cards);
+      assert.ok(positions.width > 0);
+      for (const column of columns) {
+        assert.ok(column.cards.length <= rows);
+        assert.ok(column.cards.length >= Math.floor(cards.length / columns.length));
+        assert.ok(Math.abs(column.heights.reduce((sum, value) => sum + value, 0)
+          + (column.heights.length - 1) * 18 - tileHeight) < .001);
+        assert.ok(column.heights.every((value) => value > 0));
+        if (rows === 1) {
+          const { width, height } = column.cards[0].project.images[0];
+          assert.equal(column.heights[0], tileHeight);
+          assert.ok(Math.abs(column.width / tileHeight - width / height) < .001);
+          assert.ok(column.width <= 920 * .82 + .001);
+        } else assert.ok(column.width <= 520, `oversized column: ${column.width}`);
+      }
+    }
+  }
 });
 
 test("expansion preserves the track budget and gives every neighbor space", () => {

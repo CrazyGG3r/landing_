@@ -47,7 +47,7 @@ Examples: `/takezo#materials` (Dirty + tall logos + max expansion), `#process` (
 
 ## Motion and rendering
 
-The home Connection card uses `tags: ["breakdown"]` and a `breakdown` object with `caption` and eight `links` (`name`, `icon`, `href`, optional `iconScale` for optical sizing). Its nine equal pieces open on hover, keyboard focus, or tap; Escape or moving away closes them. The middle caption uses `data-text-layer="hovered"`; original content is the `unhovered` layer. External links open in new tabs. All breakdown motion follows the global Full / Reduced switch.
+The home Connection card uses `tags: ["breakdown"]` and a `breakdown` object with `caption` and eight `links` (`name`, `icon`, `href`, optional `iconScale` for optical sizing). `hoverMode: "contract"` contracts the hovered chunk while giving all nine chunks stable, equal-sized pointer targets; `showLinkArrows: false` removes their corner arrows. The Skillset card uses `hoverMode: "expand"` so the hovered row and column enlarge along with its logo or title. The middle caption uses `data-text-layer="hovered"`; original content is the `unhovered` layer. External links open in new tabs. The custom cursor is scoped to `/takezo` and snaps toward a Connection chunk while its pointer target remains stationary. All breakdown motion follows the global Full / Reduced switch.
 
 The bottom-right **Motion Full / Reduced** switch is saved locally. With no saved choice, the system's reduced-motion preference supplies the default. Switching settles any navigation in progress without remounting the current viewer or resetting video time, image zoom, or gallery position. Reduced mode removes decorative motion while preserving gallery movement, cursor reading, media controls, and image inspection.
 

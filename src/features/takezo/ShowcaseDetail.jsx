@@ -64,7 +64,7 @@ export function ProjectInfo({ project, reduced }) {
     </button>
     <div ref={body} className="tz-info-body" onScroll={updateEdges} onWheel={stopNavigation} onTouchStart={stopNavigation}>
       <div className="tz-info-content">
-      <p className="tz-info-index">TAKEZO / SHOWCASE / {project.year}</p>
+      <p className="tz-info-index">TAKEZO / SHOWCASE / {project.category ? `${project.category.toUpperCase()} / ` : ""}{project.year}</p>
       <h2>{project.title}</h2>
       <p className="tz-info-short">{project.short}</p>
       <div className="tz-info-marks">{project.software.map((name) => <span key={name}>
@@ -84,6 +84,7 @@ export function ImageDetail({ project, reduced }) {
   const [inspect, setInspect] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [readySource, setReadySource] = useState(null);
   const [viewerSize, setViewerSize] = useState({ width: 1, height: 1 });
   const images = project.images;
 
@@ -134,11 +135,18 @@ export function ImageDetail({ project, reduced }) {
       onPointerMove={onMove} onPointerUp={() => { drag.current = null; }}
       onPointerCancel={() => { drag.current = null; }}
       onWheel={(e) => { if (e.ctrlKey || inspect) { e.preventDefault(); setScale(zoom + (e.deltaY < 0 ? .15 : -.15)); } }}>
-      {images.map((image, i) => <img key={image.src} className={`tz-detail-image ${i === index ? "tz-image-active" : ""}`}
-        src={image.src} alt={`${project.title} — image ${i + 1} of ${images.length}`}
+      {images.map((image, i) => <img key={image.thumb} className={`tz-detail-image ${i === index ? "tz-image-active" : ""}`}
+        src={image.thumb} alt={`${project.title} — image ${i + 1} of ${images.length}`}
         draggable="false" style={i === index ? {
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
         } : undefined} />)}
+      <img key={images[index].src} className={`tz-detail-image tz-image-original tz-image-active ${readySource === images[index].src ? "tz-image-ready" : ""}`}
+        src={images[index].src} alt="" decoding="async" draggable="false"
+        onLoad={(event) => {
+          const source = images[index].src;
+          event.currentTarget.decode().catch(() => {}).then(() => setReadySource(source));
+        }}
+        style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }} />
       <div className="tz-image-top"><span>{project.title.toUpperCase()}</span><span>{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span></div>
       {images.length > 1 && <div className="tz-image-film" role="group" aria-label="Project images">
         {images.map((image, i) => <button key={image.src} type="button" className={i === index ? "active" : ""}

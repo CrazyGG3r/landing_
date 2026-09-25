@@ -629,10 +629,12 @@ Object.assign(nodes.home.cards[3], {
   tags: ["breakdown"],
   breakdown: {
     caption: "Connect\nOn",
+    hoverMode: "contract",
+    showLinkArrows: false,
     links: [
       { name: "X", icon: "/images/socials/x.svg", href: "https://x.com/RentAsunderer" },
       { name: "Facebook", icon: "/images/socials/facebook.svg", href: "https://www.facebook.com/profile.php?id=61587874779147" },
-      { name: "itch.io", icon: "/images/socials/itch.svg", iconScale: 1.2, href: "https://takezoshinmen.itch.io/" },
+      { name: "itch.io", hoverName: "Itch.io", icon: "/images/socials/itch.svg", iconScale: 1.2, href: "https://takezoshinmen.itch.io/" },
       { name: "LinkedIn", icon: "/images/socials/linkedin.svg", href: "https://www.linkedin.com/in/muhammad-uzair-940685172/" },
       { name: "Instagram", icon: "/images/socials/instagram.svg", href: "https://www.instagram.com/rentasundererx/" },
       { name: "Sketchfab", icon: "/images/socials/sketchfab.svg", href: "https://sketchfab.com/takezoshinmen" },
@@ -652,8 +654,12 @@ Object.assign(nodes.home.cards[1], {
     ariaLabel: "Showcase gallery choices",
     strips: [
       { name: "SHOWCASE\nGALLERY", arrow: true },
-      { name: "PROJECTS", destination: "gallery" },
-      { name: "ARTWORKS", destination: "artworks" },
+      { name: "PROJECTS", destination: "gallery", tags: ["spreading"],
+        assetImages: [1, 2, 3].map((i) => `/takezo/showcase/projects/project${i}.webp`),
+        assetMotion: { x: 62, y: 46, width: 58, spread: 29, rotation: 16, endScale: .82, parallax: 9 } },
+      { name: "ARTWORKS", destination: "artworks", tags: ["falling"],
+        assetImages: [1, 2, 3].map((i) => `/takezo/showcase/artworks/artwork${i}.webp`),
+        assetMotion: { x: 66, y: 45, width: 54, spread: 17, rotation: 12, startScale: 1.55, endScale: .8, parallax: 9 } },
     ],
   },
 });
@@ -671,6 +677,7 @@ Object.assign(nodes.home.cards[2], {
   tags: ["breakdown"],
   breakdown: {
     ariaLabel: "Skillset",
+    hoverMode: "expand",
     centre: { name: "Adept\nat", destination: "skillset" },
     links: skills.map(([name, icon]) => ({ name, icon: `/takezo/${icon}.svg` })),
   },

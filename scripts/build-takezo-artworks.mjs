@@ -5,6 +5,20 @@ const root = path.resolve('public/takezo/showcase/artworks');
 const imageDir = path.join(root, 'images');
 const thumbDir = path.join(root, 'thumbnails');
 const extensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+const catalogPath = path.join(imageDir, 'artwork-catalog.md');
+
+const titleKey = (title) => title.toLowerCase().replace(/\\/g, '').replace(/[^a-z0-9]+/g, '');
+const catalog = new Map();
+for (const line of (await readFile(catalogPath, 'utf8')).split(/\r?\n/)) {
+  if (!line.startsWith('|') || /^\|\s*(?:Title|-)/i.test(line)) continue;
+  const fields = line.slice(1, -1).split('|').map((field) => field.trim().replace(/\\([&|])/g, '$1'));
+  if (fields.length !== 5) throw new Error(`Invalid artwork catalog row: ${line}`);
+  const [title, category, year, short, description] = fields;
+  const key = titleKey(title);
+  if (catalog.has(key)) throw new Error(`Duplicate artwork catalog title: ${title}`);
+  if (!category || !year || !short || !description) throw new Error(`Incomplete artwork catalog entry: ${title}`);
+  catalog.set(key, { category, year, short, description });
+}
 
 function dimensions(buffer, extension) {
   if (extension === '.png' && buffer.toString('ascii', 1, 4) === 'PNG')
@@ -41,17 +55,22 @@ const entries = await Promise.all(images.map(async (name) => {
   const date = (await stat(source)).mtime.toISOString();
   return { name, stem, thumb, width, height, date };
 }));
-entries.sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name));
+const names = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+for (const entry of entries)
+  if (!catalog.has(titleKey(entry.stem))) throw new Error(`Missing artwork catalog entry: ${entry.stem}`);
+const present = new Set(entries.map((entry) => titleKey(entry.stem)));
+for (const key of catalog.keys())
+  if (!present.has(key)) throw new Error(`Artwork catalog entry has no image: ${key}`);
+entries.sort((a, b) => Number(catalog.get(titleKey(a.stem)).year) - Number(catalog.get(titleKey(b.stem)).year)
+  || names.compare(a.stem, b.stem) || names.compare(a.name, b.name));
 const manifest = entries.map((entry, index) => ({
   id: `artwork-${entry.stem.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${index + 1}`,
   title: entry.stem,
-  short: `Its an Artwork ${index + 1}`,
-  description: `To be added soon ${index + 1}`,
-  year: '-',
+  ...catalog.get(titleKey(entry.stem)),
   kind: 'artwork',
   date: entry.date,
   software: [],
-  images: [{ src: `/takezo/showcase/artworks/images/${encodeURIComponent(entry.name)}`, thumb: `/takezo/showcase/artworks/thumbnails/${encodeURIComponent(entry.thumb)}`, width: entry.width, height: entry.height }],
+  images: [{ src: `/takezo/showcase/artworks/images/${encodeURI(entry.name)}`, thumb: `/takezo/showcase/artworks/thumbnails/${encodeURI(entry.thumb)}`, width: entry.width, height: entry.height }],
   video: null,
 }));
 await writeFile('src/features/takezo/artworkManifest.js', `export default ${JSON.stringify(manifest, null, 2)};\n`);
