@@ -27,6 +27,8 @@
 .tz-cursor[data-magnetic="true"]::after { inset: -9px; opacity: 1; }
 .tz-cursor[data-chunk-hover="true"] { width: 0; height: 0; }
 .tz-cursor[data-chunk-hover="true"]::after { inset: 0; opacity: 0; }
+.tz-cursor[data-adaptive-chunk="true"] { width: 0; height: 0; }
+.tz-cursor[data-adaptive-chunk="true"]::after { inset: 0; opacity: 0; }
 @media (pointer: fine) {
   .takezo[data-custom-cursor="true"],
   .takezo[data-custom-cursor="true"] * { cursor: none !important; }

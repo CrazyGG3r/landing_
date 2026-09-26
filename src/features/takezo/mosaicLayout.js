@@ -131,16 +131,18 @@ export function maximumTracks(start, span, pixels, gap = 0) {
   return Array.from({ length: 6 }, (_, i) => i >= start - 1 && i < start - 1 + span ? large : small);
 }
 
-export function trackStyle(layout, active, width, height, maximum = false, gap = 0) {
+export function trackStyle(layout, active, width, height, maximum = false, gap = 0, desiredSize = null) {
   const rect = layout[active];
   const tracks = maximum
     ? (start, span, pixels) => maximumTracks(start, span, pixels, gap)
     : expandedTracks;
   const cols = rect
-    ? tracks(rect[0], rect[2], width, Math.min(440, width * 0.8))
+    ? tracks(rect[0], rect[2], desiredSize ? Math.max(1, width - gap * 5) : width,
+        desiredSize?.width ?? Math.min(440, width * 0.8))
     : Array(6).fill(1);
   const rows = rect
-    ? tracks(rect[1], rect[3], height, Math.min(440, height * 0.72))
+    ? tracks(rect[1], rect[3], desiredSize ? Math.max(1, height - gap * 5) : height,
+        desiredSize?.height ?? Math.min(440, height * 0.72))
     : Array(6).fill(1);
   return {
     gridTemplateColumns: cols.map((n) => `minmax(0, ${n}fr)`).join(" "),

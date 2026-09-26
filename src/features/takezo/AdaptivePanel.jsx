@@ -3,6 +3,10 @@ import PanelSurface from "./PanelSurface";
 import PanelCopy from "./PanelCopy";
 import { surfaceStyle } from "./panelFeatures";
 import { observePanelFit } from "./panelFit";
+import AdaptiveBreakdown from "./AdaptiveBreakdown";
+import TechnicalMotion from "./TechnicalMotion";
+import ArtThumbnailMotion from "./ArtThumbnailMotion";
+import DesignMotion from "./DesignMotion";
 
 export default function AdaptivePanel({
   card,
@@ -10,6 +14,7 @@ export default function AdaptivePanel({
   rect,
   expanded,
   compressed,
+  entryX,
   onExpand,
   onOpen,
   artwork,
@@ -23,6 +28,8 @@ export default function AdaptivePanel({
   const touch = useRef(false);
   const reader = useRef(null);
   const text = card.title.replace(/\s+/g, " ").trim();
+  const hasBreakdown = !!card.breakdown?.items?.length;
+  const Tag = hasBreakdown ? "article" : "button";
 
   useLayoutEffect(() => observePanelFit({
     el: panel.current, label: title.current, box: titleBox.current,
@@ -30,14 +37,18 @@ export default function AdaptivePanel({
   }), [expanded, compressed, text, features.logo]);
 
   return (
-    <button
+    <Tag
       ref={panel}
-      type="button"
+      {...(!hasBreakdown ? { type: "button" } : { tabIndex: 0, role: "group" })}
       className={`tz-panel tz-adaptive tz-${card.color}`}
       data-panel={index}
       data-destination={card.id || undefined}
       data-expanded={expanded}
       data-compressed={compressed}
+      data-single-word={!text.includes(" ") ? "true" : undefined}
+      data-cursor-videos={card.cursorVideos?.length ? "true" : undefined}
+      data-art-thumbnails={card.artThumbnails?.length ? "true" : undefined}
+      data-design-motion={card.designMedia ? "true" : undefined}
       aria-expanded={expanded}
       aria-label={`${card.id ? "Explore" : "Expand"} ${text}`}
       style={{
@@ -71,6 +82,10 @@ export default function AdaptivePanel({
       }}
     >
       <PanelSurface features={features} reduced={reduced} />
+      {hasBreakdown && <AdaptiveBreakdown breakdown={card.breakdown} open={expanded} entryX={entryX} />}
+      {card.cursorVideos?.length > 0 && <TechnicalMotion host={panel} sources={card.cursorVideos} reduced={reduced} />}
+      {card.artThumbnails?.length > 0 && <ArtThumbnailMotion host={panel} sources={card.artThumbnails} reduced={reduced} />}
+      {card.designMedia && <DesignMotion media={card.designMedia} expanded={expanded} reduced={reduced} />}
       <div className="tz-adaptive-content">
         <div className="tz-adaptive-header">
           <span>{card.kicker}</span>
@@ -100,6 +115,6 @@ export default function AdaptivePanel({
           </span>
         </div>
       </div>
-    </button>
+    </Tag>
   );
 }

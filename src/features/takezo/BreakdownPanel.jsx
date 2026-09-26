@@ -41,6 +41,7 @@ export default function BreakdownPanel({ children, breakdown, onOpen, reduced, c
       onFocus={() => setActive(index)}>
       {assetEffect && <PanelAssets effect={assetEffect} images={item.assetImages || []} options={item.assetMotion} reduced={reduced} activationSelector=".tz-breakdown-chunk" />}
       {item.icon && <span className="tz-breakdown-icon" aria-hidden="true"><img src={item.icon} alt="" draggable="false" style={{ "--icon-scale": item.iconScale || 1 }} /></span>}
+      {item.icon && hoverMode === "expand" && <span className="tz-breakdown-hover-name">{item.name}</span>}
       {item.arrow && <svg className="tz-breakdown-large-arrow" viewBox="0 0 200 200" aria-hidden="true"><path d="M31 28h144v144h-39V94L52 178l-30-30 84-81H31z" fill="currentColor" /></svg>}
       {(strips || isCentre || item.showLabel) && <span className="tz-breakdown-label" data-text-layer="hovered">{item.name}</span>}
       {isCentre && hoverMode === "contract" && active !== 4 && chunks[active]?.href &&

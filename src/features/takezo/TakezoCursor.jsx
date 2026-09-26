@@ -21,6 +21,7 @@ export default function TakezoCursor({ host }) {
       const hit = panel && underPointer.closest(".tz-breakdown-hit");
       const chunk = hit && panel.querySelector(`.tz-breakdown-grid > :nth-child(${Number(hit.dataset.chunkIndex) + 1})`);
       const skillChunk = underPointer?.closest('.tz-breakdown[data-hover-mode="expand"][data-open="true"] .tz-breakdown-chunk');
+      const adaptiveChunk = underPointer?.closest('.tz-adaptive[data-expanded="true"] .tz-adaptive-breakdown');
       const magnetic = !!chunk;
       const rect = magnetic ? chunk.getBoundingClientRect() : null;
       const targetX = rect ? rect.left + rect.width / 2 : x;
@@ -28,6 +29,7 @@ export default function TakezoCursor({ host }) {
       dot.style.transform = `translate3d(${targetX}px, ${targetY}px, 0) translate(-50%, -50%)`;
       dot.dataset.magnetic = String(magnetic);
       dot.dataset.chunkHover = String(!!hit || !!skillChunk);
+      dot.dataset.adaptiveChunk = String(!!adaptiveChunk);
       dot.dataset.action = String(!!underPointer?.closest("button:not(:disabled), a, [role='button']"));
       if (magnetic && now < until) frame = requestAnimationFrame(paint);
     };

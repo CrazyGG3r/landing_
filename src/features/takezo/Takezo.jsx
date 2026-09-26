@@ -536,7 +536,9 @@ export default function Takezo() {
       if (previous && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 2) return;
       hoverPoint.current = { x: event.clientX, y: event.clientY };
     }
-    setExpanded((previous) => index < 0 ? null : previous?.view === view && previous.index === index ? previous : { view, index });
+    setExpanded((previous) => index < 0 ? null : previous?.view === view && previous.index === index
+      ? previous
+      : { view, index, entryX: event?.clientX ?? null });
   }, [view]);
   const trail = trailFor(view);
   return (
@@ -577,7 +579,12 @@ export default function Takezo() {
         style={
           mosaic
             ? trackStyle(rectangles, active, boardSize.width, boardSize.height,
-                active >= 0 && features[active].max, boardSize.gap)
+                active >= 0 && features[active].max, boardSize.gap,
+                active >= 0 && node.cards[active]?.breakdown?.layout === "square-row"
+                  ? { height: Math.max(1,
+                      (boardSize.width - boardSize.gap * (node.cards[active].breakdown.items.length - 1))
+                        / node.cards[active].breakdown.items.length) }
+                  : null)
             : undefined
         }
         onPointerLeave={
@@ -617,6 +624,7 @@ export default function Takezo() {
               rect={rectangles[index]}
               expanded={active === index}
               compressed={active >= 0 && active !== index}
+              entryX={active === index ? expanded?.entryX : null}
               onExpand={expand}
               onOpen={open}
               artwork={Artwork}

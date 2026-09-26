@@ -180,8 +180,8 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-traditional-digital-first-attempt-10",
-    "title": "Traditional + Digital First Attempt",
+    "id": "artwork-traditional-and-digital-first-attempt-10",
+    "title": "Traditional and Digital First Attempt",
     "category": "traditional",
     "year": "2019",
     "short": "Eerie theme for Lore Work",
@@ -191,8 +191,8 @@ export default [
     "software": [],
     "images": [
       {
-        "src": "/takezo/showcase/artworks/images/Traditional%20+%20Digital%20First%20Attempt.jpg",
-        "thumb": "/takezo/showcase/artworks/thumbnails/Traditional%20+%20Digital%20First%20Attempt.webp",
+        "src": "/takezo/showcase/artworks/images/Traditional%20and%20Digital%20First%20Attempt.jpg",
+        "thumb": "/takezo/showcase/artworks/thumbnails/Traditional%20and%20Digital%20First%20Attempt.webp",
         "width": 1956,
         "height": 2637
       }

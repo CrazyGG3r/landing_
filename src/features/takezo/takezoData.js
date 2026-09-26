@@ -655,10 +655,10 @@ Object.assign(nodes.home.cards[1], {
     strips: [
       { name: "SHOWCASE\nGALLERY", arrow: true },
       { name: "PROJECTS", destination: "gallery", tags: ["spreading"],
-        assetImages: [1, 2, 3].map((i) => `/takezo/showcase/projects/project${i}.webp`),
+        assetImages: [1, 2, 3].map((i) => `/takezo/showcase/projects/project${i}.motion.webp`),
         assetMotion: { x: 62, y: 46, width: 58, spread: 29, rotation: 16, endScale: .82, parallax: 9 } },
       { name: "ARTWORKS", destination: "artworks", tags: ["falling"],
-        assetImages: [1, 2, 3].map((i) => `/takezo/showcase/artworks/artwork${i}.webp`),
+        assetImages: [1, 2, 3].map((i) => `/takezo/showcase/artworks/artwork${i}.motion.webp`),
         assetMotion: { x: 66, y: 45, width: 54, spread: 17, rotation: 12, startScale: 1.55, endScale: .8, parallax: 9 } },
     ],
   },
@@ -685,8 +685,54 @@ Object.assign(nodes.home.cards[2], {
 nodes.skillset = {
   title: "Skillset",
   parent: "home",
-  layout: layouts.cabinet,
-  cards: skills.map(([name, icon], index) => card(null, name.toUpperCase(), `03.${index + 1} / TOOL`, ["sage", "bone", "ochre", "red"][index % 4], `skill:${icon}`, "Tools for form, motion, and interaction.")),
+  layout: [
+    [1, 1, 6, 1],
+    [1, 2, 2, 3],
+    [3, 2, 2, 2],
+    [5, 2, 2, 2],
+    [3, 4, 4, 1],
+    [1, 5, 3, 2],
+    [4, 5, 1, 2],
+    [5, 5, 2, 2],
+  ],
+  cards: [
+    {
+      ...card(null, "3D", "03.1 / DISCIPLINE", "sage", null, "Form built in space."),
+      breakdown: {
+        layout: "square-row",
+        idleImages: ["modelling.webp", "sculpting.webp", "texturing.webp", "rendering.webp"],
+        items: [
+          { label: "RESEARCHING", logos: ["Pinterest.svg"], images: ["researching1.webp", "researching2.webp", "researching3.webp"] },
+          { label: "MODELLING", logos: ["Blender.svg"], images: ["modelling.webp"] },
+          { label: "SCULPTING", logos: ["Blender.svg", "ZBrush.svg"], images: ["sculpting.webp"] },
+          { label: "TEXTURING", logos: ["SP3D.svg", "PS.svg"], images: ["texturing.webp"] },
+          { label: "RENDERING", logos: ["Blender.svg"], background: "rendering_bg.webp", images: ["rendering.webp"] },
+        ],
+      },
+    },
+    {
+      ...card("artworks", "ART", "03.2 / DISCIPLINE", "bone", null, "Image-making with intent."),
+      artThumbnails: artworks.flatMap((artwork) => artwork.images?.map((image) => image.thumb) || []),
+    },
+    {
+      ...card(null, "DESIGN", "03.3 / DISCIPLINE", "ochre", null, "Systems shaped for clarity."),
+      designMedia: {
+        logo: "/takezo/skillset/design/BFLogo.svg",
+        video: "/takezo/skillset/design/BFLogoFormation.webm",
+      },
+    },
+    card(null, "ILLUSTRATION", "03.4 / DISCIPLINE", "red", null, "Ideas made visible."),
+    card(null, "CONCEPT", "03.5 / DISCIPLINE", "sage", null, "Finding the strongest direction."),
+    {
+      ...card(null, "TECHNICAL", "03.6 / DISCIPLINE", "bone", null, "Creative work backed by systems."),
+      cursorVideos: [
+        "/takezo/skillset/technical/UniJointRig.webm",
+        "/takezo/skillset/technical/CrabRig.webm",
+      ],
+    },
+    card(null, "INTERACTIVE", "03.7 / DISCIPLINE", "ochre", null, "Experiences that respond."),
+    card(null, "VISUAL DEVELOPMENT", "03.8 / DISCIPLINE", "red", null, "A visual language carried from idea to finish."),
+  ],
 };
 
 const motionImages = showcase.filter((project) => project.images.length).slice(0, 3).map((project) => project.images[0].thumb);

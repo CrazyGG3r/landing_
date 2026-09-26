@@ -7,7 +7,9 @@ const thumbDir = path.join(root, 'thumbnails');
 const extensions = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 const catalogPath = path.join(imageDir, 'artwork-catalog.md');
 
-const titleKey = (title) => title.toLowerCase().replace(/\\/g, '').replace(/[^a-z0-9]+/g, '');
+// Catalog titles may use “+” while filenames use the spelled-out “and”.
+// Both identify the same artwork, so normalize them to one lookup key.
+const titleKey = (title) => title.toLowerCase().replace(/\\/g, '').replace(/\band\b/g, '+').replace(/[^a-z0-9]+/g, '');
 const catalog = new Map();
 for (const line of (await readFile(catalogPath, 'utf8')).split(/\r?\n/)) {
   if (!line.startsWith('|') || /^\|\s*(?:Title|-)/i.test(line)) continue;
