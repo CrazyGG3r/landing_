@@ -516,6 +516,10 @@
   font: 700 clamp(8px, 1.2vw, 16px)/.94 Takezo, sans-serif;
   letter-spacing: -0.045em;
 }
+.tz-adaptive-breakdown-item[data-rendering="true"] .tz-adaptive-breakdown-label {
+  color: var(--rendering-label-color, var(--ink));
+  transition: opacity .15s ease, transform .25s cubic-bezier(.22,.8,.2,1);
+}
 .tz-adaptive-breakdown :is(.tz-adaptive-breakdown-number, .tz-adaptive-breakdown-label) {
   opacity: 0;
   transform: translateY(5px);

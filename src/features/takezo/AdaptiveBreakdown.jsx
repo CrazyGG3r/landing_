@@ -127,7 +127,13 @@ export default function AdaptiveBreakdown({ breakdown, open, entryX }) {
       }
       if (rendering) {
         const distance = Math.max(center - pointerX, 0);
-        card.style.setProperty("--rendering-proximity", `${Math.max(0, 1 - distance / (rect.width * 1.5))}`);
+        const renderingProximity = Math.max(0, 1 - distance / (rect.width * 1.5));
+        card.style.setProperty("--rendering-proximity", `${renderingProximity}`);
+        const labelProgress = texturingCenter !== undefined && renderingCenter !== undefined
+          ? Math.max(0, Math.min(1, (pointerX - texturingCenter) / (renderingCenter - texturingCenter)))
+          : renderingProximity;
+        const labelChannel = Math.round(32 + labelProgress * 223);
+        card.style.setProperty("--rendering-label-color", `rgb(${labelChannel} ${labelChannel} ${labelChannel})`);
       }
     }
     if (rects[0]) {
@@ -161,7 +167,10 @@ export default function AdaptiveBreakdown({ breakdown, open, entryX }) {
       motion.current.targets[index] = rendering
         ? (event.clientX >= center ? 0 : -card.clientWidth * 1.5)
         : direction * card.clientWidth * 1.5;
-      if (rendering) card.style.setProperty("--rendering-proximity", "0");
+      if (rendering) {
+        card.style.setProperty("--rendering-proximity", "0");
+        card.style.setProperty("--rendering-label-color", "rgb(32 32 32)");
+      }
     }
     animate();
   };
