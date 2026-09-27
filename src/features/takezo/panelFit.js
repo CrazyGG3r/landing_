@@ -50,6 +50,8 @@ function flush() {
     if (job.interior.inert !== !full) job.interior.inert = !full;
     setData(el, "tiny", width < 105 || height < 150);
     setData(el, "micro", width < 60 || height < 85);
+    setData(el, "shallow", height < 240);
+    setData(el, "roomy", height >= 300);
     setStyle(el, "--panel-pad", `${Math.max(10, Math.min(23, width * .075, height * .12))}px`);
   }
   const left = changed.filter((job) => job.mode === "left");

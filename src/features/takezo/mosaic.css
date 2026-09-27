@@ -265,30 +265,24 @@
   position: absolute;
   z-index: 1;
 }
-.tz-adaptive[data-design-motion="true"] .tz-adaptive-footer {
-  z-index: 5;
-  border-top: 0;
+.tz-adaptive[data-design-motion="true"]:not([data-expanded="true"]) > .tz-design-motion {
+  right: -7%;
+  bottom: -7%;
+  width: 80%;
+  height: 82%;
 }
-.tz-adaptive[data-design-motion="true"] .tz-adaptive-footer::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 1px;
-  background: linear-gradient(90deg, #20231e35 0 44%, rgba(255,255,255,.96) 51% 100%);
-  pointer-events: none;
+.tz-adaptive[data-design-motion="true"]:not([data-expanded="true"]) .tz-design-motion-logo {
+  transform: none;
 }
-.tz-adaptive[data-design-motion="true"] .tz-adaptive-size {
-  position: relative;
-  z-index: 1;
-  color: #fff;
-  opacity: 1;
+.tz-adaptive[data-design-motion="true"][data-roomy="true"]:not([data-expanded="true"]) > .tz-design-motion {
+  right: -27%;
 }
-.tz-adaptive[data-design-motion="true"][data-expanded="true"] .tz-adaptive-footer::before {
-  background: linear-gradient(90deg, #20231e35 0 62%, rgba(255,255,255,.96) 69% 100%);
+.tz-adaptive[data-design-motion="true"][data-shallow="true"]:not([data-expanded="true"]) > .tz-design-motion {
+  right: -7%;
 }
 .tz-adaptive[data-design-motion="true"][data-expanded="true"] > .tz-design-motion {
   right: -1%;
-  bottom: 1%;
+  bottom: 10%;
   width: 62%;
   height: 82%;
 }
