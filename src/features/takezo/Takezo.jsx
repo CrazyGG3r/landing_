@@ -16,10 +16,12 @@ import "./showcase.css";
 import useMotionPreference from "./useMotionPreference";
 import BreakdownPanel from "./BreakdownPanel";
 import TakezoCursor from "./TakezoCursor";
+import TakezoPortrait from "./TakezoPortrait";
 import "./motion.css";
 
-function Artwork({ kind }) {
+function Artwork({ kind, reduced = false }) {
   const artId = useId().replaceAll(":", "");
+  if (kind === "portrait") return <TakezoPortrait reduced={reduced} />;
   if (kind?.startsWith("skill:"))
     return <img className="tz-art tz-skill-art" src={`/takezo/${kind.slice(6)}.svg`} alt="" aria-hidden="true" />;
   if (kind === "gallery")
@@ -178,7 +180,7 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
         >
           {card.title}
         </h2>
-        {card.art && <Artwork kind={card.art} />}
+        {card.art && <Artwork kind={card.art} reduced={reduced} />}
         {isHome && index === 0 && (
           <>
             <span className="tz-japanese" aria-hidden="true">

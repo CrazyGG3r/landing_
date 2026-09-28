@@ -103,7 +103,7 @@ export default function AdaptivePanel({
         <div className="tz-adaptive-interior">
           {card.art && (
             <div className="tz-adaptive-art">
-              <Artwork kind={card.art} />
+              <Artwork kind={card.art} reduced={reduced} />
             </div>
           )}
           <PanelCopy ref={reader} card={card} expanded={expanded} enabled={features.cursorRead} panel={panel} reduced={reduced} />

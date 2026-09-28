@@ -41,6 +41,13 @@ test("home breakdown modes and Showcase motion assets resolve", () => {
     assert.ok(existsSync(resolve(`public${path}`)), path);
 });
 
+test("Takezo person panels use the portrait formation assets", () => {
+  assert.equal(nodes.home.cards[0].art, "portrait");
+  assert.equal(nodes.identity.cards[0].art, "portrait");
+  assert.ok(existsSync(resolve("public/takezo/TakezoPortraitFormation.webm")));
+  assert.ok(existsSync(resolve("public/takezo/TakezoPortraitFormed.svg")));
+});
+
 test("showcase project media and software marks resolve locally", () => {
   assert.equal(nodes.gallery.cards.length, 13);
   const years = nodes.gallery.cards.map(({ project }) =>

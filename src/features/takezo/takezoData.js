@@ -21,7 +21,7 @@ export const nodes = {
         "TAKEZO",
         "01 / THE PERSON",
         "red",
-        "sculpture",
+        "portrait",
         "Independent mind. Collective force.",
       ),
       card(
@@ -59,7 +59,7 @@ export const nodes = {
         "TAKEZO",
         "01 / THE PERSON",
         "red",
-        "sculpture",
+        "portrait",
         "A personal practice within BoltForged. Exploring the space between precise engineering and expressive design.",
       ),
       card(
