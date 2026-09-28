@@ -15,6 +15,16 @@
   src: url("/fonts/BLMelodyMono-Regular.otf") format("opentype");
   font-display: swap;
 }
+@font-face {
+  font-family: TakezoArabic;
+  src: url("/fonts/Ko_Banzeen-Normal.otf") format("opentype");
+  font-display: swap;
+}
+@font-face {
+  font-family: TakezoMatisse;
+  src: url("/fonts/FOT-Matisse%20Pro%20EB.otf") format("opentype");
+  font-display: swap;
+}
 .takezo {
   --ink: #20231e;
   --paper: #d5d1c2;
@@ -225,6 +235,9 @@
   line-height: 1.2;
   max-width: 220px;
 }
+.tz-home .tz-panel-0 .tz-panel-action {
+  display: none;
+}
 .tz-identity-caption {
   display: flex;
   justify-content: space-between;
@@ -296,6 +309,12 @@
 .tz-portrait[data-playing="true"] .tz-portrait-formation {
   opacity: 1;
 }
+.tz-reduced .tz-portrait-formation {
+  opacity: 0 !important;
+}
+.tz-reduced .tz-portrait[data-formed="true"] .tz-portrait-formed {
+  opacity: 1 !important;
+}
 .tz-portrait-formed {
   transition: opacity .18s ease;
 }
@@ -311,14 +330,38 @@
 .takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible) :is(.tz-panel-top, .tz-identity-caption, .tz-adaptive-header, .tz-adaptive-footer) {
   border-color: #ffffff70;
 }
-.tz-japanese {
+.tz-takezo-locales {
   position: absolute;
-  left: 23px;
-  top: 43%;
-  font-family: serif;
-  font-size: 51px;
-  line-height: 1.2;
+  right: 24px;
+  bottom: 68px;
+  left: auto;
+  top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  margin-top: 0;
   z-index: 2;
+}
+.tz-takezo-locales span {
+  display: block;
+  width: max-content;
+  line-height: .9;
+  white-space: nowrap;
+}
+.tz-takezo-locales span[lang="ar"] {
+  font-family: TakezoArabic, sans-serif;
+  font-size: clamp(80px, 18cqw, 104px);
+  letter-spacing: .015em;
+  transform: scaleX(1.1);
+  transform-origin: right center;
+}
+.tz-takezo-locales span[lang="ja"] {
+  font-family: TakezoMatisse, serif;
+  font-size: clamp(80px, 18cqw, 104px);
+  letter-spacing: .04em;
+  transform: scaleX(1.1);
+  transform-origin: right center;
 }
 .tz-side-label {
   position: absolute;
@@ -574,8 +617,19 @@
   }
 }
 @media (max-width: 760px) {
+  html:has(.takezo),
+  body:has(.takezo),
+  #root:has(.takezo) {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   .takezo {
+    height: 100dvh;
+    min-height: 0;
     padding-inline: 20px;
+    overscroll-behavior: none;
+    touch-action: manipulation;
   }
   .tz-navigation {
     font-size: 8px;
@@ -659,9 +713,16 @@
     top: 20%;
     height: 52%;
   }
-  .tz-japanese {
-    font-size: 38px;
-    left: 15px;
+  .tz-takezo-locales {
+    right: 15px;
+    bottom: 62px;
+    gap: 8px;
+  }
+  .tz-takezo-locales span[lang="ar"] {
+    font-size: 56px;
+  }
+  .tz-takezo-locales span[lang="ja"] {
+    font-size: 56px;
   }
   .tz-side-label {
     right: 8px;
@@ -743,8 +804,8 @@
 }
 @media (max-width: 360px) {
   .takezo {
-    height: auto;
-    min-height: 100svh;
+    height: 100dvh;
+    min-height: 0;
     grid-template-rows: auto auto;
   }
   .tz-board {

@@ -53,6 +53,15 @@ export const nodes = {
   identity: {
     title: "The person",
     parent: "home",
+    layout: [
+      [1, 1, 1, 6],
+      [2, 1, 5, 1],
+      [2, 2, 2, 2],
+      [4, 2, 2, 2],
+      [2, 4, 1, 3],
+      [3, 4, 3, 3],
+      [6, 2, 1, 5],
+    ],
     cards: [
       card(
         null,
@@ -63,28 +72,52 @@ export const nodes = {
         "A personal practice within BoltForged. Exploring the space between precise engineering and expressive design.",
       ),
       card(
-        "approach",
-        "INTENT\nIN EVERY\nDETAIL.",
-        "01.1 / PHILOSOPHY",
-        "bone",
-        "arrow",
-        "How I think. How I build.",
-      ),
-      card(
-        "capabilities",
-        "FORM ×\nFUNCTION",
-        "01.2 / CAPABILITIES",
+        null,
+        "INTERESTS",
+        "01.1 / PROFILE",
         "sage",
-        "orbital",
-        "Design / code / motion",
+        null,
+        "",
       ),
       card(
-        "principles",
-        "STAY\nCURIOUS.",
-        "01.3 / PRINCIPLES",
+        null,
+        "EDUCATION",
+        "01.2 / PROFILE",
+        "bone",
+        null,
+        "",
+      ),
+      card(
+        null,
+        "LANGUAGES",
+        "01.3 / PROFILE",
         "ochre",
-        "asterisk",
-        "A few things worth building around.",
+        null,
+        "",
+      ),
+      card(
+        null,
+        "LOCATION",
+        "01.4 / PROFILE",
+        "sage",
+        null,
+        "",
+      ),
+      card(
+        null,
+        "WORK\nPHILOSOPHY",
+        "01.5 / PROFILE",
+        "red",
+        null,
+        "",
+      ),
+      card(
+        null,
+        "AVAILABILITY",
+        "01.6 / PROFILE",
+        "sage",
+        null,
+        "",
       ),
     ],
   },
@@ -340,7 +373,6 @@ Object.entries(details).forEach(
 );
 
 // Home deliberately retains its original composition and content.
-Object.assign(nodes.identity, { layout: layouts.spire });
 Object.assign(nodes.work, { layout: layouts.workGallery });
 nodes.work.cards.push(
   card(

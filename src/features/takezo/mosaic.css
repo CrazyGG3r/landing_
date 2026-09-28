@@ -16,6 +16,7 @@
   cursor: pointer;
   min-width: 0;
   min-height: 0;
+  transition: border-radius 0.52s cubic-bezier(0.22, 0.8, 0.2, 1);
 }
 .tz-adaptive::before {
   inset: 6px;
@@ -605,6 +606,39 @@
 .tz-adaptive[data-expanded="true"] {
   z-index: 4;
 }
+/* The Takezo identity tile retracts into a slim, centered name pill while a
+   profile tile is being explored. */
+.tz-board[data-view="identity"] .tz-adaptive[data-panel="0"][data-compressed="true"] {
+  border-radius: 999px;
+}
+.tz-identity-pill-title {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font: 700 clamp(18px, 2vw, 31px)/1 Takezo, sans-serif;
+  letter-spacing: -0.06em;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.88);
+  transition:
+    opacity 0.18s ease,
+    transform 0.34s cubic-bezier(0.22, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.tz-board[data-view="identity"] .tz-adaptive[data-panel="0"] .tz-adaptive-content {
+  transition: opacity 0.18s ease 0.16s;
+}
+.tz-board[data-view="identity"] .tz-adaptive[data-panel="0"][data-compressed="true"] .tz-adaptive-content {
+  opacity: 0;
+  transition-delay: 0s;
+}
+.tz-board[data-view="identity"] .tz-adaptive[data-panel="0"][data-compressed="true"] .tz-identity-pill-title {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  transition-delay: 0.16s;
+}
 .tz-adaptive[data-tiny="true"] .tz-adaptive-header,
 .tz-adaptive[data-tiny="true"] .tz-adaptive-footer {
   font-size: 7px;
@@ -654,7 +688,9 @@
 .tz-reduced .tz-adaptive-interior p,
 .tz-reduced .tz-adaptive-art,
 .tz-reduced .tz-adaptive-art .tz-art,
-.tz-reduced .tz-technical-motion-video {
+.tz-reduced .tz-technical-motion-video,
+.tz-reduced .tz-identity-pill-title,
+.tz-reduced .tz-mosaic .tz-adaptive {
   transition: none !important;
 }
 .tz-reduced .tz-technical-motion-video { animation: none !important; }

@@ -183,9 +183,10 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
         {card.art && <Artwork kind={card.art} reduced={reduced} />}
         {isHome && index === 0 && (
           <>
-            <span className="tz-japanese" aria-hidden="true">
-              独<br />創
-            </span>
+            <div className="tz-takezo-locales" aria-label="Takezo in Arabic and Japanese">
+              <span lang="ar">تاكيزو</span>
+              <span lang="ja">武蔵</span>
+            </div>
             <span className="tz-side-label">FORM / FEELING / FUNCTION</span>
           </>
         )}
@@ -199,12 +200,14 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
             <span>VOL. 01 — ONGOING</span>
           </div>
         )}
-        <div className="tz-panel-bottom">
-          <p>{card.description}</p>
-          <span className="tz-panel-action" aria-hidden="true">
-            {card.id ? "↗" : "+"}
-          </span>
-        </div>
+        {card.description && (
+          <div className="tz-panel-bottom">
+            <p>{card.description}</p>
+            <span className="tz-panel-action" aria-hidden="true">
+              {card.id ? "↗" : "+"}
+            </span>
+          </div>
+        )}
         {isHome && index === 0 && (
           <div className="tz-identity-caption">
             <span>PERSONAL PORTFOLIO</span>
@@ -580,13 +583,21 @@ export default function Takezo() {
         className={`tz-board ${special ? "tz-special" : mosaic ? "tz-mosaic" : "tz-home"} ${busy ? "tz-busy" : ""}`}
         style={
           mosaic
-            ? trackStyle(rectangles, active, boardSize.width, boardSize.height,
-                active >= 0 && features[active].max, boardSize.gap,
-                active >= 0 && node.cards[active]?.breakdown?.layout === "square-row"
-                  ? { height: Math.max(1,
-                      (boardSize.width - boardSize.gap * (node.cards[active].breakdown.items.length - 1))
-                        / node.cards[active].breakdown.items.length) }
-                  : null)
+            ? {
+                ...trackStyle(rectangles, active, boardSize.width, boardSize.height,
+                  active >= 0 && features[active].max, boardSize.gap,
+                  active >= 0 && node.cards[active]?.breakdown?.layout === "square-row"
+                    ? { height: Math.max(1,
+                        (boardSize.width - boardSize.gap * (node.cards[active].breakdown.items.length - 1))
+                          / node.cards[active].breakdown.items.length) }
+                    : null),
+                ...(view === "identity" && active > 0
+                  ? {
+                      gridTemplateColumns:
+                        "minmax(0, .3fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)",
+                    }
+                  : {}),
+              }
             : undefined
         }
         onPointerLeave={
@@ -610,6 +621,7 @@ export default function Takezo() {
             : undefined
         }
         ref={board}
+        data-view={view}
         aria-busy={busy}
         inert={busy ? true : undefined}
         key={view}

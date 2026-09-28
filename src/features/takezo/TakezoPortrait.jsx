@@ -12,13 +12,16 @@ export default function TakezoPortrait({ reduced = false }) {
   const target = useRef({ x: 0, y: 0 });
   const current = useRef({ x: 0, y: 0 });
   const [playing, setPlaying] = useState(false);
-  const [formed, setFormed] = useState(reduced);
+  const [formed, setFormed] = useState(false);
 
   useEffect(() => {
     if (reduced) {
+      const wasActive = active.current;
       video.current?.pause();
+      if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+      playbackFrame.current = 0;
       setPlaying(false);
-      setFormed(true);
+      setFormed(wasActive);
     }
   }, [reduced]);
 
@@ -114,7 +117,7 @@ export default function TakezoPortrait({ reduced = false }) {
     <span
       ref={root}
       className="tz-art tz-portrait"
-      data-playing={playing ? "true" : undefined}
+      data-playing={playing && !reduced ? "true" : undefined}
       data-formed={formed ? "true" : undefined}
       aria-hidden="true"
     >

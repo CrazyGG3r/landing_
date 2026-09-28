@@ -82,6 +82,9 @@ export default function AdaptivePanel({
       }}
     >
       <PanelSurface features={features} reduced={reduced} />
+      {card.art === "portrait" && text === "TAKEZO" && (
+        <span className="tz-identity-pill-title" aria-hidden="true">TAKEZO</span>
+      )}
       {hasBreakdown && <AdaptiveBreakdown breakdown={card.breakdown} open={expanded} entryX={entryX} />}
       {card.cursorVideos?.length > 0 && <TechnicalMotion host={panel} sources={card.cursorVideos} reduced={reduced} />}
       {card.artThumbnails?.length > 0 && <ArtThumbnailMotion host={panel} sources={card.artThumbnails} reduced={reduced} />}
