@@ -63,62 +63,91 @@ export const nodes = {
       [6, 2, 1, 5],
     ],
     cards: [
-      card(
-        null,
-        "TAKEZO",
-        "01 / THE PERSON",
-        "red",
-        "portrait",
-        "A personal practice within BoltForged. Exploring the space between precise engineering and expressive design.",
-      ),
-      card(
-        null,
-        "INTERESTS",
-        "01.1 / PROFILE",
-        "sage",
-        null,
-        "",
-      ),
-      card(
-        null,
-        "EDUCATION",
-        "01.2 / PROFILE",
-        "bone",
-        null,
-        "",
-      ),
-      card(
-        null,
-        "LANGUAGES",
-        "01.3 / PROFILE",
-        "ochre",
-        null,
-        "",
-      ),
-      card(
-        null,
-        "LOCATION",
-        "01.4 / PROFILE",
-        "sage",
-        null,
-        "",
-      ),
-      card(
-        null,
-        "WORK\nPHILOSOPHY",
-        "01.5 / PROFILE",
-        "red",
-        null,
-        "",
-      ),
-      card(
-        null,
-        "AVAILABILITY",
-        "01.6 / PROFILE",
-        "sage",
-        null,
-        "",
-      ),
+      {
+        ...card(null, "TAKEZO", "01 / THE PERSON", "red", "portrait", ""),
+        tags: ["cursor-read"],
+        content: [
+          { tag: "unhovered", text: "" },
+          { tag: "hovered", text: `INTERDISCIPLINARY ARTIST
+
+Twelve years shaped in two dimensions.
+Five years building in three.
+Art guided by instinct. Systems built through code.
+
+Takezo is not the destination.
+It is the phase before mastery—the discipline of becoming.
+
+Just another day of making progress.` },
+        ],
+      },
+      {
+        ...card(null, "INTERESTS", "01.1 / PROFILE", "sage", null, ""),
+        tags: ["cursor-read"],
+        content: [
+          { tag: "unhovered", text: "Form built in space.\nStories made tangible." },
+          { tag: "hovered", text: `I explore 3D asset production across characters, environments, and props. My work leans toward realism, tempered with stylized form.
+
+The ambition is larger: immersive games, visually intensive CGI films, and eventually a studio of my own.
+
+Inspired by worlds that linger—from Lies of P and Minecraft to Vagabond, Evangelion, and JoJo.` },
+        ],
+      },
+      {
+        ...card(null, "EDUCATION", "01.2 / PROFILE", "bone", null, ""),
+        tags: ["cursor-read"],
+        content: [
+          { tag: "unhovered", text: "Software Engineering\nFAST University · 2022–2026" },
+          { tag: "hovered", text: `Bachelor’s in Software Engineering from FAST University.
+
+My final-year project, Bloombound, was a narrative-driven casual video game. My academic interests centered on mathematics, psychology, and computer graphics.
+
+The degree built my technical foundation. My artistic path was shaped independently.` },
+        ],
+      },
+      {
+        ...card(null, "LANGUAGES", "01.3 / PROFILE", "ochre", null, ""),
+        content: [
+          { tag: "unhovered", text: "Urdu · English" },
+          { tag: "hovered", text: `URDU — Native
+ENGLISH — Good in writing; basic in speech.
+
+Comfortable communicating and collaborating with international clients.` },
+        ],
+      },
+      {
+        ...card(null, "LOCATION", "01.4 / PROFILE", "sage", null, ""),
+        content: [
+          { tag: "unhovered", text: "Pakistan · UTC+5" },
+          { tag: "hovered", text: `Based in Pakistan.
+Available for remote collaboration and open to relocation.
+
+Exact location remains private.` },
+        ],
+      },
+      {
+        ...card(null, "WORK\nPHILOSOPHY", "01.5 / PROFILE", "red", null, ""),
+        tags: ["cursor-read"],
+        content: [
+          { tag: "unhovered", text: "Clarity before craft." },
+          { tag: "hovered", text: `I work best when the destination is clearly defined. Complete specifications and regular feedback create room for stronger creative decisions.
+
+When details are missing, I ask. When space is intentional, I improvise.
+
+Creativity leads. Quality, time, and purpose keep it grounded. Revisions are handled carefully—but clear alignment should make every revision meaningful.` },
+        ],
+      },
+      {
+        ...card(null, "AVAILABILITY", "01.6 / PROFILE", "sage", null, ""),
+        tags: ["cursor-read"],
+        content: [
+          { tag: "unhovered", text: "Open to work." },
+          { tag: "hovered", text: `Available immediately for freelance, part-time, and full-time opportunities.
+
+35–40 hours weekly, with additional time negotiable when urgency demands it.
+
+Remote. Flexible. Open to short projects and long-term roles.` },
+        ],
+      },
     ],
   },
   work: {
