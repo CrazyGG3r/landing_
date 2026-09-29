@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { observePanelActivity } from "./panelActivity";
 
 const pickThumbnails = (sources) => {
   const pool = [...new Set(sources.filter(Boolean))];
@@ -20,6 +21,7 @@ export default function ArtThumbnailMotion({ host, sources, reduced }) {
     const panel = host.current;
     const art = stage.current;
     if (!panel || !art || reduced) return undefined;
+    let active = false;
 
     const paint = () => {
       current.current.x += (target.current.x - current.current.x) * 0.12;
@@ -31,9 +33,10 @@ export default function ArtThumbnailMotion({ host, sources, reduced }) {
       } else frame.current = 0;
     };
     const start = () => {
-      if (!frame.current) frame.current = requestAnimationFrame(paint);
+      if (active && !frame.current) frame.current = requestAnimationFrame(paint);
     };
     const move = (event) => {
+      if (!active || event.pointerType !== "mouse") return;
       const rect = panel.getBoundingClientRect();
       target.current.x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
       target.current.y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
@@ -45,10 +48,19 @@ export default function ArtThumbnailMotion({ host, sources, reduced }) {
     };
     panel.addEventListener("pointermove", move, { passive: true });
     panel.addEventListener("pointerleave", leave, { passive: true });
+    const stopActivity = observePanelActivity(panel, (next) => {
+      active = next;
+      art.dataset.active = String(next);
+      if (!next) {
+        cancelAnimationFrame(frame.current);
+        frame.current = 0;
+      }
+    });
     return () => {
       panel.removeEventListener("pointermove", move);
       panel.removeEventListener("pointerleave", leave);
       cancelAnimationFrame(frame.current);
+      stopActivity();
     };
   }, [host, reduced]);
 

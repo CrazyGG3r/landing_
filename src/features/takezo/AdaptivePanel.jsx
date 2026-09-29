@@ -49,6 +49,7 @@ export default function AdaptivePanel({
       data-cursor-videos={card.cursorVideos?.length ? "true" : undefined}
       data-art-thumbnails={card.artThumbnails?.length ? "true" : undefined}
       data-design-motion={card.designMedia ? "true" : undefined}
+      data-responsive-motion={reduced ? "reduced" : "full"}
       aria-expanded={expanded}
       aria-label={`${card.id ? "Explore" : "Expand"} ${text}`}
       style={{

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { observePanelActivity } from "./panelActivity";
 
 export default function TechnicalMotion({ host, sources, reduced }) {
   const stage = useRef(null);
@@ -14,6 +15,7 @@ export default function TechnicalMotion({ host, sources, reduced }) {
     let pointerY = 0.5;
     let targetX = 0.5;
     let targetY = 0.5;
+    let active = false;
     const videoNodes = videos.current.slice();
 
     const paint = () => {
@@ -38,11 +40,11 @@ export default function TechnicalMotion({ host, sources, reduced }) {
     };
 
     const wake = () => {
-      if (!frame) frame = requestAnimationFrame(paint);
+      if (active && !reduced && !frame) frame = requestAnimationFrame(paint);
     };
 
     const move = (event) => {
-      if (event.pointerType !== "mouse") return;
+      if (!active || reduced || event.pointerType !== "mouse") return;
       const rect = panel.getBoundingClientRect();
       targetX = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
       targetY = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
@@ -55,9 +57,18 @@ export default function TechnicalMotion({ host, sources, reduced }) {
       video?.addEventListener("loadedmetadata", ready);
       video?.addEventListener("seeked", ready);
     });
-    wake();
+    const stopActivity = observePanelActivity(panel, (next) => {
+      active = next;
+      layer.dataset.active = String(next);
+      if (next) wake();
+      else {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    });
     return () => {
       cancelAnimationFrame(frame);
+      stopActivity();
       panel.removeEventListener("pointermove", move);
       videoNodes.forEach((video) => {
         video?.removeEventListener("loadedmetadata", ready);

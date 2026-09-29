@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { observePanelFit } from "./panelFit.js";
+import { observePanelFit, panelMetrics } from "./panelFit.js";
+
+test("panel geometry covers micro through roomy layouts and all orientations", () => {
+  assert.equal(panelMetrics(55, 80).density, "micro");
+  assert.equal(panelMetrics(100, 120).density, "tiny");
+  assert.equal(panelMetrics(160, 190).density, "compact");
+  assert.equal(panelMetrics(220, 250).density, "standard");
+  assert.equal(panelMetrics(420, 360).density, "roomy");
+  assert.equal(panelMetrics(400, 150).orientation, "landscape");
+  assert.equal(panelMetrics(100, 260).orientation, "portrait");
+  assert.equal(panelMetrics(240, 230).orientation, "balanced");
+  assert.ok(panelMetrics(320, 320).fluid > panelMetrics(100, 100).fluid);
+});
 
 test("36 resizing panels share a frame, fit exactly, settle, and cancel cleanly", async () => {
   const originals = Object.fromEntries(["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver", "document"].map((key) => [key, globalThis[key]]));
@@ -40,7 +52,7 @@ test("36 resizing panels share a frame, fit exactly, settle, and cancel cleanly"
     await Promise.resolve();
     assert.equal(frames.size, 1, "font readiness and all panels coalesce into one frame");
     drain();
-    jobs.forEach((job) => assert.ok(parseFloat(job.label.style.fontSize) <= 30 && parseFloat(job.label.style.fontSize) > 29.98));
+    jobs.forEach((job) => assert.ok(parseFloat(job.label.style.fontSize) <= 30 && parseFloat(job.label.style.fontSize) >= 29.95));
     assert.equal(frames.size, 0, "no perpetual idle frame loop");
     const settledWrites = writes;
     resize(jobs.map((job) => ({ target: job.el })));

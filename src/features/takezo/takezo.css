@@ -172,7 +172,7 @@
 .tz-panel-content {
   position: relative;
   height: 100%;
-  padding: 22px 24px;
+  padding: var(--panel-pad, 22px 24px);
   display: flex;
   flex-direction: column;
   z-index: 1;
@@ -181,7 +181,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9px;
+  font-size: var(--panel-meta-size, 9px);
   border-bottom: 1px solid #20231e50;
   padding-bottom: 12px;
   gap: 12px;
@@ -202,11 +202,11 @@
   margin-top: 20px;
 }
 .tz-home .tz-panel-0 h2 {
-  font-size: clamp(42px, 5.5vw, 90px);
+  font-size: clamp(34px, 24cqw, 90px);
   letter-spacing: -0.07em;
 }
 .tz-home .tz-panel-1 h2 {
-  font-size: clamp(55px, 6.3vw, 96px);
+  font-size: clamp(28px, 18cqw, 96px);
   max-width: 75%;
   margin-top: 18px;
 }
@@ -234,6 +234,12 @@
   font-size: 15px;
   line-height: 1.2;
   max-width: 220px;
+}
+.tz-home .tz-panel-0 .tz-panel-bottom {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: none;
 }
 .tz-home .tz-panel-0 .tz-panel-action {
   display: none;
@@ -331,16 +337,11 @@
   border-color: #ffffff70;
 }
 .tz-takezo-locales {
-  position: absolute;
-  right: 24px;
-  bottom: 68px;
-  left: auto;
-  top: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 16px;
-  margin-top: 0;
+  gap: var(--panel-fluid-gap, 16px);
+  align-self: flex-end;
   z-index: 2;
 }
 .tz-takezo-locales span {
@@ -351,14 +352,14 @@
 }
 .tz-takezo-locales span[lang="ar"] {
   font-family: TakezoArabic, sans-serif;
-  font-size: clamp(80px, 18cqw, 104px);
+  font-size: clamp(42px, 31cqw, 104px);
   letter-spacing: .015em;
   transform: scaleX(1.1);
   transform-origin: right center;
 }
 .tz-takezo-locales span[lang="ja"] {
   font-family: TakezoMatisse, serif;
-  font-size: clamp(80px, 18cqw, 104px);
+  font-size: clamp(42px, 31cqw, 104px);
   letter-spacing: .04em;
   transform: scaleX(1.1);
   transform-origin: right center;
@@ -415,7 +416,7 @@
   transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .tz-home .tz-panel-3 h2 {
-  font-size: clamp(30px, 3.8vw, 58px);
+  font-size: clamp(30px, 18cqw, 58px);
   max-width: 75%;
 }
 .tz-home .tz-panel-3 .tz-asterisk {
@@ -464,6 +465,26 @@
 }
 .tz-panel-action {
   transition: transform 0.25s;
+}
+.tz-panel-content > :is(h2, .tz-panel-bottom, .tz-identity-caption),
+.tz-panel-content > .tz-takezo-locales {
+  transition: transform .38s cubic-bezier(.22,.8,.2,1), opacity .2s ease;
+}
+.tz-panel[data-density="compact"] .tz-panel-content > h2 {
+  transform: translateY(1px);
+}
+.tz-panel[data-density="tiny"] .tz-panel-content > :is(.tz-project-stamp, .tz-side-label) {
+  opacity: .55;
+}
+.tz-panel[data-density="micro"] .tz-panel-content > :is(.tz-project-stamp, .tz-side-label) {
+  opacity: 0;
+}
+.tz-panel .tz-art {
+  translate: var(--panel-motion-x, 0px) var(--panel-motion-y, 0px);
+  scale: var(--panel-art-scale, 1);
+  transition-property: translate, scale, transform, opacity;
+  transition-duration: .42s, .42s, .7s, .2s;
+  transition-timing-function: cubic-bezier(.22,.8,.2,1);
 }
 .tz-inner .tz-panel-0 .tz-art {
   opacity: 0.75;
@@ -661,23 +682,23 @@
     border-radius: 18px;
   }
   .tz-panel-content {
-    padding: 17px;
+    padding: min(var(--panel-pad, 17px), 17px);
   }
   .tz-panel-top {
     font-size: 7px;
   }
   .tz-home .tz-panel-0 h2 {
-    font-size: 46px;
+    font-size: clamp(34px, 26cqw, 58px);
   }
   .tz-home .tz-panel-1 h2 {
-    font-size: 36px;
+    font-size: clamp(24px, 21cqw, 44px);
     max-width: 100%;
   }
   .tz-home .tz-panel-2 h2 {
-    font-size: 33px;
+    font-size: clamp(24px, 20cqw, 40px);
   }
   .tz-home .tz-panel-3 h2 {
-    font-size: 55px;
+    font-size: clamp(34px, 18cqw, 55px);
   }
   .tz-project-stamp {
     display: none;
@@ -714,15 +735,13 @@
     height: 52%;
   }
   .tz-takezo-locales {
-    right: 15px;
-    bottom: 62px;
     gap: 8px;
   }
   .tz-takezo-locales span[lang="ar"] {
-    font-size: 56px;
+    font-size: clamp(42px, 31cqw, 64px);
   }
   .tz-takezo-locales span[lang="ja"] {
-    font-size: 56px;
+    font-size: clamp(42px, 31cqw, 64px);
   }
   .tz-side-label {
     right: 8px;
@@ -775,16 +794,16 @@
     padding-inline: 14px;
   }
   .tz-panel-content {
-    padding: 14px;
+    padding: min(var(--panel-pad, 14px), 14px);
   }
   .tz-home .tz-panel-0 h2 {
-    font-size: 34px;
+    font-size: clamp(30px, 27cqw, 48px);
   }
   .tz-home .tz-panel-1 h2 {
-    font-size: 27px;
+    font-size: clamp(22px, 20cqw, 36px);
   }
   .tz-home .tz-panel-2 h2 {
-    font-size: 29px;
+    font-size: clamp(22px, 20cqw, 36px);
   }
   .tz-panel-top {
     font-size: 6px;
@@ -821,10 +840,10 @@
     grid-row: auto;
   }
   .tz-home .tz-panel-0 h2 {
-    font-size: 52px;
+    font-size: clamp(42px, 18cqw, 60px);
   }
   .tz-home .tz-panel-1 h2 {
-    font-size: 44px;
+    font-size: clamp(34px, 16cqw, 50px);
   }
   .tz-home .tz-panel-0 .tz-sculpture {
     width: 90%;
@@ -845,7 +864,7 @@
     font-size: 15px;
   }
   .tz-home .tz-panel-3 h2 {
-    font-size: 43px;
+    font-size: clamp(34px, 15cqw, 48px);
   }
 }
 .tz-reduced .tz-panel::after {

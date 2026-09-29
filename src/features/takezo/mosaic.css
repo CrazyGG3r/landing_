@@ -11,7 +11,7 @@
     grid-template-rows 0.52s cubic-bezier(0.22, 0.8, 0.2, 1);
 }
 .takezo .tz-mosaic .tz-adaptive {
-  contain: layout paint;
+  contain: layout paint style;
   border-radius: clamp(10px, 1.7vw, 22px);
   cursor: pointer;
   min-width: 0;
@@ -28,13 +28,14 @@
   padding: var(--panel-pad, 16px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) 0px auto;
-  gap: clamp(3px, 0.7vw, 10px);
+  gap: var(--panel-fluid-gap, clamp(3px, 0.7vw, 10px));
   overflow: hidden;
+  transition: padding .32s cubic-bezier(.22,.8,.2,1), gap .32s cubic-bezier(.22,.8,.2,1);
 }
 .tz-adaptive-header,
 .tz-adaptive-footer {
   font-family: TakezoMono, monospace;
-  font-size: 9px;
+  font-size: var(--panel-meta-size, 9px);
   line-height: 1.35;
   letter-spacing: 0.015em;
   display: flex;
@@ -77,6 +78,9 @@
   overflow: hidden;
   display: flex;
   align-items: flex-start;
+  transform: translate3d(0, var(--panel-motion-y, 0px), 0) scale(calc(.985 + var(--panel-fluid, 1) * .015));
+  transform-origin: left top;
+  transition: opacity .16s ease-out, transform .38s cubic-bezier(.22,.8,.2,1);
 }
 .takezo .tz-mosaic .tz-adaptive-title h2 {
   margin: 0;
@@ -127,7 +131,7 @@
     visibility 0s linear 0.2s;
 }
 .tz-adaptive-interior p {
-  font-size: clamp(11px, 1.1vw, 15px);
+  font-size: var(--panel-copy-size, clamp(11px, 1.1vw, 15px));
   line-height: 1.45;
   text-align: left;
   opacity: 0;
@@ -148,7 +152,7 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transform: scale(0.92) rotate(-1.5deg);
+  transform: translate3d(calc(var(--panel-motion-x, 0px) * .35), calc(var(--panel-motion-y, 0px) * .45), 0) scale(calc(var(--panel-art-scale, 1) * .92)) rotate(-1.5deg);
   transition:
     opacity 0.14s ease-out,
     transform 0.2s cubic-bezier(0.4, 0, 1, 1);
@@ -195,7 +199,7 @@
   object-position: right bottom;
   mix-blend-mode: multiply;
   filter: saturate(.84) contrast(.96);
-  will-change: opacity;
+  will-change: auto;
   transition: opacity .12s linear;
 }
 .tz-technical-motion-video-1 {
@@ -278,6 +282,8 @@
 .tz-adaptive[data-design-motion="true"][data-roomy="true"]:not([data-expanded="true"]) > .tz-design-motion {
   right: -27%;
 }
+.tz-technical-motion[data-active="true"] .tz-technical-motion-video { will-change: opacity; }
+.tz-technical-motion[data-active="false"] .tz-technical-motion-video { animation-play-state: paused; }
 .tz-adaptive[data-design-motion="true"][data-shallow="true"]:not([data-expanded="true"]) > .tz-design-motion {
   right: -7%;
 }
@@ -312,7 +318,7 @@
   transform: translate(var(--art-parallax-x, 0px), var(--art-parallax-y, 0px)) scale(1.015);
   transition: width .55s cubic-bezier(.22,.8,.2,1), height .55s cubic-bezier(.22,.8,.2,1), right .55s cubic-bezier(.22,.8,.2,1), bottom .55s cubic-bezier(.22,.8,.2,1), transform .55s cubic-bezier(.22,.8,.2,1), opacity .3s ease;
   opacity: 1;
-  will-change: transform;
+  will-change: auto;
 }
 .tz-art-thumbnails img {
   position: absolute;
@@ -517,6 +523,9 @@
   font: 700 clamp(8px, 1.2vw, 16px)/.94 Takezo, sans-serif;
   letter-spacing: -0.045em;
 }
+.tz-art-thumbnails[data-active="true"] { will-change: transform; }
+.tz-art-thumbnails[data-active="false"] img { animation-play-state: paused; }
+.tz-design-motion[data-active="false"] .tz-design-motion-video { visibility: hidden; }
 .tz-adaptive-breakdown-item[data-rendering="true"] .tz-adaptive-breakdown-label {
   color: var(--rendering-label-color, var(--ink));
   transition: opacity .15s ease, transform .25s cubic-bezier(.22,.8,.2,1);
@@ -592,7 +601,7 @@
 }
 .tz-adaptive[data-full="true"] .tz-adaptive-art {
   opacity: 1;
-  transform: scale(1) rotate(0deg);
+  transform: translate3d(calc(var(--panel-motion-x, 0px) * .2), 0, 0) scale(var(--panel-art-scale, 1)) rotate(0deg);
   transition:
     opacity 0.22s ease-out 0.11s,
     transform 0.3s cubic-bezier(0.22, 0.8, 0.2, 1) 0.08s;
@@ -652,6 +661,35 @@
 }
 .tz-adaptive[data-tiny="true"] .tz-adaptive-header > span:last-child {
   font-size: 11px;
+}
+.tz-adaptive[data-density="compact"] .tz-adaptive-footer {
+  opacity: .78;
+  transform: translateY(1px);
+}
+.tz-adaptive[data-density="tiny"]:not([data-expanded="true"]) .tz-adaptive-content {
+  grid-template-rows: auto minmax(0, 1fr) 0 0;
+}
+.tz-adaptive[data-density="tiny"]:not([data-expanded="true"]) .tz-adaptive-footer,
+.tz-adaptive[data-density="micro"]:not([data-expanded="true"]) :is(.tz-adaptive-header, .tz-adaptive-footer, .tz-adaptive-interior) {
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateY(4px);
+}
+.tz-adaptive[data-density="micro"]:not([data-expanded="true"]) .tz-adaptive-content {
+  grid-template-rows: 0 minmax(0, 1fr) 0 0;
+  gap: 0;
+}
+.tz-adaptive-header,
+.tz-adaptive-footer {
+  transition: opacity .18s ease, transform .3s cubic-bezier(.22,.8,.2,1), border-color .2s ease;
+}
+.tz-adaptive:is(:hover, :focus-visible, [data-expanded="true"]):not([data-logo-mode="icon"]) .tz-adaptive-title {
+  transform: translate3d(0, calc(var(--panel-motion-y, 0px) - 2px), 0) scale(1);
+}
+.tz-adaptive[data-title-overflow="true"] .tz-adaptive-title h2 {
+  letter-spacing: -.07em;
 }
 @container (max-width: 300px) {
   .tz-adaptive-interior {
@@ -745,7 +783,7 @@
 .tz-adaptive .tz-copy-layers p {
   margin: 0;
   white-space: pre-line;
-  font-size: clamp(12px, 1.15vw, 16px);
+  font-size: var(--panel-copy-size, clamp(12px, 1.15vw, 16px));
   line-height: 1.5;
   opacity: 1;
   transform: none;

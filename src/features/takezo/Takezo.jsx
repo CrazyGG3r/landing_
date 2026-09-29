@@ -18,6 +18,8 @@ import BreakdownPanel from "./BreakdownPanel";
 import TakezoCursor from "./TakezoCursor";
 import TakezoPortrait from "./TakezoPortrait";
 import "./motion.css";
+import { createFocusTransition, focusTransitionConfig } from "./focusTransition";
+import { observePanelFrame } from "./panelFit";
 
 function Artwork({ kind, reduced = false }) {
   const artId = useId().replaceAll(":", "");
@@ -149,10 +151,13 @@ function Artwork({ kind, reduced = false }) {
 }
 
 function Panel({ card, index, isHome, onOpen, features, reduced }) {
+  const panel = useRef(null);
   const breakdown = card.tags?.includes("breakdown") && card.breakdown;
   const Tag = breakdown ? BreakdownPanel : card.id ? "button" : "article";
+  useLayoutEffect(() => observePanelFrame(panel.current), []);
   return (
     <Tag
+      ref={panel}
       className={`tz-panel tz-panel-${index} tz-${card.color} ${card.art ? "" : "tz-reading"}`}
       data-panel={index}
       data-destination={card.id || undefined}
@@ -182,13 +187,7 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
         </h2>
         {card.art && <Artwork kind={card.art} reduced={reduced} />}
         {isHome && index === 0 && (
-          <>
-            <div className="tz-takezo-locales" aria-label="Takezo in Arabic and Japanese">
-              <span lang="ar">تاكيزو</span>
-              <span lang="ja">武蔵</span>
-            </div>
-            <span className="tz-side-label">FORM / FEELING / FUNCTION</span>
-          </>
+          <span className="tz-side-label">FORM / FEELING / FUNCTION</span>
         )}
         {isHome && index === 1 && (
           <div className="tz-project-stamp">
@@ -202,6 +201,12 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
         )}
         {card.description && (
           <div className="tz-panel-bottom">
+            {isHome && index === 0 && (
+              <div className="tz-takezo-locales" aria-label="Takezo in Arabic and Japanese">
+                <span lang="ar">تاكيزو</span>
+                <span lang="ja">武蔵</span>
+              </div>
+            )}
             <p>{card.description}</p>
             <span className="tz-panel-action" aria-hidden="true">
               {card.id ? "↗" : "+"}
@@ -339,6 +344,7 @@ export default function Takezo() {
       : selected;
     const start = transitionSource.getBoundingClientRect();
     const color = getComputedStyle(transitionSource).backgroundColor;
+    let focus = null;
     const commit = () => {
       current.current = target;
       flushSync(() => { setExpanded(null); setView(target); });
@@ -353,6 +359,7 @@ export default function Takezo() {
       return { next, anchor };
     };
     const finish = () => {
+      focus?.dispose();
       settleTransition.current = null;
       timeline.current = null;
       gsap.set(traveler.current, { display: "none" });
@@ -373,6 +380,7 @@ export default function Takezo() {
       return;
     }
     setBusy(true);
+    focus = createFocusTransition(page.current, start);
     const dot = traveler.current;
     if (returnToGallery) {
       const media = document.createElement(nodes[previousView].mode === "video" ? "video" : "img");
@@ -405,6 +413,7 @@ export default function Takezo() {
         activePanels = next;
         gsap.set(next, { opacity: 0 });
         const end = anchor.getBoundingClientRect();
+        const arrival = tl.duration();
         tl.to(dot, {
           left: end.left, top: end.top, width: end.width, height: end.height,
           borderRadius: 20, duration: .76, ease: "expo.inOut",
@@ -414,8 +423,11 @@ export default function Takezo() {
             { opacity: 0, scale: .94, y: 15 },
             { opacity: 1, scale: 1, y: 0, duration: .44, stagger: .025, ease: "power2.out" }, "-=.44")
           .to(anchor, { opacity: 1, duration: .18 }, "-=.16")
-          .to(dot, { opacity: 0, duration: .18 }, "<")
-          .call(finish);
+          .to(dot, { opacity: 0, duration: .18 }, "<");
+        focus.contract(tl, .22, arrival);
+        focus.move(tl, end, .76, arrival, "expo.inOut");
+        focus.reveal(tl, end, arrival + .76 * focusTransitionConfig.revealAt, .4);
+        tl.call(finish);
       }, [], .01);
       const settleOnResize = () => {
         tl.kill();
@@ -428,6 +440,7 @@ export default function Takezo() {
         settleTransition.current = null;
         window.removeEventListener("resize", settleOnResize);
         tl.kill();
+        focus.dispose();
         dot.replaceChildren();
         dot.classList.remove("tz-traveler-return");
         gsap.set(dot, { display: "none" });
@@ -448,6 +461,7 @@ export default function Takezo() {
     gsap.set(selected, { opacity: 0 });
     const tl = gsap.timeline();
     timeline.current = tl;
+    focus.contract(tl);
     tl.to(
       visibleSource.filter((p) => p !== selected),
       {
@@ -481,6 +495,7 @@ export default function Takezo() {
         const end = anchor.getBoundingClientRect();
         const endColor = getComputedStyle(anchor).backgroundColor;
         const destinationY = end.top + end.height / 2 - size / 2;
+        const arrival = tl.duration();
         tl.to(dot, {
           left: end.left + end.width / 2 - size / 2,
           top: Math.max(80, destinationY - 45),
@@ -511,8 +526,14 @@ export default function Takezo() {
             "-=.18",
           )
           .to(anchor, { opacity: 1, duration: 0.18 }, "-=.27")
-          .to(dot, { opacity: 0, duration: 0.14 }, "<")
-          .call(finish);
+          .to(dot, { opacity: 0, duration: 0.14 }, "<");
+        focus.move(tl, {
+          left: end.left + end.width / 2 - size / 2,
+          top: Math.max(80, destinationY - 45), width: size, height: size,
+        }, .23, arrival);
+        focus.move(tl, end, .34, arrival + .23, "expo.inOut");
+        focus.reveal(tl, end, arrival + .23 + .34 * focusTransitionConfig.revealAt);
+        tl.call(finish);
       });
     const settleOnResize = () => {
       tl.kill();
@@ -525,6 +546,7 @@ export default function Takezo() {
       settleTransition.current = null;
       window.removeEventListener("resize", settleOnResize);
       tl.kill();
+      focus.dispose();
       gsap.set(dot, { display: "none" });
       gsap.set(activePanels, { clearProps: "opacity,transform" });
     };

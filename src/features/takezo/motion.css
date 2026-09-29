@@ -27,3 +27,4 @@
 .tz-reduced .tz-gallery-card:is(:hover,:focus-visible) { transform: none; }
 .tz-reduced .tz-gallery-card:is(:hover,:focus-visible) .tz-gallery-media { transform: scale(1.07); }
 .tz-reduced .tz-surface-texture { transform: none !important; }
+.tz-reduced .tz-panel .tz-art { translate: none !important; scale: 1 !important; }

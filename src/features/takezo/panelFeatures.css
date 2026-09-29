@@ -80,15 +80,12 @@
 .tz-adaptive[data-logo-mode="above"] .tz-logo-above,
 .tz-adaptive[data-logo-mode="left"] .tz-logo-left { opacity: .65; }
 .tz-adaptive[data-logo-mode="icon"] .tz-adaptive-title { opacity: 0; }
-.tz-adaptive-title { transition: opacity .14s ease-out; }
+.tz-adaptive-title { transition: opacity .14s ease-out, transform .38s cubic-bezier(.22,.8,.2,1); }
 .tz-adaptive[data-logo-mode="above"] .tz-adaptive-title { top: min(22%, 58px); }
 .tz-adaptive[data-logo-mode="left"] .tz-adaptive-title { left: var(--logo-reserve, 40px); }
 .takezo .tz-mosaic .tz-adaptive[data-logo-mode="left"] h2 { white-space: nowrap; overflow-wrap: normal; }
 .tz-adaptive[data-micro="true"]:not([data-expanded="true"]) .tz-adaptive-content {
-  grid-template-rows: minmax(0, 1fr);
-  gap: 0;
   padding: 8px;
 }
-.tz-adaptive[data-micro="true"]:not([data-expanded="true"]) :is(.tz-adaptive-header, .tz-adaptive-footer, .tz-adaptive-interior) { display: none; }
 .tz-reduced :is(.tz-surface-texture, .tz-compact-logo, .tz-adaptive-title, .tz-copy-layer) { transition: none; }
 

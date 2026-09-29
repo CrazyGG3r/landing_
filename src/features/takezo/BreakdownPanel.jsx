@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import PanelAssets from "./PanelAssets";
 import "./breakdown.css";
 
-export default function BreakdownPanel({ children, breakdown, onOpen, reduced, className, style, ...props }) {
+export default forwardRef(function BreakdownPanel({ children, breakdown, onOpen, reduced, className, style, ...props }, forwardedRef) {
   const root = useRef(null);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -57,7 +57,11 @@ export default function BreakdownPanel({ children, breakdown, onOpen, reduced, c
       } : undefined}
       onPointerEnter={(event) => { if (event.pointerType === "mouse") setActive(index); }} />;
   };
-  return <article {...props} ref={root} className={`${className} tz-breakdown ${strips ? "tz-breakdown-strips" : ""}`}
+  return <article {...props} ref={(node) => {
+    root.current = node;
+    if (typeof forwardedRef === "function") forwardedRef(node);
+    else if (forwardedRef) forwardedRef.current = node;
+  }} className={`${className} tz-breakdown ${strips ? "tz-breakdown-strips" : ""}`}
     style={style} tabIndex={0} role="group" aria-label={breakdown.ariaLabel || "Panel options"}
     data-open={open} data-active={active} data-hover-mode={hoverMode || undefined}
     onPointerEnter={(event) => { if (event.pointerType === "mouse") setOpen(true); }}
@@ -76,4 +80,4 @@ export default function BreakdownPanel({ children, breakdown, onOpen, reduced, c
     {hoverMode === "contract" && <div className="tz-breakdown-hit-grid" aria-hidden="true">{chunks.map(renderHitArea)}</div>}
     <div className="tz-breakdown-cover" data-text-layer="unhovered" aria-hidden={open}>{children}</div>
   </article>;
-}
+});

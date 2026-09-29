@@ -45,6 +45,14 @@ Textures are anchored bottom-right with a minimum physical size, clipped to the 
 
 Examples: `/takezo#materials` (Dirty + tall logos + max expansion), `#process` (halftone + horizontal logos), `#atlas` (36 logo tiles), `#nine` (Dirty surfaces), and the leaking project-info panel in image/video views (gradient + randomly selected Prototype texture).
 
+## Navigation focus pull
+
+`focusTransition.js` and `focusTransition.css` own the optional screen-space lens. Set `focusTransitionConfig.enabled` to `false` to disable it independently. Blur radius (desktop/compact), aperture, feather, reveal duration, and the halfway reveal cue are centralized in that config.
+
+The existing navigation timeline contracts the clear region from the viewport edges toward the selected panel, carries it with the traveler, and expands it outward halfway through destination formation. Media-to-gallery returns use the same module. The traveler, breadcrumbs, motion switch, and cursor remain sharp. No blur runs on initial load or hover.
+
+Rendering uses one temporary masked backdrop layer, with a fixed 7px blur (4px below 768px). Its opacity fades as the clear aperture expands; the blur kernel does not change every frame. There are no cloned panels, extra render loops, per-frame layout reads, or React state updates. The layer is removed on completion, resize settlement, interruption, motion preference changes, and unmount. Reduced mode and browsers without both mask and backdrop-filter support skip it. Actual frame cost still depends on viewport resolution, browser, and device GPU.
+
 ## Motion and rendering
 
 The home Connection card uses `tags: ["breakdown"]` and a `breakdown` object with `caption` and eight `links` (`name`, `icon`, `href`, optional `iconScale` for optical sizing). `hoverMode: "contract"` contracts the hovered chunk while giving all nine chunks stable, equal-sized pointer targets; `showLinkArrows: false` removes their corner arrows. The Skillset card uses `hoverMode: "expand"` so the hovered row and column enlarge along with its logo or title. The middle caption uses `data-text-layer="hovered"`; original content is the `unhovered` layer. External links open in new tabs. The custom cursor is scoped to `/takezo` and snaps toward a Connection chunk while its pointer target remains stationary. All breakdown motion follows the global Full / Reduced switch.
