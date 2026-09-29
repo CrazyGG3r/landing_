@@ -19,7 +19,7 @@ import TakezoCursor from "./TakezoCursor";
 import TakezoPortrait from "./TakezoPortrait";
 import "./motion.css";
 import { createFocusTransition, focusTransitionConfig } from "./focusTransition";
-import { observePanelFrame } from "./panelFit";
+import { observePanelFrame, observePanelTitleFit } from "./panelFit";
 
 function Artwork({ kind, reduced = false }) {
   const artId = useId().replaceAll(":", "");
@@ -152,9 +152,12 @@ function Artwork({ kind, reduced = false }) {
 
 function Panel({ card, index, isHome, onOpen, features, reduced }) {
   const panel = useRef(null);
+  const title = useRef(null);
   const breakdown = card.tags?.includes("breakdown") && card.breakdown;
   const Tag = breakdown ? BreakdownPanel : card.id ? "button" : "article";
-  useLayoutEffect(() => observePanelFrame(panel.current), []);
+  useLayoutEffect(() => isHome
+    ? observePanelTitleFit(panel.current, title.current)
+    : observePanelFrame(panel.current), [isHome]);
   return (
     <Tag
       ref={panel}
@@ -177,6 +180,7 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
           <span>{card.id ? "↗" : "○"}</span>
         </div>
         <h2
+          ref={title}
           className={
             card.art && card.title.split("\n").some((line) => line.length > 9)
               ? "tz-long-title"

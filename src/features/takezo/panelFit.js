@@ -11,6 +11,7 @@ const fitRounds = 10;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const round = (value, precision = 1000) => Math.round(value * precision) / precision;
+const pixels = (value) => Number.parseFloat(value) || 0;
 const setData = (el, name, value) => {
   const next = String(value);
   if (el.dataset[name] !== next) el.dataset[name] = next;
@@ -105,6 +106,63 @@ function titleCeiling(job) {
   return Math.max(8, base);
 }
 
+function legacyTitleBox(job) {
+  const content = job.label.parentElement;
+  const contentStyle = getComputedStyle(content);
+  const labelStyle = getComputedStyle(job.label);
+  const horizontalPadding = pixels(contentStyle.paddingLeft) + pixels(contentStyle.paddingRight);
+  const verticalPadding = pixels(contentStyle.paddingTop) + pixels(contentStyle.paddingBottom);
+  const labelMargins = pixels(labelStyle.marginTop) + pixels(labelStyle.marginBottom);
+  const occupied = [...content.children].reduce((total, child) => {
+    if (child === job.label || getComputedStyle(child).position === "absolute") return total;
+    return total + child.offsetHeight;
+  }, 0);
+  return {
+    width: Math.max(1, content.clientWidth - horizontalPadding),
+    // The identity card intentionally layers its portrait, locales, and title.
+    // Only its horizontal edge is a hard constraint; the other cards retain a
+    // vertical budget so their title and supporting copy cannot collide.
+    height: job.el.dataset.panel === "0"
+      ? Number.POSITIVE_INFINITY
+      : Math.max(1, content.clientHeight - verticalPadding - occupied - labelMargins - 4),
+  };
+}
+
+function authoredTitleSize(job) {
+  if (typeof job.label.cloneNode !== "function") return pixels(getComputedStyle(job.label).fontSize) || 16;
+  const probe = job.label.cloneNode(true);
+  probe.removeAttribute("style");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;inset:0 auto auto 0;";
+  job.label.parentElement.appendChild(probe);
+  const size = pixels(getComputedStyle(probe).fontSize) || 16;
+  probe.remove();
+  return size;
+}
+
+function fitLegacyTitle(job) {
+  // A hidden probe resolves the authored responsive clamp independently of a
+  // previous inline fit, so the title can grow back when its panel gains room.
+  const ceiling = authoredTitleSize(job);
+  const box = legacyTitleBox(job);
+  let low = 8;
+  let high = ceiling;
+  job.label.style.fontSize = `${high}px`;
+  if (job.label.scrollWidth <= box.width + 1 && job.label.scrollHeight <= box.height + 1) low = high;
+  else {
+    for (let roundIndex = 0; roundIndex < fitRounds; roundIndex++) {
+      const size = (low + high) / 2;
+      job.label.style.fontSize = `${size}px`;
+      if (job.label.scrollWidth <= box.width + 1 && job.label.scrollHeight <= box.height + 1) low = size;
+      else high = size;
+    }
+  }
+  const size = Math.floor(low * 100) / 100;
+  job.label.style.fontSize = `${size}px`;
+  setStyle(job.el, "--panel-title-size", `${size}px`);
+  setData(job.el, "titleOverflow", job.label.scrollWidth > box.width + 1 || job.label.scrollHeight > box.height + 1);
+}
+
 function flush() {
   frame = 0;
   const jobs = [...pending].filter((job) => job.el?.isConnected);
@@ -124,6 +182,7 @@ function flush() {
   if (!changed.length) return;
 
   for (const job of changed) writeGeometry(job);
+  for (const job of changed.filter((job) => job.legacyTitle)) fitLegacyTitle(job);
   const fitting = changed.filter((job) => job.label && job.box && job.mode !== "icon");
   const left = fitting.filter((job) => job.mode === "left");
 
@@ -244,4 +303,9 @@ export function observePanelFit(job) {
 export function observePanelFrame(el) {
   if (!el) return () => {};
   return observe({ el, geometryOnly: true }, [el]);
+}
+
+export function observePanelTitleFit(el, label) {
+  if (!el || !label) return () => {};
+  return observe({ el, label, legacyTitle: true }, [el, label.parentElement]);
 }

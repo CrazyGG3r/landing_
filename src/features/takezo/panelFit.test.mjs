@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { observePanelFit, panelMetrics } from "./panelFit.js";
+import { observePanelFit, observePanelTitleFit, panelMetrics } from "./panelFit.js";
 
 test("panel geometry covers micro through roomy layouts and all orientations", () => {
   assert.equal(panelMetrics(55, 80).density, "micro");
@@ -67,6 +67,44 @@ test("36 resizing panels share a frame, fit exactly, settle, and cancel cleanly"
     assert.equal(frames.size, 0, "unmount cancels queued work");
   } finally {
     cleanups.forEach((cleanup) => cleanup());
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
+    }
+  }
+});
+
+test("home titles shrink only when their live content area overflows", async () => {
+  const originals = Object.fromEntries(["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver", "document", "getComputedStyle"].map((key) => [key, globalThis[key]]));
+  const frames = new Map();
+  let sequence = 0;
+  globalThis.requestAnimationFrame = (callback) => { frames.set(++sequence, callback); return sequence; };
+  globalThis.cancelAnimationFrame = (id) => frames.delete(id);
+  globalThis.ResizeObserver = class { constructor() {} observe() {} unobserve() {} };
+  globalThis.document = { fonts: { ready: Promise.resolve() }, hidden: false, addEventListener() {}, removeEventListener() {} };
+  globalThis.getComputedStyle = (el) => el.computed || {
+    position: "relative", paddingLeft: "10px", paddingRight: "10px", paddingTop: "10px", paddingBottom: "10px",
+    marginTop: "20px", marginBottom: "0px", fontSize: "60px",
+  };
+  const values = new Map();
+  const style = { getPropertyValue: (key) => values.get(key), setProperty: (key, value) => values.set(key, value) };
+  let size = 60;
+  const fixed = { offsetHeight: 40, computed: { position: "relative", marginTop: "0px", marginBottom: "0px" } };
+  const content = { clientWidth: 180, clientHeight: 150, children: [], computed: { position: "relative", paddingLeft: "10px", paddingRight: "10px", paddingTop: "10px", paddingBottom: "10px" } };
+  const label = {
+    parentElement: content, offsetHeight: 0, computed: { position: "relative", marginTop: "20px", marginBottom: "0px", fontSize: "60px" },
+    style: { set fontSize(value) { size = parseFloat(value); }, get fontSize() { return `${size}px`; }, removeProperty() { size = 60; } },
+    get scrollWidth() { return size * 3; }, get scrollHeight() { return size; },
+  };
+  content.children = [label, fixed];
+  const el = { clientWidth: 180, clientHeight: 150, isConnected: true, dataset: {}, style, querySelector: () => null };
+  const cleanup = observePanelTitleFit(el, label);
+  try {
+    await Promise.resolve();
+    [...frames.values()].forEach((callback) => callback());
+    assert.ok(size < 54 && size > 52, `expected a measured fit, got ${size}`);
+    assert.equal(el.dataset.titleOverflow, "false");
+  } finally {
+    cleanup();
     for (const [key, value] of Object.entries(originals)) {
       if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
     }
