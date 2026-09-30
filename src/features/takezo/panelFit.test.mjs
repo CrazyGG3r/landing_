@@ -73,6 +73,46 @@ test("36 resizing panels share a frame, fit exactly, settle, and cancel cleanly"
   }
 });
 
+test("single-line panel titles fit with a bounded number of layout reads", async () => {
+  const originals = Object.fromEntries(["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver", "document"]
+    .map((key) => [key, globalThis[key]]));
+  const frames = new Map();
+  let sequence = 0;
+  globalThis.requestAnimationFrame = (callback) => { frames.set(++sequence, callback); return sequence; };
+  globalThis.cancelAnimationFrame = (id) => frames.delete(id);
+  globalThis.ResizeObserver = class { observe() {} unobserve() {} };
+  globalThis.document = { fonts: { ready: Promise.resolve() }, hidden: false, addEventListener() {}, removeEventListener() {} };
+  const properties = new Map();
+  let size = 1;
+  let widthReads = 0;
+  const el = {
+    clientWidth: 300, clientHeight: 300, isConnected: true, dataset: {},
+    style: { getPropertyValue: (key) => properties.get(key), setProperty: (key, value) => properties.set(key, value) },
+    querySelector: () => null,
+  };
+  const label = {
+    style: { set fontSize(value) { size = parseFloat(value); }, get fontSize() { return `${size}px`; } },
+    get scrollWidth() { widthReads++; return size * 5; },
+    get scrollHeight() { return size; },
+  };
+  const cleanup = observePanelFit({ el, box: { clientWidth: 100, clientHeight: 100 }, label,
+    expanded: false, compressed: false, logo: null, text: "INTERESTS" });
+  try {
+    await Promise.resolve();
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((callback) => callback());
+    assert.ok(size <= 19.2 && size >= 18.5, `title should fit with a small safety margin, got ${size}`);
+    assert.ok(widthReads <= 5, `one-line fit should avoid binary-search reflows, got ${widthReads}`);
+    assert.equal(el.dataset.titleOverflow, "false");
+  } finally {
+    cleanup();
+    for (const [key, value] of Object.entries(originals)) {
+      if (value === undefined) delete globalThis[key]; else globalThis[key] = value;
+    }
+  }
+});
+
 test("home titles shrink only when their live content area overflows", async () => {
   const originals = Object.fromEntries(["requestAnimationFrame", "cancelAnimationFrame", "ResizeObserver", "document", "getComputedStyle"].map((key) => [key, globalThis[key]]));
   const frames = new Map();

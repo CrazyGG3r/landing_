@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { observePanelActivity } from "./panelActivity";
 
+const SEEK_INTERVAL_MS = 50;
+
 export default function TechnicalMotion({ host, sources, reduced }) {
   const stage = useRef(null);
   const videos = useRef([]);
@@ -16,9 +18,10 @@ export default function TechnicalMotion({ host, sources, reduced }) {
     let targetX = 0.5;
     let targetY = 0.5;
     let active = false;
+    let lastSeek = -SEEK_INTERVAL_MS;
     const videoNodes = videos.current.slice();
 
-    const paint = () => {
+    const paint = (now) => {
       const distanceX = targetX - pointerX;
       const distanceY = targetY - pointerY;
       pointerX = Math.abs(distanceX) < 0.001 ? targetX : pointerX + distanceX * 0.14;
@@ -27,13 +30,18 @@ export default function TechnicalMotion({ host, sources, reduced }) {
       layer.style.setProperty("--technical-parallax-x", `${(pointerX - .5) * 28}px`);
       layer.style.setProperty("--technical-parallax-y", `${(pointerY - .5) * 20}px`);
 
-      videoNodes.forEach((video, index) => {
-        if (reduced || !video || !Number.isFinite(video.duration) || video.duration <= 0) return;
-        const offset = index * 0.08;
-        const time = ((position + offset) % 1) * Math.max(0, video.duration - 0.04);
-        const timeDistance = Math.abs(video.currentTime - time);
-        if (!video.seeking && timeDistance > 0.018) video.currentTime = time;
-      });
+      // Arbitrary video seeks are decoder-heavy. Coalesce pointer frames into
+      // at most 20 seeks/sec, while leaving parallax at display refresh rate.
+      if (!reduced && now - lastSeek >= SEEK_INTERVAL_MS) {
+        lastSeek = now;
+        videoNodes.forEach((video, index) => {
+          if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
+          const offset = index * 0.08;
+          const time = ((position + offset) % 1) * Math.max(0, video.duration - 0.04);
+          const timeDistance = Math.abs(video.currentTime - time);
+          if (!video.seeking && timeDistance > 0.018) video.currentTime = time;
+        });
+      }
       frame = Math.abs(targetX - pointerX) + Math.abs(targetY - pointerY) > 0.002
         ? requestAnimationFrame(paint)
         : 0;

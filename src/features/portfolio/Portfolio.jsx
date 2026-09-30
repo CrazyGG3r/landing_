@@ -1725,7 +1725,9 @@ export default function Portfolio() {
     if (!hasRevealed) return undefined
 
     return scheduleRouteWarmup('/entry', {
-      includeAssets: true,
+      // Keep the live WebGL scene responsive; the actual transition still
+      // warms scene assets when the visitor commits to opening an entry.
+      includeAssets: false,
       timeoutMs: 1600,
     })
   }, [hasRevealed])

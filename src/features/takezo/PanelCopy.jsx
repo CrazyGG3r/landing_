@@ -1,6 +1,10 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useRef } from "react";
 
 const clamp = (n) => Math.max(0, Math.min(1, n));
+const setData = (element, key, value) => {
+  const next = String(value);
+  if (element.dataset[key] !== next) element.dataset[key] = next;
+};
 
 export default forwardRef(function PanelCopy({ card, expanded, enabled, panel, reduced }, ref) {
   const viewport = useRef(null);
@@ -13,8 +17,8 @@ export default forwardRef(function PanelCopy({ card, expanded, enabled, panel, r
     const horizontal = el.dataset.axis === "x";
     const position = horizontal ? el.scrollLeft : el.scrollTop;
     const max = horizontal ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight;
-    el.dataset.start = String(position <= 1);
-    el.dataset.end = String(position >= max - 1);
+    setData(el, "start", position <= 1);
+    setData(el, "end", position >= max - 1);
   };
   const summary = card.content?.find((layer) => layer.tag === "unhovered")?.text ?? card.description;
   const detail = card.content?.find((layer) => layer.tag === "hovered")?.text ?? card.description;
@@ -27,19 +31,22 @@ export default forwardRef(function PanelCopy({ card, expanded, enabled, panel, r
     const el = viewport.current;
     // Closed reading layers do not need three resize subscriptions each.
     if (!enabled || !expanded) {
-      el.dataset.overflow = "false";
+      setData(el, "overflow", false);
       return;
     }
     const panelElement = el.closest(".tz-adaptive");
+    let measureFrame = 0;
     const measure = () => {
       axis.current = panelElement.clientWidth > panelElement.clientHeight * 1.6 ? "x" : "y";
-      el.dataset.axis = enabled ? axis.current : "y";
+      setData(el, "axis", enabled ? axis.current : "y");
       const overflow = enabled && expanded && (axis.current === "x"
         ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1);
-      el.dataset.overflow = String(overflow);
+      setData(el, "overflow", overflow);
       updateEdges();
     };
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => {
+      if (!measureFrame) measureFrame = requestAnimationFrame(() => { measureFrame = 0; measure(); });
+    });
     observer.observe(panelElement);
     observer.observe(el);
     observer.observe(el.firstElementChild);
@@ -47,7 +54,12 @@ export default forwardRef(function PanelCopy({ card, expanded, enabled, panel, r
     el.scrollLeft = 0;
     target.current = 0;
     measure();
-    return () => { observer.disconnect(); cancelAnimationFrame(frame.current); frame.current = 0; };
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(measureFrame);
+      cancelAnimationFrame(frame.current);
+      frame.current = 0;
+    };
   }, [expanded, enabled, detail, panel]);
 
   useImperativeHandle(ref, () => ({

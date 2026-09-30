@@ -5,13 +5,19 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/logo/bf_blk.ico" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link
-    rel="preload"
-    href="/fonts/TRTCENZODEMO-ExtraBold.ttf"
-    as="font"
-    type="font/ttf"
-    crossorigin
-  />
+  <script>
+    // The cinematic title font is critical on these two routes only. Other
+    // pages should not compete with an unused font during their first paint.
+    if (location.pathname === '/' || location.pathname === '/portfolio') {
+      const titleFont = document.createElement('link');
+      titleFont.rel = 'preload';
+      titleFont.href = '/fonts/TRTCENZODEMO-ExtraBold.ttf';
+      titleFont.as = 'font';
+      titleFont.type = 'font/ttf';
+      titleFont.crossOrigin = 'anonymous';
+      document.head.append(titleFont);
+    }
+  </script>
 
   <script>
     const titles = [

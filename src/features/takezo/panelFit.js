@@ -197,9 +197,23 @@ function flush() {
     }
 
     const searching = fitted.filter((job) => {
-      if (job.label.scrollWidth <= job.boxWidth && job.label.scrollHeight <= job.boxHeight) {
+      const width = job.label.scrollWidth;
+      const height = job.label.scrollHeight;
+      if (width <= job.boxWidth && height <= job.boxHeight) {
         job.low = job.high;
         return false;
+      }
+      // A non-wrapping title scales almost linearly with font size. One
+      // measured estimate avoids ten forced layout passes on every grid frame.
+      // Wrapped titles retain the exact search below.
+      if (job.vertical || !job.text.includes(" ")) {
+        const ratio = Math.min(job.boxWidth / Math.max(1, width), job.boxHeight / Math.max(1, height));
+        const estimate = Math.max(job.low, Math.min(job.high, job.high * ratio * .985));
+        job.label.style.fontSize = `${estimate}px`;
+        if (job.label.scrollWidth <= job.boxWidth && job.label.scrollHeight <= job.boxHeight) {
+          job.low = estimate;
+          return false;
+        }
       }
       return true;
     });

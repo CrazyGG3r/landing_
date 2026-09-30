@@ -58,8 +58,8 @@ test("showcase project media and software marks resolve locally", () => {
     const project = card.project;
     assert.ok(nodes[card.id]);
     for (const image of project.images) {
-      assert.ok(existsSync(resolve(`public${image.src}`)), image.src);
-      assert.ok(existsSync(resolve(`public${image.thumb}`)), image.thumb);
+      assert.ok(existsSync(resolve(`public${decodeURIComponent(image.src)}`)), image.src);
+      assert.ok(existsSync(resolve(`public${decodeURIComponent(image.thumb)}`)), image.thumb);
       assert.ok(image.width > 0 && image.height > 0);
     }
     if (project.video)

@@ -40,14 +40,17 @@ export const nodes = {
         "orbital",
         "Experiments / studies / happy accidents",
       ),
-      card(
+      {
+        ...card(
         "connect",
         "GOOD\nCHEMISTRY.",
         "04 / THE CONNECTION",
         "bone",
         "asterisk",
         "Every good thing starts with a conversation.",
-      ),
+        ),
+        cursorDiminish: true,
+      },
     ],
   },
   identity: {
@@ -775,6 +778,7 @@ nodes.skillset = {
   cards: [
     {
       ...card(null, "3D", "03.1 / DISCIPLINE", "sage", null, "Form built in space."),
+      cursorDiminish: true,
       breakdown: {
         layout: "square-row",
         idleImages: ["modelling.webp", "sculpting.webp", "texturing.webp", "rendering.webp"],

@@ -551,7 +551,9 @@ export default function Landing({
     // Begin a guarded idle warmup once the landing scene is stable. The route
     // preloader automatically skips this on data-saver/slow/low-memory devices.
     const cancelWarmup = scheduleRouteWarmup('/portfolio', {
-      includeAssets: true,
+      // Parsing 3D assets during an otherwise interactive landing scene can
+      // stall its frames. Prime only route code until the visitor shows intent.
+      includeAssets: false,
       timeoutMs: 2400,
     });
     return cancelWarmup;
@@ -574,9 +576,11 @@ export default function Landing({
   const preloaderAssets = useMemo(() => ({
     images: [BOLTFORGED_INITIAL_FRAME, BOLTFORGED_FINAL_FRAME],
     json: ['/models/manifest.json'],
-    binary: iosDevice ? [] : [BOLTFORGED_ANIMATION],
+    // The mounted <video preload="auto"> already requests this file. Fetching
+    // it again as an ArrayBuffer duplicates transfer and retains extra memory.
+    binary: [],
     preloaders: [],
-  }), [iosDevice]);
+  }), []);
 
   const handleTerminalReady = useCallback(() => {
     terminalReadySignalRef.current?.();

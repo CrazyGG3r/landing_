@@ -3,6 +3,9 @@ import { interestDrive, interestMode, interestRailMetrics } from "./interestMoti
 import "./interestsMotion.css";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const setVariable = (node, name, value) => {
+  if (node.style.getPropertyValue(name) !== value) node.style.setProperty(name, value);
+};
 
 export default function InterestsMotion({ host, items, expanded, reduced, active, onActive }) {
   const field = useRef(null);
@@ -25,9 +28,9 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
     const resetMagnetism = () => {
       for (const node of itemNodes.current) {
         if (!node) continue;
-        node.style.setProperty("--magnet-x", "0px");
-        node.style.setProperty("--magnet-y", "0px");
-        node.style.setProperty("--magnet", "0");
+        setVariable(node, "--magnet-x", "0px");
+        setVariable(node, "--magnet-y", "0px");
+        setVariable(node, "--magnet", "0");
       }
     };
     const setMagnetism = () => {
@@ -46,19 +49,21 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
       positions.forEach((position, index) => {
         if (!position) return;
         const node = itemNodes.current[index];
-        node.style.setProperty("--magnet-x", `${position.x.toFixed(2)}px`);
-        node.style.setProperty("--magnet-y", `${position.y.toFixed(2)}px`);
-        node.style.setProperty("--magnet", position.strength.toFixed(3));
+        setVariable(node, "--magnet-x", `${position.x.toFixed(1)}px`);
+        setVariable(node, "--magnet-y", `${position.y.toFixed(1)}px`);
+        setVariable(node, "--magnet", position.strength.toFixed(2));
       });
     };
     const tick = (now) => {
       const elapsed = Math.min(40, now - previous || 16);
       previous = now;
+      // Sample transformed icon positions before changing the rail transform;
+      // reading them afterward would force a synchronous style/layout flush.
+      setMagnetism();
       if (mode === "narrow" && !reduced) {
         offset = clamp(offset + drive * elapsed * .13, rail.minimum, rail.maximum);
-        layer.style.setProperty("--rail-offset", `${offset.toFixed(2)}px`);
+        setVariable(layer, "--rail-offset", `${offset.toFixed(2)}px`);
       }
-      setMagnetism();
       const atLimit = offset <= rail.minimum && drive < 0 || offset >= rail.maximum && drive > 0;
       frame = mode === "narrow" && Math.abs(drive) > .001 && !atLimit && expanded && !document.hidden
         ? requestAnimationFrame(tick) : 0;
@@ -72,17 +77,19 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
     const measure = () => {
       const width = panel.clientWidth;
       const height = panel.clientHeight;
+      const heading = panel.querySelector(".tz-adaptive-title h2");
+      const panelRect = heading && panel.getBoundingClientRect();
+      const headingRect = heading?.getBoundingClientRect();
       mode = interestMode(width, height);
-      panel.dataset.interestMode = mode;
+      if (panel.dataset.interestMode !== mode) panel.dataset.interestMode = mode;
       rail = interestRailMetrics(height, items.length);
       offset = clamp(offset, rail.minimum, rail.maximum);
-      layer.style.setProperty("--rail-offset", `${offset.toFixed(2)}px`);
-      itemNodes.current.forEach((node, index) => node?.style.setProperty("--rail-base", `${rail.start + rail.spacing * index}px`));
-      const heading = panel.querySelector(".tz-adaptive-title h2");
-      if (heading) {
-        const panelRect = panel.getBoundingClientRect();
-        const headingRect = heading.getBoundingClientRect();
-        panel.style.setProperty("--interest-copy-top", `${Math.max(64, headingRect.bottom - panelRect.top + 10)}px`);
+      setVariable(layer, "--rail-offset", `${offset.toFixed(2)}px`);
+      itemNodes.current.forEach((node, index) => {
+        if (node) setVariable(node, "--rail-base", `${(rail.start + rail.spacing * index).toFixed(2)}px`);
+      });
+      if (headingRect && panelRect) {
+        setVariable(panel, "--interest-copy-top", `${Math.max(64, headingRect.bottom - panelRect.top + 10).toFixed(2)}px`);
       }
     };
     const move = (event) => {

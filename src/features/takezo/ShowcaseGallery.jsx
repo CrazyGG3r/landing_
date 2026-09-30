@@ -320,15 +320,17 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
       style={artwork ? { left: geometry.x, top: geometry.y, width: geometry.width, height: geometry.height } : { width: `${width}px` }}
       onClick={(e) => { if (!dragged.current) onOpen(card.id, e.currentTarget); }}
       aria-label={`View ${project.title}`}>
-      <span className="tz-gallery-media-wrap" data-count={project.images.length}><Preview project={project} /></span>
-      <span className="tz-gallery-caption">
-        <span className="tz-gallery-number">{String(index + 1).padStart(2, "0")} / {String(cards.length).padStart(2, "0")}</span>
-        <strong>{project.title}</strong>
-        <span>{project.short}</span>
-        <Marks software={project.software} />
+      <span className="tz-gallery-card-surface">
+        <span className="tz-gallery-media-wrap" data-count={project.images.length}><Preview project={project} /></span>
+        <span className="tz-gallery-caption">
+          <span className="tz-gallery-number">{String(index + 1).padStart(2, "0")} / {String(cards.length).padStart(2, "0")}</span>
+          <strong>{project.title}</strong>
+          <span>{project.short}</span>
+          <Marks software={project.software} />
+        </span>
+        <span className="tz-gallery-year">{project.year}</span>
+        {project.category && <span className="tz-gallery-category">{project.category}</span>}
       </span>
-      <span className="tz-gallery-year">{project.year}</span>
-      {project.category && <span className="tz-gallery-category">{project.category}</span>}
     </button>;
   };
   const instances = (clone) => artwork

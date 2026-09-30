@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111512" />
+    <meta name="description" content="A standalone desktop laboratory for smooth, efficient SVG shape morphing." />
+    <title>Forma — SVG Morph Lab</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="./main.js"></script>
+  </head>
+  <body>
+    <div class="desktop-only" role="note">
+      <span class="desktop-only__mark">F / 01</span>
+      <h1>Built for a desktop canvas.</h1>
+      <p>Open this morph study on a desktop display with a mouse or trackpad.</p>
+    </div>
+
+    <div class="site">
+      <header class="masthead">
+        <a class="wordmark" href="./" aria-label="Forma morph lab home"><span class="wordmark__symbol">F<span>.</span></span><span>FORMA <i>/</i> LAB</span></a>
+        <div class="masthead__middle">VECTOR MOTION STUDY <span>—</span> 001</div>
+        <div class="masthead__right"><span class="live-dot"></span> LOCAL EXPERIMENT <span class="masthead__version">V 1.0</span></div>
+      </header>
+
+      <main class="workspace">
+        <section class="intro" aria-labelledby="hero-title">
+          <div class="eyebrow"><span class="eyebrow__line"></span> A STUDY IN CONTINUITY</div>
+          <h1 id="hero-title">FORM<br />IS A<br /><em>MOVING</em><br />TARGET<span class="period">.</span></h1>
+          <p class="intro__copy">One silhouette. Four identities. Every point travels with purpose, so the shape can become something else without breaking its line.</p>
+          <div class="intro__rule"></div>
+          <div class="intro__footer"><span>01 — 04</span><span>SVG / PARAMETRIC PATH</span></div>
+        </section>
+
+        <section class="stage-shell" aria-label="Morphing SVG preview">
+          <div class="stage-top"><span>LIVE CANVAS</span><span id="canvas-status"><span class="status-light"></span><span id="status-word">IDLE</span></span></div>
+          <div class="stage">
+            <div class="stage-grid" aria-hidden="true"></div>
+            <div class="stage-corner stage-corner--tl" aria-hidden="true"></div>
+            <div class="stage-corner stage-corner--tr" aria-hidden="true"></div>
+            <div class="stage-corner stage-corner--bl" aria-hidden="true"></div>
+            <div class="stage-corner stage-corner--br" aria-hidden="true"></div>
+            <svg id="morph-svg" viewBox="0 0 640 640" role="img" aria-labelledby="svg-title svg-desc">
+              <title id="svg-title">Morphing vector form</title>
+              <desc id="svg-desc">A smooth shape that changes between four vector profiles.</desc>
+              <defs>
+                <radialGradient id="body-gradient" cx="34%" cy="25%" r="78%">
+                  <stop offset="0" class="gradient-hot" />
+                  <stop offset=".54" class="gradient-mid" />
+                  <stop offset="1" class="gradient-deep" />
+                </radialGradient>
+                <linearGradient id="edge-gradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#fff" stop-opacity=".72" />
+                  <stop offset=".5" stop-color="#fff" stop-opacity=".05" />
+                  <stop offset="1" stop-color="#fff" stop-opacity=".55" />
+                </linearGradient>
+                <path id="morph-path" d="" />
+              </defs>
+              <g class="svg-guides" aria-hidden="true">
+                <circle cx="320" cy="320" r="247" />
+                <circle cx="320" cy="320" r="212" />
+                <circle cx="320" cy="320" r="91" />
+                <path d="M320 32v55m0 466v55M32 320h55m466 0h55" />
+                <path d="M79 79l30 30m422 422 30 30M561 79l-30 30M109 531l-30 30" />
+              </g>
+              <use href="#morph-path" class="form-halo" />
+              <use href="#morph-path" class="form-body" />
+              <use href="#morph-path" class="form-edge" />
+              <g class="form-core" aria-hidden="true">
+                <circle cx="320" cy="320" r="47" />
+                <circle cx="320" cy="320" r="34" />
+                <path d="M301 320h38M320 301v38" />
+                <circle cx="320" cy="320" r="4" />
+              </g>
+              <circle id="trace-dot" class="trace-dot" cx="320" cy="120" r="4" aria-hidden="true" />
+            </svg>
+            <div class="stage-coordinate stage-coordinate--left" aria-hidden="true">X 320.00<br />Y 320.00</div>
+            <div class="stage-coordinate stage-coordinate--right" aria-hidden="true">BEZIER / CLOSED<br />64 CONTROL SAMPLES</div>
+          </div>
+          <div class="stage-bottom"><span>FIG <span id="figure-number">01</span> / <span id="figure-name">BLOOM</span></span><span>VECTOR / 640 × 640</span></div>
+        </section>
+
+        <aside class="console" aria-label="Morph controls">
+          <div class="console__top"><span>CONTROL DECK</span><span>↗</span></div>
+          <div class="form-heading"><span>NOW VIEWING / <span id="form-number">01</span></span><h2 id="form-title">BLOOM</h2><p id="form-description">A soft radial cadence, opening in seven measured beats.</p></div>
+          <div class="form-list" role="group" aria-label="Choose a vector form">
+            <button class="form-choice is-active" type="button" data-form="0" aria-pressed="true"><span>01</span><strong>BLOOM</strong><span>↗</span></button>
+            <button class="form-choice" type="button" data-form="1" aria-pressed="false"><span>02</span><strong>FLUX</strong><span>↗</span></button>
+            <button class="form-choice" type="button" data-form="2" aria-pressed="false"><span>03</span><strong>ASTER</strong><span>↗</span></button>
+            <button class="form-choice" type="button" data-form="3" aria-pressed="false"><span>04</span><strong>ORBIT</strong><span>↗</span></button>
+          </div>
+          <div class="control-block">
+            <div class="control-label"><label for="scrub">MORPH / SCRUB</label><output id="scrub-value" for="scrub">100%</output></div>
+            <input id="scrub" type="range" min="0" max="100" value="100" aria-label="Scrub the latest morph" />
+            <div class="control-hint"><span>ORIGIN</span><span>TARGET</span></div>
+          </div>
+          <div class="control-block control-block--speed">
+            <div class="control-label"><label for="duration">DURATION</label><output id="duration-value" for="duration">1.2 S</output></div>
+            <input id="duration" type="range" min="600" max="2200" step="100" value="1200" aria-label="Morph duration" />
+            <div class="control-hint"><span>SNAP</span><span>DRIFT</span></div>
+          </div>
+          <div class="actions"><button id="next-form" class="primary-action" type="button">MORPH TO NEXT <span>↗</span></button><button id="auto-cycle" class="auto-action" type="button" aria-pressed="false"><span class="auto-action__icon">◎</span> AUTO CYCLE <span id="auto-state">OFF</span></button><button id="trigger-wait" class="wait-action" type="button">TEST WAIT CURSOR <span>5 SEC ↗</span></button><div id="cursor-mode" class="cursor-mode" role="status">CURSOR / ARROW</div></div>
+          <div class="telemetry"><span class="telemetry__label">LIVE TELEMETRY</span><div><span>FRAME RATE</span><strong id="fps-value">—</strong></div><div><span>FRAME TIME</span><strong id="frame-value">—</strong></div><div><span>RENDER LOOP</span><strong id="loop-value">SLEEP</strong></div></div>
+        </aside>
+      </main>
+
+      <footer class="footer"><span>ARROW KEYS / CHANGE FORM <i>•</i> SPACE / AUTO CYCLE</span><span>ONE ANIMATED PATH. THREE REUSED LAYERS.</span><span>DESKTOP STUDY / 2026</span></footer>
+    </div>
+
+    <div id="cursor-shell" class="cursor-shell" aria-hidden="true">
+      <svg id="cursor-glyph" viewBox="-20 -130 245 355" focusable="false" aria-hidden="true">
+        <g id="cursor-rotor"><path id="cursor-shape" /></g>
+      </svg>
+      <svg id="wait-cursor" viewBox="0 0 217.88852 210.82834" focusable="false" aria-hidden="true">
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+        <ellipse cx="0" cy="0" rx="14.509" ry="13.343" />
+      </svg>
+    </div>
+  </body>
+</html>

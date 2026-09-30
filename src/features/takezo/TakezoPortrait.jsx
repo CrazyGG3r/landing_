@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 
 const FORMATION = "/takezo/TakezoPortraitFormation.webm";
 const FORMED = "/takezo/TakezoPortraitFormed.svg";
+const cancelPlaybackWatch = (media, frame) => {
+  if (!frame.current) return;
+  if (typeof media?.cancelVideoFrameCallback === "function" && typeof media?.requestVideoFrameCallback === "function") {
+    media.cancelVideoFrameCallback(frame.current);
+  } else cancelAnimationFrame(frame.current);
+  frame.current = 0;
+};
 
 export default function TakezoPortrait({ reduced = false }) {
   const root = useRef(null);
@@ -18,8 +25,7 @@ export default function TakezoPortrait({ reduced = false }) {
     if (reduced) {
       const wasActive = active.current;
       video.current?.pause();
-      if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
-      playbackFrame.current = 0;
+      cancelPlaybackWatch(video.current, playbackFrame);
       setPlaying(false);
       setFormed(wasActive);
     }
@@ -27,6 +33,7 @@ export default function TakezoPortrait({ reduced = false }) {
 
   useEffect(() => {
     const element = root.current;
+    const mediaNode = video.current;
     const panel = element?.closest(".tz-panel");
     if (!element || !panel) return undefined;
 
@@ -66,16 +73,22 @@ export default function TakezoPortrait({ reduced = false }) {
       media.currentTime = 0;
       setFormed(false);
       setPlaying(true);
-      const watchPlaybackEnd = () => {
+      const watchPlaybackEnd = (_now, metadata) => {
         // Pre-reveal just before the WebM's empty terminal frame. The SVG is
         // already decoded, but remains invisible through the actual formation.
-        if (media.duration && media.duration - media.currentTime <= 0.09) setFormed(true);
-        if (!media.paused && !media.ended) playbackFrame.current = requestAnimationFrame(watchPlaybackEnd);
+        if (media.duration && media.duration - (metadata?.mediaTime ?? media.currentTime) <= 0.09) setFormed(true);
+        if (!media.paused && !media.ended) scheduleWatch();
         else playbackFrame.current = 0;
       };
-      if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+      const scheduleWatch = () => {
+        playbackFrame.current = typeof media.requestVideoFrameCallback === "function"
+          && typeof media.cancelVideoFrameCallback === "function"
+          ? media.requestVideoFrameCallback(watchPlaybackEnd)
+          : requestAnimationFrame(watchPlaybackEnd);
+      };
+      cancelPlaybackWatch(media, playbackFrame);
       media.play().then(() => {
-        playbackFrame.current = requestAnimationFrame(watchPlaybackEnd);
+        if (active.current && !media.paused) scheduleWatch();
       }).catch(() => {
         setPlaying(false);
         setFormed(true);
@@ -84,8 +97,7 @@ export default function TakezoPortrait({ reduced = false }) {
     const leave = () => {
       active.current = false;
       video.current?.pause();
-      if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
-      playbackFrame.current = 0;
+      cancelPlaybackWatch(mediaNode, playbackFrame);
       setPlaying(false);
       setFormed(false);
       reset();
@@ -109,7 +121,7 @@ export default function TakezoPortrait({ reduced = false }) {
       panel.removeEventListener("focusin", focus);
       panel.removeEventListener("focusout", blur);
       if (frame.current) cancelAnimationFrame(frame.current);
-      if (playbackFrame.current) cancelAnimationFrame(playbackFrame.current);
+      cancelPlaybackWatch(mediaNode, playbackFrame);
     };
   }, [reduced]);
 

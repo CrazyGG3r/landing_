@@ -167,6 +167,7 @@ function Panel({ card, index, isHome, onOpen, onPreview, previewed, features, re
       className={`tz-panel tz-panel-${index} tz-${card.color} ${card.art ? "" : "tz-reading"}`}
       data-panel={index}
       data-destination={card.id || undefined}
+      data-cursor-diminish={card.cursorDiminish ? "true" : undefined}
       data-expanded={!breakdown && card.id ? previewed : undefined}
       style={surfaceStyle(features)}
       {...(breakdown ? { breakdown, onOpen, reduced } : card.id
@@ -593,7 +594,7 @@ export default function Takezo() {
       className={`takezo ${mosaic ? "tz-mosaic-page" : ""} ${reduced ? "tz-reduced" : ""}`}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <TakezoCursor host={page} />
+      <TakezoCursor host={page} waiting={busy} reduced={reduced} />
       <h1 className="tz-sr-only" ref={heading} tabIndex={-1}>
         {view === "home" ? "Takezo" : node.title}
       </h1>

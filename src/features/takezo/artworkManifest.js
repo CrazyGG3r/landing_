@@ -1,6 +1,6 @@
 export default [
   {
-    "id": "artwork-c418-disc-11-1",
+    "id": "c418-disc-11",
     "title": "C418 Disc 11",
     "category": "digital",
     "year": "2018",
@@ -20,7 +20,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-circle-of-life-2",
+    "id": "circle-of-life",
     "title": "Circle of Life",
     "category": "traditional",
     "year": "2018",
@@ -40,7 +40,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-grimms-wrath-3",
+    "id": "grimms-wrath",
     "title": "Grimms Wrath",
     "category": "traditional",
     "year": "2018",
@@ -60,7 +60,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-old-lore-doodle-4",
+    "id": "old-lore-doodle",
     "title": "Old Lore Doodle",
     "category": "traditional",
     "year": "2018",
@@ -80,7 +80,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-shading-principles-study-5",
+    "id": "shading-principles-study",
     "title": "Shading Principles Study",
     "category": "traditional",
     "year": "2018",
@@ -100,7 +100,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-enderman-6",
+    "id": "enderman",
     "title": "EnderMan",
     "category": "traditional",
     "year": "2019",
@@ -120,7 +120,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-fanfic-work-7",
+    "id": "fanfic-work",
     "title": "Fanfic Work",
     "category": "traditional",
     "year": "2019",
@@ -140,7 +140,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-huntress-pack-oc-8",
+    "id": "huntress-pack-oc",
     "title": "Huntress Pack OC",
     "category": "traditional",
     "year": "2019",
@@ -160,7 +160,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-the-wisdom-stare-9",
+    "id": "the-wisdom-stare",
     "title": "The Wisdom Stare",
     "category": "traditional",
     "year": "2019",
@@ -180,7 +180,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-traditional-and-digital-first-attempt-10",
+    "id": "traditional-and-digital-first-attempt",
     "title": "Traditional and Digital First Attempt",
     "category": "traditional",
     "year": "2019",
@@ -200,7 +200,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-vinland-saga-11",
+    "id": "vinland-saga",
     "title": "Vinland Saga",
     "category": "traditional",
     "year": "2019",
@@ -220,7 +220,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-witch-oc-12",
+    "id": "witch-oc",
     "title": "Witch OC",
     "category": "traditional",
     "year": "2019",
@@ -240,7 +240,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-burning-cradle-theme-13",
+    "id": "burning-cradle-theme",
     "title": "Burning Cradle Theme",
     "category": "traditional",
     "year": "2020",
@@ -260,7 +260,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-femme-knight-14",
+    "id": "femme-knight",
     "title": "Femme Knight",
     "category": "digital",
     "year": "2020",
@@ -280,7 +280,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-manga-cover-15",
+    "id": "manga-cover",
     "title": "Manga Cover",
     "category": "traditional",
     "year": "2020",
@@ -300,7 +300,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-musashi-miyamoto-16",
+    "id": "musashi-miyamoto",
     "title": "Musashi Miyamoto",
     "category": "traditional",
     "year": "2020",
@@ -320,7 +320,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-one-punch-steve-17",
+    "id": "one-punch-steve",
     "title": "One Punch Steve",
     "category": "traditional",
     "year": "2020",
@@ -340,7 +340,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-one-punch-steve-coloured-18",
+    "id": "one-punch-steve-coloured",
     "title": "One Punch Steve (Coloured)",
     "category": "traditional",
     "year": "2020",
@@ -360,7 +360,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-shirt-print-material-19",
+    "id": "shirt-print-material",
     "title": "Shirt Print Material",
     "category": "digital",
     "year": "2020",
@@ -380,7 +380,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-steve-s-victory-20",
+    "id": "steve-s-victory",
     "title": "Steve's Victory",
     "category": "traditional",
     "year": "2020",
@@ -400,7 +400,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-daddy-warden-21",
+    "id": "daddy-warden",
     "title": "Daddy Warden",
     "category": "traditional",
     "year": "2022",
@@ -420,8 +420,8 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-my-pet-study-1-22",
-    "title": "My Pet Study 1",
+    "id": "my-pet-study",
+    "title": "My Pet Study",
     "category": "digital",
     "year": "2022",
     "short": "Birb is watching, obey and serve.",
@@ -435,13 +435,19 @@ export default [
         "thumb": "/takezo/showcase/artworks/thumbnails/My%20Pet%20Study%201.webp",
         "width": 2880,
         "height": 2880
+      },
+      {
+        "src": "/takezo/showcase/artworks/images/My%20Pet%20Study%202.jpg",
+        "thumb": "/takezo/showcase/artworks/thumbnails/My%20Pet%20Study%202.webp",
+        "width": 2210,
+        "height": 2210
       }
     ],
     "video": null
   },
   {
-    "id": "artwork-tremendous-tribulation-1-23",
-    "title": "Tremendous Tribulation 1",
+    "id": "tremendous-tribulation",
+    "title": "Tremendous Tribulation",
     "category": "concept",
     "year": "2022",
     "short": "Early lore work",
@@ -455,21 +461,7 @@ export default [
         "thumb": "/takezo/showcase/artworks/thumbnails/Tremendous%20Tribulation%201.webp",
         "width": 2480,
         "height": 3508
-      }
-    ],
-    "video": null
-  },
-  {
-    "id": "artwork-tremendous-tribulation-2-24",
-    "title": "Tremendous Tribulation 2",
-    "category": "concept",
-    "year": "2022",
-    "short": "Early lore work",
-    "description": "An early lore ensemble featuring three stylised figures with a fox, tiger and wolf. Clean linework establishes character silhouettes, costume details, and group hierarchy.",
-    "kind": "artwork",
-    "date": "2026-09-24T16:02:51.969Z",
-    "software": [],
-    "images": [
+      },
       {
         "src": "/takezo/showcase/artworks/images/Tremendous%20Tribulation%202.jpg",
         "thumb": "/takezo/showcase/artworks/thumbnails/Tremendous%20Tribulation%202.webp",
@@ -480,7 +472,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-wildwest-comic-doodle-25",
+    "id": "wildwest-comic-doodle",
     "title": "WildWest Comic Doodle",
     "category": "concept",
     "year": "2022",
@@ -500,7 +492,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-aerial-silence-26",
+    "id": "aerial-silence",
     "title": "Aerial Silence",
     "category": "digital",
     "year": "2023",
@@ -520,7 +512,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-after-rain-27",
+    "id": "after-rain",
     "title": "After Rain",
     "category": "digital",
     "year": "2023",
@@ -540,7 +532,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-artstyle-transitioning-28",
+    "id": "artstyle-transitioning",
     "title": "Artstyle Transitioning",
     "category": "digital",
     "year": "2023",
@@ -560,7 +552,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-foreshortening-29",
+    "id": "foreshortening",
     "title": "Foreshortening",
     "category": "concept",
     "year": "2023",
@@ -580,7 +572,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-immortal-30",
+    "id": "immortal",
     "title": "Immortal",
     "category": "digital",
     "year": "2023",
@@ -600,7 +592,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-lies-of-p-31",
+    "id": "lies-of-p",
     "title": "Lies Of P",
     "category": "digital",
     "year": "2023",
@@ -620,7 +612,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-ms-paint-doodle-32",
+    "id": "ms-paint-doodle",
     "title": "MS Paint Doodle",
     "category": "concept",
     "year": "2023",
@@ -640,27 +632,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-my-pet-study-2-33",
-    "title": "My Pet Study 2",
-    "category": "digital",
-    "year": "2023",
-    "short": "Angry Birb",
-    "description": "A close digital study of an alert cockatiel. Cyan lighting, a dark backdrop, and the bird’s direct gaze give this pet portrait an intentionally intense mood.",
-    "kind": "artwork",
-    "date": "2026-09-24T16:03:09.970Z",
-    "software": [],
-    "images": [
-      {
-        "src": "/takezo/showcase/artworks/images/My%20Pet%20Study%202.jpg",
-        "thumb": "/takezo/showcase/artworks/thumbnails/My%20Pet%20Study%202.webp",
-        "width": 2210,
-        "height": 2210
-      }
-    ],
-    "video": null
-  },
-  {
-    "id": "artwork-old-man-joker-34",
+    "id": "old-man-joker",
     "title": "Old Man Joker",
     "category": "traditional",
     "year": "2023",
@@ -680,7 +652,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-pose-paint-study-35",
+    "id": "pose-paint-study",
     "title": "Pose & Paint Study",
     "category": "digital",
     "year": "2023",
@@ -691,8 +663,8 @@ export default [
     "software": [],
     "images": [
       {
-        "src": "/takezo/showcase/artworks/images/Pose%20&%20Paint%20Study.jpg",
-        "thumb": "/takezo/showcase/artworks/thumbnails/Pose%20&%20Paint%20Study.webp",
+        "src": "/takezo/showcase/artworks/images/Pose%20%26%20Paint%20Study.jpg",
+        "thumb": "/takezo/showcase/artworks/thumbnails/Pose%20%26%20Paint%20Study.webp",
         "width": 2500,
         "height": 2500
       }
@@ -700,7 +672,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-punchy-trauma-36",
+    "id": "punchy-trauma",
     "title": "Punchy Trauma",
     "category": "digital",
     "year": "2023",
@@ -720,7 +692,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-chainsaw-man-doodle-37",
+    "id": "chainsaw-man-doodle",
     "title": "Chainsaw Man Doodle",
     "category": "concept",
     "year": "2024",
@@ -740,7 +712,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-chainsaw-man-ms-paint-38",
+    "id": "chainsaw-man-ms-paint",
     "title": "Chainsaw Man MS Paint",
     "category": "digital",
     "year": "2024",
@@ -760,7 +732,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-deadpool-x-sbr-parody-storyboard-39",
+    "id": "deadpool-x-sbr-parody-storyboard",
     "title": "DeadPool x SBR Parody Storyboard",
     "category": "concept",
     "year": "2024",
@@ -780,7 +752,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-lore-work-doodle-40",
+    "id": "lore-work-doodle",
     "title": "Lore Work Doodle",
     "category": "digital",
     "year": "2024",
@@ -800,7 +772,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-multiple-shading-principles-study-41",
+    "id": "multiple-shading-principles-study",
     "title": "Multiple Shading Principles Study",
     "category": "digital",
     "year": "2024",
@@ -820,7 +792,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-not-the-honoured-one-42",
+    "id": "not-the-honoured-one",
     "title": "Not the Honoured One",
     "category": "concept",
     "year": "2024",
@@ -840,7 +812,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-subway-horror-lore-work-43",
+    "id": "subway-horror-lore-work",
     "title": "Subway Horror Lore Work",
     "category": "digital",
     "year": "2024",
@@ -860,7 +832,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-surreal-attire-44",
+    "id": "surreal-attire",
     "title": "Surreal Attire",
     "category": "concept",
     "year": "2024",
@@ -880,7 +852,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-the-shepherd-45",
+    "id": "the-shepherd",
     "title": "The Shepherd",
     "category": "digital",
     "year": "2024",
@@ -900,7 +872,7 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-arcane-style-study-46",
+    "id": "arcane-style-study",
     "title": "Arcane Style Study",
     "category": "digital",
     "year": "2025",
@@ -920,8 +892,8 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-meme-art-1-of-3-47",
-    "title": "Meme Art 1 of 3",
+    "id": "meme-art",
+    "title": "Meme Art",
     "category": "digital",
     "year": "2025",
     "short": "Throughout all the realms of abstraction and reality...",
@@ -935,41 +907,13 @@ export default [
         "thumb": "/takezo/showcase/artworks/thumbnails/Meme%20Art%201%20of%203.webp",
         "width": 878,
         "height": 788
-      }
-    ],
-    "video": null
-  },
-  {
-    "id": "artwork-meme-art-2-of-3-48",
-    "title": "Meme Art 2 of 3",
-    "category": "digital",
-    "year": "2025",
-    "short": "...I am alone the honored one.",
-    "description": "The second triptych image reverses the palette into grayscale. A faceless figure and radiating hand motif continue the mock-heroic visual language.",
-    "kind": "artwork",
-    "date": "2026-09-24T16:03:18.460Z",
-    "software": [],
-    "images": [
+      },
       {
         "src": "/takezo/showcase/artworks/images/Meme%20Art%202%20of%203.jpg",
         "thumb": "/takezo/showcase/artworks/thumbnails/Meme%20Art%202%20of%203.webp",
         "width": 878,
         "height": 788
-      }
-    ],
-    "video": null
-  },
-  {
-    "id": "artwork-meme-art-3-of-3-49",
-    "title": "Meme Art 3 of 3",
-    "category": "digital",
-    "year": "2025",
-    "short": "Peak-ism",
-    "description": "The concluding triptych image presents a white-suited figure beneath bold typography. Its orange head, raised hands, and distressed chest detail push the series toward dark, exaggerated humour.",
-    "kind": "artwork",
-    "date": "2026-09-24T16:03:10.574Z",
-    "software": [],
-    "images": [
+      },
       {
         "src": "/takezo/showcase/artworks/images/Meme%20Art%203%20of%203.jpg",
         "thumb": "/takezo/showcase/artworks/thumbnails/Meme%20Art%203%20of%203.webp",
@@ -980,14 +924,14 @@ export default [
     "video": null
   },
   {
-    "id": "artwork-neon-genesis-evangelion-1-50",
-    "title": "Neon Genesis Evangelion 1",
+    "id": "neon-genesis-evangelion",
+    "title": "Neon Genesis Evangelion",
     "category": "digital",
     "year": "2025",
     "short": "Inspired from light novels.",
     "description": "A Neon Genesis Evangelion fan artwork inspired by light-novel imagery. A blurred foreground figure reaches toward a small robotic form in a muted, cinematic scene.",
     "kind": "artwork",
-    "date": "2026-09-24T16:03:26.575Z",
+    "date": "2026-09-24T16:03:31.828Z",
     "software": [],
     "images": [
       {
@@ -995,21 +939,7 @@ export default [
         "thumb": "/takezo/showcase/artworks/thumbnails/Neon%20Genesis%20Evangelion%201.webp",
         "width": 3840,
         "height": 2760
-      }
-    ],
-    "video": null
-  },
-  {
-    "id": "artwork-neon-genesis-evangelion-2-51",
-    "title": "Neon Genesis Evangelion 2",
-    "category": "digital",
-    "year": "2025",
-    "short": "Alternative variant",
-    "description": "An alternative Neon Genesis Evangelion fan-art variant. Cool cyan and green lighting, geometric shapes, and selective blur reshape the same dramatic setup into a more graphic composition.",
-    "kind": "artwork",
-    "date": "2026-09-24T16:03:31.828Z",
-    "software": [],
-    "images": [
+      },
       {
         "src": "/takezo/showcase/artworks/images/Neon%20Genesis%20Evangelion%202.jpg",
         "thumb": "/takezo/showcase/artworks/thumbnails/Neon%20Genesis%20Evangelion%202.webp",

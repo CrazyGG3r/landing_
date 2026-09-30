@@ -11,6 +11,8 @@ export default function VideoTimeline({ player, playing, visible, duration }) {
   useEffect(() => {
     const video = player.current;
     let frame = 0, lastTime = -1, lastLabel = "";
+    const videoFrames = typeof video.requestVideoFrameCallback === "function"
+      && typeof video.cancelVideoFrameCallback === "function";
     draw.current = () => {
       const position = video.currentTime;
       if (position === lastTime) return;
@@ -29,12 +31,27 @@ export default function VideoTimeline({ player, playing, visible, duration }) {
         input.current.setAttribute("aria-valuetext", `${label} of ${time(duration)}`);
       }
     };
-    const tick = () => { draw.current(); frame = requestAnimationFrame(tick); };
-    const sync = () => {
-      cancelAnimationFrame(frame);
+    const cancelFrame = () => {
+      if (!frame) return;
+      if (videoFrames) video.cancelVideoFrameCallback(frame);
+      else cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    const tick = () => {
+      frame = 0;
       draw.current();
-      // Smooth while visible; native media events suffice for hidden controls.
-      if (playing && (visible || focused) && !document.hidden) frame = requestAnimationFrame(tick);
+      if (playing && (visible || focused) && !document.hidden) {
+        frame = videoFrames ? video.requestVideoFrameCallback(tick) : requestAnimationFrame(tick);
+      }
+    };
+    const sync = () => {
+      cancelFrame();
+      draw.current();
+      // Align progress work with decoded video frames where supported. Native
+      // media events still cover seeking and hidden controls.
+      if (playing && (visible || focused) && !document.hidden) {
+        frame = videoFrames ? video.requestVideoFrameCallback(tick) : requestAnimationFrame(tick);
+      }
     };
     video.addEventListener("timeupdate", draw.current);
     video.addEventListener("seeked", draw.current);
@@ -42,7 +59,7 @@ export default function VideoTimeline({ player, playing, visible, duration }) {
     sync();
     const drawFrame = draw.current;
     return () => {
-      cancelAnimationFrame(frame);
+      cancelFrame();
       video.removeEventListener("timeupdate", drawFrame);
       video.removeEventListener("seeked", drawFrame);
       document.removeEventListener("visibilitychange", sync);

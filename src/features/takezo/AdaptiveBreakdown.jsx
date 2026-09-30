@@ -5,10 +5,15 @@ const ease = 0.28;
 export default function AdaptiveBreakdown({ breakdown, open, entryX }) {
   const items = breakdown.items || [];
   const root = useRef(null);
+  const pointerFrame = useRef(0);
+  const pendingPointerX = useRef(null);
   const motion = useRef({ frame: 0, positions: [], targets: [], widths: [], researchPositions: [], scatter: null, scatterTarget: null, initialized: false });
 
   useEffect(() => {
     if (open) return;
+    cancelAnimationFrame(pointerFrame.current);
+    pointerFrame.current = 0;
+    pendingPointerX.current = null;
     cancelAnimationFrame(motion.current.frame);
     motion.current.frame = 0;
     motion.current.positions = [];
@@ -21,7 +26,10 @@ export default function AdaptiveBreakdown({ breakdown, open, entryX }) {
     root.current?.removeAttribute("data-interacted");
   }, [open]);
 
-  useEffect(() => () => cancelAnimationFrame(motion.current.frame), []);
+  useEffect(() => () => {
+    cancelAnimationFrame(pointerFrame.current);
+    cancelAnimationFrame(motion.current.frame);
+  }, []);
 
   const animate = () => {
     const state = motion.current;
@@ -75,13 +83,12 @@ export default function AdaptiveBreakdown({ breakdown, open, entryX }) {
     state.frame = requestAnimationFrame(paint);
   };
 
-  const move = (event) => {
-    if (!open || event.pointerType !== "mouse") return;
+  const applyPointer = (clientX) => {
     const cards = root.current?.querySelectorAll(".tz-adaptive-breakdown-item");
     if (!cards) return;
     const state = motion.current;
     const rects = Array.from(cards, (card) => card.getBoundingClientRect());
-    const pointerX = !state.initialized && Number.isFinite(entryX) ? entryX : event.clientX;
+    const pointerX = !state.initialized && Number.isFinite(entryX) ? entryX : clientX;
     const centers = rects.map((rect) => rect.left + rect.width / 2);
     const texturingCenter = rects.at(-2)?.left + rects.at(-2)?.width / 2;
     const renderingCenter = rects.at(-1)?.left + rects.at(-1)?.width / 2;
@@ -151,7 +158,20 @@ export default function AdaptiveBreakdown({ breakdown, open, entryX }) {
     animate();
   };
 
+  const move = (event) => {
+    if (!open || event.pointerType !== "mouse") return;
+    pendingPointerX.current = event.clientX;
+    if (pointerFrame.current) return;
+    pointerFrame.current = requestAnimationFrame(() => {
+      pointerFrame.current = 0;
+      applyPointer(pendingPointerX.current);
+    });
+  };
+
   const leave = (event) => {
+    cancelAnimationFrame(pointerFrame.current);
+    pointerFrame.current = 0;
+    pendingPointerX.current = null;
     const cards = root.current?.querySelectorAll(".tz-adaptive-breakdown-item");
     if (!cards) return;
     const rootRect = root.current.getBoundingClientRect();

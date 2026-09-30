@@ -48,6 +48,7 @@ export default function AdaptivePanel({
       className={`tz-panel tz-adaptive tz-${card.color}${hasInterests ? " tz-interest-panel" : ""}`}
       data-panel={index}
       data-destination={card.id || undefined}
+      data-cursor-diminish={card.cursorDiminish ? "true" : undefined}
       data-expanded={expanded}
       data-compressed={compressed}
       data-single-word={!text.includes(" ") ? "true" : undefined}

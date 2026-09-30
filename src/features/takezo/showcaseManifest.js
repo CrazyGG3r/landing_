@@ -18,20 +18,20 @@ export default [
         "height": 1440
       },
       {
-        "src": "/takezo/showcase/projects/images/Crab (1).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Crab (1).webp",
+        "src": "/takezo/showcase/projects/images/Crab%20(1).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Crab%20(1).webp",
         "width": 1920,
         "height": 1080
       },
       {
-        "src": "/takezo/showcase/projects/images/Crab (2).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Crab (2).webp",
+        "src": "/takezo/showcase/projects/images/Crab%20(2).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Crab%20(2).webp",
         "width": 1920,
         "height": 1080
       },
       {
-        "src": "/takezo/showcase/projects/images/Crab (3).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Crab (3).webp",
+        "src": "/takezo/showcase/projects/images/Crab%20(3).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Crab%20(3).webp",
         "width": 1920,
         "height": 1080
       }
@@ -58,8 +58,8 @@ export default [
         "height": 1920
       },
       {
-        "src": "/takezo/showcase/projects/images/Creeper (1).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Creeper (1).webp",
+        "src": "/takezo/showcase/projects/images/Creeper%20(1).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Creeper%20(1).webp",
         "width": 1920,
         "height": 1920
       }
@@ -79,20 +79,20 @@ export default [
     "description": "Neon Genesis Evangelion began as personal fan art centered on EVA-01. I explored a visual direction blending ballistic, cyberpunk, Y2K, modern-vintage, and classic-modern themes. I used resources rendered in Blender and assembled the final artwork in Photoshop.\n\nAlthough it was not originally intended as merchandise design, I later entered the poster into a university hoodie design competition and won. The project showcases my approach to combining 3D resources, graphic composition, and digital post-production.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Neon Genesis Evangelion.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Neon Genesis Evangelion.webp",
+        "src": "/takezo/showcase/projects/images/Neon%20Genesis%20Evangelion.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Neon%20Genesis%20Evangelion.webp",
         "width": 3508,
         "height": 4508
       },
       {
-        "src": "/takezo/showcase/projects/images/Neon Genesis Evangelion (1).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Neon Genesis Evangelion (1).webp",
+        "src": "/takezo/showcase/projects/images/Neon%20Genesis%20Evangelion%20(1).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Neon%20Genesis%20Evangelion%20(1).webp",
         "width": 2000,
         "height": 2000
       },
       {
-        "src": "/takezo/showcase/projects/images/Neon Genesis Evangelion (2).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Neon Genesis Evangelion (2).webp",
+        "src": "/takezo/showcase/projects/images/Neon%20Genesis%20Evangelion%20(2).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Neon%20Genesis%20Evangelion%20(2).webp",
         "width": 2000,
         "height": 2000
       }
@@ -110,20 +110,20 @@ export default [
     "description": "Project Zaman is a personal creative project centered on a surreal desert dystopia: an inner world formed in the mind of an intellectual, where symbolic storytelling offers a key to understanding the setting. Its core world is rooted in an early 20th-century aesthetic, but its standards have advanced ahead of their time through mysterious, forbidden methods of innovation.\n\nIts visual direction brings together Persian aesthetics, liminal spaces, vintage industrial design, and steampunk, with inspiration from Lies of P and Bloodborne. My work includes character, machine, and environment concepts, alongside reusable male and female 3D base models designed to be morphed into different characters. The project continues to develop through both visual world-building and practical character production.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Project Zaman.png",
-        "thumb": "/takezo/showcase/projects/thumbnails/Project Zaman.webp",
+        "src": "/takezo/showcase/projects/images/Project%20Zaman.png",
+        "thumb": "/takezo/showcase/projects/thumbnails/Project%20Zaman.webp",
         "width": 2400,
         "height": 2400
       },
       {
-        "src": "/takezo/showcase/projects/images/Project Zaman (1).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Project Zaman (1).webp",
+        "src": "/takezo/showcase/projects/images/Project%20Zaman%20(1).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Project%20Zaman%20(1).webp",
         "width": 2772,
         "height": 1188
       },
       {
-        "src": "/takezo/showcase/projects/images/Project Zaman (2).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Project Zaman (2).webp",
+        "src": "/takezo/showcase/projects/images/Project%20Zaman%20(2).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Project%20Zaman%20(2).webp",
         "width": 3910,
         "height": 2160
       }
@@ -142,20 +142,20 @@ export default [
     "description": "After watching Arcane in 2025, I was inspired to reinterpret Miyamoto Musashi, also known as Takezo, from my favorite manga, Vagabond, through its visual style.\n\nI created the character model myself in Blender and hand-painted its textures in Substance 3D Painter. This personal fan-art project explores how a familiar manga character can be translated into a different artistic language through 3D modeling and painterly texturing.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Vagabond Arcane.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Vagabond Arcane.webp",
+        "src": "/takezo/showcase/projects/images/Vagabond%20Arcane.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Vagabond%20Arcane.webp",
         "width": 2160,
         "height": 2160
       },
       {
-        "src": "/takezo/showcase/projects/images/Vagabond Arcane (1).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Vagabond Arcane (1).webp",
+        "src": "/takezo/showcase/projects/images/Vagabond%20Arcane%20(1).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Vagabond%20Arcane%20(1).webp",
         "width": 2160,
         "height": 2160
       },
       {
-        "src": "/takezo/showcase/projects/images/Vagabond Arcane (2).jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Vagabond Arcane (2).webp",
+        "src": "/takezo/showcase/projects/images/Vagabond%20Arcane%20(2).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Vagabond%20Arcane%20(2).webp",
         "width": 2160,
         "height": 2160
       }
@@ -175,8 +175,8 @@ export default [
     "description": "Bye Bye Gyro Parody started with an original crossover idea inspired by the snowy Steel Ball Run scene in which Johnny and Gyro later confront the Eleven Men. I imagined Gyro using the Saint's Corpse bones as weapons, drawing on the scene in Deadpool & Wolverine where Deadpool uses Wolverine's skeletal remains in combat.\n\nI developed the concept and storyboard in Photoshop, then modeled Gyro entirely from scratch in Blender and textured him in Substance 3D Painter. I completed the character model and textures, but did not proceed to realize the full parody sequence.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Bye Bye Gyro Parody.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Bye Bye Gyro Parody.webp",
+        "src": "/takezo/showcase/projects/images/Bye%20Bye%20Gyro%20Parody.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Bye%20Bye%20Gyro%20Parody.webp",
         "width": 1920,
         "height": 1080
       }
@@ -195,8 +195,8 @@ export default [
     "description": "I have experience modeling and texturing optimized 3D assets for potential game mods, focusing on visual quality and efficient geometry for use in game environments.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Models for Game Mods.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Models for Game Mods.webp",
+        "src": "/takezo/showcase/projects/images/Models%20for%20Game%20Mods.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Models%20for%20Game%20Mods.webp",
         "width": 1920,
         "height": 1080
       }
@@ -215,10 +215,22 @@ export default [
     "description": "A personal realistic facial sculpt inspired by Ryan Gosling. After sculpting the face, I retopologized it to develop a cleaner base for further character work.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Real Life Base Study.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Real Life Base Study.webp",
-        "width": 1080,
-        "height": 1080
+        "src": "/takezo/showcase/projects/images/Real%20Life%20Base%20Study.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Real%20Life%20Base%20Study.webp",
+        "width": 2048,
+        "height": 2048
+      },
+      {
+        "src": "/takezo/showcase/projects/images/Real%20Life%20Base%20Study%20(1).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Real%20Life%20Base%20Study%20(1).webp",
+        "width": 2048,
+        "height": 2048
+      },
+      {
+        "src": "/takezo/showcase/projects/images/Real%20Life%20Base%20Study%20(2).jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Real%20Life%20Base%20Study%20(2).webp",
+        "width": 2048,
+        "height": 2048
       }
     ],
     "video": null
@@ -234,8 +246,8 @@ export default [
     "description": "Stylized Base began as an early female character prototype for Project Zaman, with a distinct character concept and lore. I am showcasing it to demonstrate my flexibility in stylized art direction and character-design standards.\n\nThis prototype later evolved into Project Zaman's finalized female base model, making it an early step in the project's character-development process.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Stylized Base.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Stylized Base.webp",
+        "src": "/takezo/showcase/projects/images/Stylized%20Base.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Stylized%20Base.webp",
         "width": 1920,
         "height": 1920
       }
@@ -275,8 +287,8 @@ export default [
     "description": "Twisted Chess Game is an in-progress 3D chess game I built in Unity for my sixth-semester university project. It introduces the Monk, a custom chess piece with its own functional movement and gameplay logic, while retaining the fundamentals of conventional chess.\n\nThe game includes improved graphics and UI, turn-based logic, legal-move highlighting, special-move implementations, and dynamic 3D piece placement based on array coordinates. I used Blender and Substance 3D Painter for its 3D art and visual presentation.\n\nThe game is playable, but still has bugs and does not yet have mouse controls; its current interactions are driven through code. Further development is focused on stability and refining its systems.",
     "images": [
       {
-        "src": "/takezo/showcase/projects/images/Twisted Chess Game.jpg",
-        "thumb": "/takezo/showcase/projects/thumbnails/Twisted Chess Game.webp",
+        "src": "/takezo/showcase/projects/images/Twisted%20Chess%20Game.jpg",
+        "thumb": "/takezo/showcase/projects/thumbnails/Twisted%20Chess%20Game.webp",
         "width": 2000,
         "height": 2000
       }
