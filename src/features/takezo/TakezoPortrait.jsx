@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
 
-const FORMATION = "/takezo/TakezoPortraitFormation.webm";
+const FORMATION = compatibleVideoSource("/takezo/TakezoPortraitFormation.webm");
 const FORMED = "/takezo/TakezoPortraitFormed.svg";
 const cancelPlaybackWatch = (media, frame) => {
   if (!frame.current) return;
@@ -74,7 +75,7 @@ export default function TakezoPortrait({ reduced = false }) {
       setFormed(false);
       setPlaying(true);
       const watchPlaybackEnd = (_now, metadata) => {
-        // Pre-reveal just before the WebM's empty terminal frame. The SVG is
+        // Pre-reveal just before the animation's empty terminal frame. The SVG is
         // already decoded, but remains invisible through the actual formation.
         if (media.duration && media.duration - (metadata?.mediaTime ?? media.currentTime) <= 0.09) setFormed(true);
         if (!media.paused && !media.ended) scheduleWatch();

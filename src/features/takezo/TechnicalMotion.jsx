@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
 import { observePanelActivity } from "./panelActivity";
 
 const SEEK_INTERVAL_MS = 50;
@@ -92,7 +93,7 @@ export default function TechnicalMotion({ host, sources, reduced }) {
           key={src}
           ref={(node) => { videos.current[index] = node; }}
           className={`tz-technical-motion-video tz-technical-motion-video-${index + 1}`}
-          src={src}
+          src={compatibleVideoSource(src)}
           preload="auto"
           muted
           playsInline

@@ -45,6 +45,7 @@ test("Takezo person panels use the portrait formation assets", () => {
   assert.equal(nodes.home.cards[0].art, "portrait");
   assert.equal(nodes.identity.cards[0].art, "portrait");
   assert.ok(existsSync(resolve("public/takezo/TakezoPortraitFormation.webm")));
+  assert.ok(existsSync(resolve("public/takezo/TakezoPortraitFormation.mov")));
   assert.ok(existsSync(resolve("public/takezo/TakezoPortraitFormed.svg")));
 });
 

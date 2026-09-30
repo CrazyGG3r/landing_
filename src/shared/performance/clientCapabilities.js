@@ -1,11 +1,23 @@
 let cachedWebpSupport
 
-export function isIOSDevice() {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent || ''
-  const platform = navigator.platform || ''
+const iosVideoOverrides = new Map([
+  ['/takezo/TakezoPortraitFormation.webm', '/takezo/TakezoPortraitFormation.mov'],
+  ['/takezo/skillset/design/BFLogoFormation.webm', '/takezo/skillset/design/BFLogoFormation.mov'],
+  ['/takezo/skillset/technical/CrabRig.webm', '/takezo/skillset/technical/CrabRig.mov'],
+  ['/takezo/skillset/technical/UniJointRig.webm', '/takezo/skillset/technical/UniJointRig.mov'],
+])
+
+export function isIOSDevice(environment = typeof navigator === 'undefined' ? null : navigator) {
+  if (!environment) return false
+  const ua = environment.userAgent || ''
+  const platform = environment.platform || ''
   return /iPad|iPhone|iPod/i.test(ua)
-    || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    || (platform === 'MacIntel' && environment.maxTouchPoints > 1)
+}
+
+export function compatibleVideoSource(source, environment = typeof navigator === 'undefined' ? null : navigator) {
+  if (!source || !isIOSDevice(environment)) return source
+  return iosVideoOverrides.get(source) || source
 }
 
 export function supportsWebPImages() {

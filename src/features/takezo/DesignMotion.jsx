@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
 import { observePanelActivity } from "./panelActivity";
 
 export default function DesignMotion({ media, expanded, reduced }) {
@@ -28,7 +29,7 @@ export default function DesignMotion({ media, expanded, reduced }) {
       <video
         ref={video}
         className="tz-design-motion-video"
-        src={media.video}
+        src={compatibleVideoSource(media.video)}
         muted
         playsInline
         preload="metadata"
