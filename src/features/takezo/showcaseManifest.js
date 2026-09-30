@@ -207,7 +207,7 @@ export default [
     "id": "real-life-base-study",
     "title": "Real Life Base Study",
     "short": "A realistic facial sculpt inspired by Ryan Gosling, subsequently retopologized as a human face base.",
-    "year": "2025",
+    "year": "Not specified",
     "software": [
       "Blender",
       "SP3D"
