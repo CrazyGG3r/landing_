@@ -21,6 +21,7 @@ import "./motion.css";
 import { createFocusTransition, focusTransitionConfig } from "./focusTransition";
 import { observePanelFrame, observePanelTitleFit } from "./panelFit";
 import { panelActivationIntent } from "./panelActivation";
+import DirectoryBreadcrumb from "./DirectoryBreadcrumb";
 
 function Artwork({ kind, reduced = false }) {
   const artId = useId().replaceAll(":", "");
@@ -597,20 +598,8 @@ export default function Takezo() {
         {view === "home" ? "Takezo" : node.title}
       </h1>
       <div className="tz-navigation">
-        <nav aria-label="Portfolio breadcrumb">
-          {trail.map((id, i) => (
-            <span key={id}>
-              {i > 0 && <span className="tz-separator">/</span>}
-              <button
-                disabled={busy || id === view}
-                aria-current={id === view ? "page" : undefined}
-                onClick={() => open(id)}
-              >
-                {id === "home" ? "TAKEZO" : nodes[id].title.toUpperCase()}
-              </button>
-            </span>
-          ))}
-        </nav>
+        <DirectoryBreadcrumb trail={trail} view={view} nodes={nodes} busy={busy}
+          reduced={reduced} onOpen={open} />
         <div className="tz-nav-right">
           {node.parent && (
             <button disabled={busy} onClick={() => open(node.parent)}>

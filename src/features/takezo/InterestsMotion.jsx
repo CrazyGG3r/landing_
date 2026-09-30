@@ -8,6 +8,7 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
   const field = useRef(null);
   const itemNodes = useRef([]);
   const resetTimer = useRef(0);
+  const visitedImages = useRef(new Set());
 
   useLayoutEffect(() => {
     const panel = host.current;
@@ -21,24 +22,34 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
     let previous = 0;
     let pointer = null;
 
-    const setMagnetism = () => {
+    const resetMagnetism = () => {
       for (const node of itemNodes.current) {
         if (!node) continue;
-        if (!pointer || reduced) {
-          node.style.setProperty("--magnet-x", "0px");
-          node.style.setProperty("--magnet-y", "0px");
-          node.style.setProperty("--magnet", "0");
-          continue;
-        }
+        node.style.setProperty("--magnet-x", "0px");
+        node.style.setProperty("--magnet-y", "0px");
+        node.style.setProperty("--magnet", "0");
+      }
+    };
+    const setMagnetism = () => {
+      if (!pointer || reduced) return;
+      // Read every position before writing styles so a pointer move cannot
+      // trigger a layout pass for each icon.
+      const positions = itemNodes.current.map((node) => {
+        if (!node) return null;
         const rect = node.getBoundingClientRect();
         const dx = pointer.x - (rect.left + rect.width / 2);
         const dy = pointer.y - (rect.top + rect.height / 2);
         const distance = Math.hypot(dx, dy);
         const strength = clamp(1 - distance / 115, 0, 1);
-        node.style.setProperty("--magnet-x", `${(dx * strength * .055).toFixed(2)}px`);
-        node.style.setProperty("--magnet-y", `${(dy * strength * .055).toFixed(2)}px`);
-        node.style.setProperty("--magnet", strength.toFixed(3));
-      }
+        return { x: dx * strength * .055, y: dy * strength * .055, strength };
+      });
+      positions.forEach((position, index) => {
+        if (!position) return;
+        const node = itemNodes.current[index];
+        node.style.setProperty("--magnet-x", `${position.x.toFixed(2)}px`);
+        node.style.setProperty("--magnet-y", `${position.y.toFixed(2)}px`);
+        node.style.setProperty("--magnet", position.strength.toFixed(3));
+      });
     };
     const tick = (now) => {
       const elapsed = Math.min(40, now - previous || 16);
@@ -79,19 +90,20 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
       const bounds = panel.getBoundingClientRect();
       pointer = { x: event.clientX, y: event.clientY };
       drive = mode === "narrow" ? interestDrive((event.clientY - bounds.top) / bounds.height) : 0;
-      setMagnetism();
       wake();
     };
     const leave = () => {
       drive = 0;
       pointer = null;
-      setMagnetism();
+      resetMagnetism();
     };
     const visibility = () => {
       if (document.hidden) {
         cancelAnimationFrame(frame);
         frame = 0;
         drive = 0;
+        pointer = null;
+        resetMagnetism();
       }
     };
     const resize = new ResizeObserver(measure);
@@ -118,6 +130,7 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
   const select = (item) => {
     if (!item.image) return;
     clearTimeout(resetTimer.current);
+    visitedImages.current.add(item.id);
     onActive(item.id);
   };
   const scheduleReset = () => {
@@ -129,7 +142,9 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
     <>
       <div className="tz-interest-backgrounds" data-active={expanded} aria-hidden="true">
         {items.filter((item) => item.image).map((item) => (
-          <img key={item.id} src={item.image} alt="" decoding="async" loading="eager" data-visible={active === item.id} />
+          <img key={item.id} src={active === item.id || visitedImages.current.has(item.id) ? item.image : undefined}
+            alt="" decoding="async" data-visible={active === item.id}
+            onLoad={(event) => { event.currentTarget.dataset.ready = "true"; }} />
         ))}
       </div>
       <div ref={field} className="tz-interests-motion" data-active={expanded} data-selection={active || undefined}>
