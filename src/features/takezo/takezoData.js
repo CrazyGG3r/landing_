@@ -83,6 +83,22 @@ Just another day of making progress.` },
       {
         ...card(null, "INTERESTS", "01.1 / PROFILE", "sage", null, ""),
         tags: ["cursor-read"],
+        interests: {
+          items: [
+            { id: "sculpting", icon: "/takezo/ZBrush.svg", image: "/takezo/skillset/3D/sculpting.webp", title: "Character sculpting", caption: "Anatomy, gesture, and personality shaped through form.", x: 66, y: 28, depth: 28, rotation: -7, scale: .92 },
+            { id: "worlds", icon: "/takezo/Blender.svg", image: "/takezo/skillset/3D/modelling.webp", title: "World building", caption: "Places designed to feel inhabited before they are explained.", x: 80, y: 18, depth: -18, rotation: 5, scale: .82 },
+            { id: "materials", icon: "/takezo/SP3D.svg", image: "/takezo/skillset/3D/texturing.webp", title: "Material storytelling", caption: "Surface, wear, and detail that carry a history of their own.", x: 92, y: 30, depth: 44, rotation: 8, scale: .98 },
+            { id: "research", icon: "/takezo/Pinterest.svg", image: "/takezo/skillset/3D/researching1.webp", title: "Visual research", caption: "Following references until a believable visual language emerges.", x: 70, y: 55, depth: -42, rotation: 9, scale: .78 },
+            { id: "cinema", icon: "/takezo/AE.svg", image: "/takezo/skillset/3D/rendering.webp", title: "Cinematic images", caption: "Light, rhythm, and composition built around a lasting frame.", x: 84, y: 48, depth: 62, rotation: -4, scale: 1.08 },
+            { id: "interactive-worlds", icon: "/takezo/Unity3D.svg", image: "/takezo/skillset/3D/rendering_bg.webp", title: "Interactive worlds", caption: "Art and systems meeting inside spaces that invite exploration.", x: 95, y: 62, depth: 8, rotation: 6, scale: .88 },
+            { id: "drawing", icon: "/takezo/PS.svg", x: 65, y: 79, depth: 35, rotation: 7, scale: .72 },
+            { id: "systems", icon: "/takezo/JS.svg", x: 76, y: 73, depth: -52, rotation: -8, scale: .68 },
+            { id: "motion", icon: "/takezo/orbit.svg", x: 88, y: 79, depth: 52, rotation: 12, scale: .8 },
+            { id: "form", icon: "/takezo/fold.svg", x: 97, y: 84, depth: -28, rotation: -11, scale: .65 },
+            { id: "archives", icon: "/takezo/gallery.svg", x: 72, y: 91, depth: 5, rotation: 4, scale: .62 },
+            { id: "identity", icon: "/takezo/mark.svg", x: 84, y: 94, depth: 48, rotation: -5, scale: .58 },
+          ],
+        },
         content: [
           { tag: "unhovered", text: "Form built in space.\nStories made tangible." },
           { tag: "hovered", text: `I explore 3D asset production across characters, environments, and props. My work leans toward realism, tempered with stylized form.

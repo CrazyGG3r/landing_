@@ -336,10 +336,10 @@
 .takezo .tz-panel:has(.tz-portrait) :is(.tz-panel-content, .tz-adaptive-content) {
   transition: color .24s ease;
 }
-.takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible) :is(.tz-panel-content, .tz-adaptive-content) {
+.takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible, [data-expanded="true"]) :is(.tz-panel-content, .tz-adaptive-content) {
   color: #fff;
 }
-.takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible) :is(.tz-panel-top, .tz-identity-caption, .tz-adaptive-header, .tz-adaptive-footer) {
+.takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible, [data-expanded="true"]) :is(.tz-panel-top, .tz-identity-caption, .tz-adaptive-header, .tz-adaptive-footer) {
   border-color: #ffffff70;
 }
 .tz-takezo-locales {
@@ -607,6 +607,40 @@
   }
   .tz-panel:is(button):hover .tz-panel-action {
     transform: translate(3px, -3px);
+  }
+}
+@media (hover: none) and (pointer: coarse) {
+  .tz-home > .tz-panel:is(button)[data-expanded="true"]::after {
+    animation: tz-shine 1.2s cubic-bezier(0.85, 0, 0.15, 1);
+  }
+  .tz-home > .tz-panel:is(button)[data-expanded="true"] .tz-sculpture {
+    transform: translate(-4px, -6px) rotate(3deg);
+  }
+  .tz-home > .tz-panel:is(button)[data-expanded="true"] .tz-orbital {
+    transform: rotate(25deg);
+  }
+  .tz-home > .tz-panel:is(button)[data-expanded="true"] .tz-asterisk {
+    transform: rotate(45deg);
+  }
+  .tz-home > .tz-panel:is(button)[data-expanded="true"] .tz-panel-action {
+    transform: translate(3px, -3px);
+  }
+}
+@media (hover: none) and (pointer: coarse) and (min-width: 761px) {
+  .tz-home:not(.tz-busy):has(> .tz-panel-0[data-expanded="true"]) {
+    grid-template-columns: minmax(0, 0.97fr) minmax(0, 0.95fr) minmax(0, 0.95fr);
+  }
+  .tz-home:not(.tz-busy):has(> .tz-panel-1[data-expanded="true"]) {
+    grid-template-columns: minmax(0, 0.81fr) minmax(0, 1.03fr) minmax(0, 1.03fr);
+    grid-template-rows: minmax(0, 1.14fr) minmax(0, 0.92fr);
+  }
+  .tz-home:not(.tz-busy):has(> .tz-panel-2[data-expanded="true"]) {
+    grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.09fr) minmax(0, 0.94fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.06fr);
+  }
+  .tz-home:not(.tz-busy):has(> .tz-panel-3[data-expanded="true"]) {
+    grid-template-columns: minmax(0, 0.84fr) minmax(0, 0.94fr) minmax(0, 1.09fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.06fr);
   }
 }
 @keyframes tz-shine {

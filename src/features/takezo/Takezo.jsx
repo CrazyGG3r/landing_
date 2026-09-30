@@ -20,6 +20,7 @@ import TakezoPortrait from "./TakezoPortrait";
 import "./motion.css";
 import { createFocusTransition, focusTransitionConfig } from "./focusTransition";
 import { observePanelFrame, observePanelTitleFit } from "./panelFit";
+import { panelActivationIntent } from "./panelActivation";
 
 function Artwork({ kind, reduced = false }) {
   const artId = useId().replaceAll(":", "");
@@ -150,9 +151,10 @@ function Artwork({ kind, reduced = false }) {
   );
 }
 
-function Panel({ card, index, isHome, onOpen, features, reduced }) {
+function Panel({ card, index, isHome, onOpen, onPreview, previewed, features, reduced }) {
   const panel = useRef(null);
   const title = useRef(null);
+  const activationPointer = useRef("");
   const breakdown = card.tags?.includes("breakdown") && card.breakdown;
   const Tag = breakdown ? BreakdownPanel : card.id ? "button" : "article";
   useLayoutEffect(() => isHome
@@ -164,11 +166,23 @@ function Panel({ card, index, isHome, onOpen, features, reduced }) {
       className={`tz-panel tz-panel-${index} tz-${card.color} ${card.art ? "" : "tz-reading"}`}
       data-panel={index}
       data-destination={card.id || undefined}
+      data-expanded={!breakdown && card.id ? previewed : undefined}
       style={surfaceStyle(features)}
       {...(breakdown ? { breakdown, onOpen, reduced } : card.id
         ? {
-            onClick: (e) => onOpen(card.id, e.currentTarget),
+            onPointerDown: (event) => { activationPointer.current = event.pointerType; },
+            onPointerCancel: () => { activationPointer.current = ""; },
+            onClick: (event) => {
+              const intent = panelActivationIntent(activationPointer.current, previewed);
+              activationPointer.current = "";
+              if (intent === "preview") {
+                onPreview(index);
+                return;
+              }
+              onOpen(card.id, event.currentTarget);
+            },
             type: "button",
+            "aria-expanded": previewed,
             "aria-label": `Explore ${card.title.replaceAll("\n", " ")}`,
           }
         : {})}
@@ -679,6 +693,8 @@ export default function Takezo() {
               index={index}
               isHome={view === "home"}
               onOpen={open}
+              onPreview={expand}
+              previewed={active === index}
               features={features[index]}
             />
           ),

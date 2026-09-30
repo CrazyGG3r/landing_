@@ -194,6 +194,10 @@ Important states include:
 - **Compact:** interior copy and decorative layers are hidden; the accessible title remains.
 - **Touch-expanded:** the first tap expands; a second tap follows a destination when present.
 
+This two-step touch contract also applies to linked index panels: the first tap
+locks their hover-equivalent preview, and a second tap on the same panel
+navigates. Mouse clicks and keyboard activation remain immediate.
+
 Pressing Escape restores the composition.
 
 ### 5.4 Breakdown panels

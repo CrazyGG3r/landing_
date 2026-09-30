@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import PanelSurface from "./PanelSurface";
 import PanelCopy from "./PanelCopy";
 import { surfaceStyle } from "./panelFeatures";
@@ -7,6 +7,8 @@ import AdaptiveBreakdown from "./AdaptiveBreakdown";
 import TechnicalMotion from "./TechnicalMotion";
 import ArtThumbnailMotion from "./ArtThumbnailMotion";
 import DesignMotion from "./DesignMotion";
+import { panelActivationIntent } from "./panelActivation";
+import InterestsMotion from "./InterestsMotion";
 
 export default function AdaptivePanel({
   card,
@@ -25,11 +27,14 @@ export default function AdaptivePanel({
   const panel = useRef(null);
   const titleBox = useRef(null);
   const title = useRef(null);
-  const touch = useRef(false);
+  const activationPointer = useRef("");
   const reader = useRef(null);
+  const [activeInterest, setActiveInterest] = useState(null);
   const text = card.title.replace(/\s+/g, " ").trim();
   const hasBreakdown = !!card.breakdown?.items?.length;
-  const Tag = hasBreakdown ? "article" : "button";
+  const hasInterests = !!card.interests?.items?.length;
+  const interest = useMemo(() => card.interests?.items?.find((item) => item.id === activeInterest) || null, [activeInterest, card.interests]);
+  const Tag = hasBreakdown || hasInterests ? "article" : "button";
 
   useLayoutEffect(() => observePanelFit({
     el: panel.current, label: title.current, box: titleBox.current,
@@ -39,8 +44,8 @@ export default function AdaptivePanel({
   return (
     <Tag
       ref={panel}
-      {...(!hasBreakdown ? { type: "button" } : { tabIndex: 0, role: "group" })}
-      className={`tz-panel tz-adaptive tz-${card.color}`}
+      {...(!hasBreakdown && !hasInterests ? { type: "button" } : { tabIndex: 0, role: "group" })}
+      className={`tz-panel tz-adaptive tz-${card.color}${hasInterests ? " tz-interest-panel" : ""}`}
       data-panel={index}
       data-destination={card.id || undefined}
       data-expanded={expanded}
@@ -50,6 +55,7 @@ export default function AdaptivePanel({
       data-art-thumbnails={card.artThumbnails?.length ? "true" : undefined}
       data-design-motion={card.designMedia ? "true" : undefined}
       data-responsive-motion={reduced ? "reduced" : "full"}
+      data-interest-active={interest ? "true" : "false"}
       aria-expanded={expanded}
       aria-label={`${card.id ? "Explore" : "Expand"} ${text}`}
       style={{
@@ -65,21 +71,26 @@ export default function AdaptivePanel({
         if (e.pointerType === "mouse" && expanded) reader.current?.move(e);
       }}
       onKeyDown={(e) => reader.current?.key(e)}
-      onPointerLeave={() => reader.current?.stop()}
+      onPointerLeave={() => { reader.current?.stop(); setActiveInterest(null); }}
       onPointerDown={(e) => {
-        touch.current = e.pointerType === "touch";
+        activationPointer.current = e.pointerType;
       }}
+      onPointerCancel={() => { activationPointer.current = ""; }}
       onFocus={(e) => {
         if (e.currentTarget.matches(":focus-visible")) onExpand(index);
       }}
-      onBlur={() => onExpand(-1)}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) onExpand(-1); }}
       onClick={(e) => {
-        if (touch.current && !expanded) {
+        if (e.target.closest(".tz-interest-item")) return;
+        const pointerType = activationPointer.current;
+        const intent = panelActivationIntent(pointerType, expanded);
+        activationPointer.current = "";
+        if (intent === "preview") {
           onExpand(index);
           return;
         }
         if (card.id) onOpen(card.id, e.currentTarget);
-        else onExpand(touch.current && expanded ? -1 : index);
+        else onExpand(pointerType === "touch" && expanded ? -1 : index);
       }}
     >
       <PanelSurface features={features} reduced={reduced} />
@@ -90,6 +101,7 @@ export default function AdaptivePanel({
       {card.cursorVideos?.length > 0 && <TechnicalMotion host={panel} sources={card.cursorVideos} reduced={reduced} />}
       {card.artThumbnails?.length > 0 && <ArtThumbnailMotion host={panel} sources={card.artThumbnails} reduced={reduced} />}
       {card.designMedia && <DesignMotion media={card.designMedia} expanded={expanded} reduced={reduced} />}
+      {hasInterests && <InterestsMotion host={panel} items={card.interests.items} expanded={expanded} reduced={reduced} active={activeInterest} onActive={setActiveInterest} />}
       <div className="tz-adaptive-content">
         <div className="tz-adaptive-header">
           <span>{card.kicker}</span>
@@ -104,6 +116,12 @@ export default function AdaptivePanel({
             <h2 ref={title}>{text}</h2>
           </div>
         </div>
+        {hasInterests && interest && (
+          <div key={interest.id} className="tz-interest-context" aria-live="polite">
+            <strong>{interest.title}</strong>
+            <span>{interest.caption}</span>
+          </div>
+        )}
         <div className="tz-adaptive-interior">
           {card.art && (
             <div className="tz-adaptive-art">
