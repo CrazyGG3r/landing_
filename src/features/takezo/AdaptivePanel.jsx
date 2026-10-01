@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import PanelSurface from "./PanelSurface";
 import PanelCopy from "./PanelCopy";
 import { surfaceStyle } from "./panelFeatures";
@@ -40,6 +40,10 @@ export default function AdaptivePanel({
     el: panel.current, label: title.current, box: titleBox.current,
     expanded, compressed, text, logo: features.logo,
   }), [expanded, compressed, text, features.logo]);
+
+  useEffect(() => {
+    if (!expanded && activeInterest !== null) setActiveInterest(null);
+  }, [activeInterest, expanded]);
 
   return (
     <Tag

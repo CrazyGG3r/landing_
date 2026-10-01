@@ -32,7 +32,6 @@
   --magnet: 0;
   --magnet-x: 0px;
   --magnet-y: 0px;
-  --selection-lift: 0;
   position: absolute;
   left: var(--interest-x);
   top: var(--interest-y);
@@ -67,14 +66,15 @@
   pointer-events: none;
   background: transparent;
   filter: contrast(1.15);
-  transition: filter .22s ease;
+  transform: scale(1);
+  transition: filter .22s ease, transform .28s cubic-bezier(.16,1,.3,1);
 }
 .tz-interests-motion[data-active="true"] .tz-interest-item {
   opacity: .68;
   pointer-events: auto;
   transform: translate3d(calc(-50% + var(--magnet-x)), calc(-50% + var(--magnet-y)), var(--interest-depth))
     rotateX(var(--interest-tilt-x)) rotateY(var(--interest-tilt-y))
-    rotateZ(var(--interest-rotation)) scale(calc(var(--interest-scale) + var(--magnet) * .08 + var(--selection-lift)));
+    rotateZ(var(--interest-rotation)) scale(calc(var(--interest-scale) + var(--magnet) * .08));
 }
 .tz-interests-motion[data-active="true"] .tz-interest-item[data-interactive="false"] { opacity: .38; }
 .tz-interest-item[data-interactive="true"] { cursor: crosshair; }
@@ -86,7 +86,6 @@
 }
 .takezo .tz-interest-item[data-interactive="true"]:is(:hover, :focus-visible),
 .takezo .tz-interest-item[data-selected="true"] {
-  --selection-lift: .08;
   opacity: 1;
   background: transparent;
   box-shadow: none;
@@ -95,6 +94,7 @@
 .takezo .tz-interest-item[data-interactive="true"]:is(:hover, :focus-visible) img,
 .takezo .tz-interest-item[data-selected="true"] img {
   filter: contrast(1.22) drop-shadow(0 5px 7px #16201548);
+  transform: scale(1.095);
 }
 .tz-interest-context {
   position: absolute;
@@ -147,7 +147,9 @@
 }
 .tz-interest-panel .tz-copy-detail .tz-copy-flow { padding-right: clamp(12px, 2vw, 30px); }
 .tz-interest-panel :is(.tz-title-composition, .tz-adaptive-interior) {
-  transition: opacity .22s ease, visibility 0s linear 0s;
+  transition:
+    opacity .58s cubic-bezier(.22,.72,.22,1) .44s,
+    visibility 0s linear .44s;
 }
 .tz-interest-panel[data-interest-active="true"] .tz-adaptive-content,
 .tz-interest-panel[data-interest-active="true"] .tz-interest-context {
@@ -161,7 +163,7 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity .18s ease, visibility 0s linear .18s;
+  transition: opacity .14s ease, visibility 0s linear .14s;
 }
 .tz-interest-context[data-interest="creative-experimentation"],
 .tz-interest-context[data-interest="vagabond"] {
@@ -205,7 +207,7 @@
 }
 .tz-interest-panel[data-interest-mode="narrow"] .tz-interests-motion[data-active="true"] .tz-interest-item {
   transform: translate3d(calc(-50% + var(--magnet-x)), calc(-50% + var(--magnet-y)), 0)
-    rotateZ(calc(var(--interest-rotation) * .65)) scale(calc(.76 + var(--interest-scale) * .18 + var(--magnet) * .08 + var(--selection-lift)));
+    rotateZ(calc(var(--interest-rotation) * .65)) scale(calc(.76 + var(--interest-scale) * .18 + var(--magnet) * .08));
 }
 .tz-interest-panel[data-interest-mode="narrow"] .tz-interest-context { width: 55%; }
 .tz-interest-panel[data-interest-mode="narrow"] .tz-interest-backgrounds img { width: 76%; opacity: 0; }

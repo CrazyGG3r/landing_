@@ -20,11 +20,16 @@ test("interest field uses six interactive items followed by six decorative items
     assert.ok(existsSync(resolve(`public${item.icon}`)), item.icon);
     if (item.image) assert.ok(existsSync(resolve(`public${item.image}`)), item.image);
   }
+  assert.deepEqual([...new Set(items.map((item) => item.x))], [69, 78, 87, 96]);
+  assert.deepEqual([...new Set(items.map((item) => item.y))], [28, 53, 78]);
+  assert.ok(items.every((item) => item.scale === .84 && item.depth === 0 && item.rotation === 0));
 });
 
 test("the Interests title cannot block the upper interactive icons", () => {
   const css = readFileSync(new URL("./interestsMotion.css", import.meta.url), "utf8");
   assert.match(css, /\.tz-interest-panel \.tz-title-composition\s*\{\s*pointer-events:\s*none;/);
+  assert.doesNotMatch(css, /selection-lift/);
+  assert.match(css, /data-selected="true"\][^{]+img\s*\{[^}]+transform:\s*scale\(1\.095\)/s);
 });
 
 test("active interests hide default copy and protect difficult caption contrast", () => {
@@ -36,6 +41,7 @@ test("active interests hide default copy and protect difficult caption contrast"
   assert.match(css, /\.tz-interest-panel \.tz-copy-detail[^}]+column-count:\s*1/s);
   assert.match(css, /@keyframes tz-interest-caption-in/);
   assert.doesNotMatch(css, /data-interest-active="true"[^}]+\.tz-copy-layers\s*\{[^}]*opacity:\s*\.08/s);
+  assert.match(css, /tz-title-composition[^}]+opacity \.58s[^;]+\.44s/s);
 });
 
 test("narrow navigation has a centered neutral zone and gentle directional drive", () => {
