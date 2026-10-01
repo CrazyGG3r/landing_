@@ -37,7 +37,11 @@ export default forwardRef(function PanelCopy({ card, expanded, enabled, panel, r
     const panelElement = el.closest(".tz-adaptive");
     let measureFrame = 0;
     const measure = () => {
-      axis.current = panelElement.clientWidth > panelElement.clientHeight * 1.6 ? "x" : "y";
+      // Interests always read as one continuous vertical passage. Letting a
+      // short, wide interest tile switch to columns can strand partial words
+      // behind the icon rail while the panel is resizing.
+      axis.current = !panelElement.classList.contains("tz-interest-panel")
+        && panelElement.clientWidth > panelElement.clientHeight * 1.6 ? "x" : "y";
       setData(el, "axis", enabled ? axis.current : "y");
       const overflow = enabled && expanded && (axis.current === "x"
         ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1);

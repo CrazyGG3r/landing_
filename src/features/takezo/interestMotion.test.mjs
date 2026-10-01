@@ -19,7 +19,9 @@ test("interest field uses six interactive items followed by six decorative items
   for (const item of items) {
     assert.ok(existsSync(resolve(`public${item.icon}`)), item.icon);
     if (item.image) assert.ok(existsSync(resolve(`public${item.image}`)), item.image);
+    if (item.wordmark) assert.ok(existsSync(resolve(`public${item.wordmark}`)), item.wordmark);
   }
+  assert.deepEqual(items.filter((item) => item.wordmark).map((item) => item.id), ["lies-of-p", "minecraft", "vagabond"]);
   assert.deepEqual([...new Set(items.map((item) => item.x))], [69, 78, 87, 96]);
   assert.deepEqual([...new Set(items.map((item) => item.y))], [28, 53, 78]);
   assert.ok(items.every((item) => item.scale === .84 && item.depth === 0 && item.rotation === 0));
@@ -35,7 +37,8 @@ test("the Interests title cannot block the upper interactive icons", () => {
 test("active interests hide default copy and protect difficult caption contrast", () => {
   const css = readFileSync(new URL("./interestsMotion.css", import.meta.url), "utf8");
   assert.match(css, /data-interest-active="true"[^}]+tz-title-composition[^}]+opacity:\s*0/s);
-  assert.match(css, /data-interest="creative-experimentation"/);
+  assert.doesNotMatch(css, /\.tz-interest-context::before/);
+  assert.match(css, /\.tz-interest-wordmark[^}]+drop-shadow/s);
   assert.match(css, /data-interest="vagabond"/);
   assert.match(css, /text-shadow:[^}]+#0d110e/s);
   assert.match(css, /\.tz-interest-panel \.tz-copy-detail[^}]+column-count:\s*1/s);

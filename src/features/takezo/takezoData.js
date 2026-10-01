@@ -68,6 +68,7 @@ export const nodes = {
     cards: [
       {
         ...card(null, "TAKEZO", "01 / THE PERSON", "red", "portrait", ""),
+        titleUrdu: "تاکیزو",
         tags: ["cursor-read"],
         content: [
           { tag: "unhovered", text: "" },
@@ -85,15 +86,16 @@ Just another day of making progress.` },
       },
       {
         ...card(null, "INTERESTS", "01.1 / PROFILE", "sage", null, ""),
+        titleUrdu: "دلچسپیاں",
         tags: ["cursor-read"],
         interests: {
           items: [
             { id: "world-building", interactive: true, icon: "/takezo/person/interest/WorldBuilding.svg", image: "/takezo/person/interest/WorldBuilding.jpg", title: "World Building", caption: "Places designed to feel inhabited before they are explained.", x: 69, y: 28, depth: 0, rotation: 0, scale: .84 },
             { id: "asset-preparation", interactive: true, icon: "/takezo/person/interest/AssetPrep.svg", image: "/takezo/person/interest/AssetPrep.jpg", title: "Assets Preparation", caption: "Characters, environments, and props shaped between realism and stylization.", x: 78, y: 28, depth: 0, rotation: 0, scale: .84 },
             { id: "creative-experimentation", interactive: true, icon: "/takezo/person/interest/Creativity.svg", image: "/takezo/person/interest/Creativity.jpg", title: "Creative Experimentation", caption: "Following curiosity across art, technology, and unfamiliar tools.", x: 87, y: 28, depth: 0, rotation: 0, scale: .84 },
-            { id: "lies-of-p", interactive: true, icon: "/takezo/person/interest/LOP.svg", image: "/takezo/person/interest/LOP.jpg", title: "Lies of P", caption: "A world where atmosphere, combat, music, and design move as one. My personal GOTY.", x: 96, y: 28, depth: 0, rotation: 0, scale: .84 },
-            { id: "minecraft", interactive: true, icon: "/takezo/person/interest/Minecraft.svg", image: "/takezo/person/interest/Minecraft.jpg", title: "Minecraft", caption: "Creation without boundaries—and, above everything else, nostalgia.", x: 69, y: 53, depth: 0, rotation: 0, scale: .84 },
-            { id: "vagabond", interactive: true, icon: "/takezo/person/interest/Vagabond.svg", image: "/takezo/person/interest/Vagabond.jpg", title: "Vagabond", caption: "A story of discipline, change, and the long path from Takezo to Musashi.", x: 78, y: 53, depth: 0, rotation: 0, scale: .84 },
+            { id: "lies-of-p", interactive: true, icon: "/takezo/person/interest/LOP.svg", image: "/takezo/person/interest/LOP.jpg", wordmark: "/takezo/person/interest/LOP.webp", title: "Lies of P", caption: "A world where atmosphere, combat, music, and design move as one. My personal GOTY.", x: 96, y: 28, depth: 0, rotation: 0, scale: .84 },
+            { id: "minecraft", interactive: true, icon: "/takezo/person/interest/Minecraft.svg", image: "/takezo/person/interest/Minecraft.jpg", wordmark: "/takezo/person/interest/Minecraft.webp", title: "Minecraft", caption: "Creation without boundaries—and, above everything else, nostalgia.", x: 69, y: 53, depth: 0, rotation: 0, scale: .84 },
+            { id: "vagabond", interactive: true, icon: "/takezo/person/interest/Vagabond.svg", image: "/takezo/person/interest/Vagabond.jpg", wordmark: "/takezo/person/interest/Vagabond.webp", title: "Vagabond", caption: "A story of discipline, change, and the long path from Takezo to Musashi.", x: 78, y: 53, depth: 0, rotation: 0, scale: .84 },
             { id: "jojo", icon: "/takezo/person/interest/Jojo.svg", x: 87, y: 53, depth: 0, rotation: 0, scale: .84 },
             { id: "attack-on-titan", icon: "/takezo/person/interest/AOT.svg", x: 96, y: 53, depth: 0, rotation: 0, scale: .84 },
             { id: "blender", icon: "/takezo/Blender.svg", x: 69, y: 78, depth: 0, rotation: 0, scale: .84 },
@@ -106,14 +108,25 @@ Just another day of making progress.` },
           { tag: "unhovered", text: "Form built in space.\nStories made tangible." },
           { tag: "hovered", text: `I explore 3D asset production across characters, environments, and props. My work leans toward realism, tempered with stylized form.
 
-The ambition is larger: immersive games, visually intensive CGI films, and eventually a studio of my own.
-
-Inspired by worlds that linger—from Lies of P and Minecraft to Vagabond, Evangelion, and JoJo.` },
+The ambition is larger: immersive games, visually intensive CGI films, and eventually a studio of my own.` },
         ],
       },
       {
         ...card(null, "EDUCATION", "01.2 / PROFILE", "bone", null, ""),
+        titleUrdu: "تعلیم",
         tags: ["cursor-read"],
+        educationMotion: {
+          logo: "/takezo/person/education/FAST.svg",
+          projectWordmark: "/takezo/person/education/BloomBound.webp",
+          degree: "Bachelor’s in Software Engineering",
+          school: "FAST University",
+          years: "2022–2026",
+          project: {
+            label: "Bloombound",
+            url: "https://nyx0131.itch.io/bloombound",
+            caption: "A narrative-driven casual video game developed as my final-year project.",
+          },
+        },
         content: [
           { tag: "unhovered", text: "Software Engineering\nFAST University · 2022–2026" },
           { tag: "hovered", text: `Bachelor’s in Software Engineering from FAST University.
@@ -125,6 +138,14 @@ The degree built my technical foundation. My artistic path was shaped independen
       },
       {
         ...card(null, "LANGUAGES", "01.3 / PROFILE", "ochre", null, ""),
+        titleUrdu: "زبانیں",
+        languages: {
+          titleUrdu: "زبانیں",
+          items: [
+            { id: "english", label: "English", caption: "Good Writing skills in terms of communication", lang: "en" },
+            { id: "urdu", label: "اردو", caption: "Native Language", lang: "ur" },
+          ],
+        },
         content: [
           { tag: "unhovered", text: "Urdu · English" },
           { tag: "hovered", text: `URDU — Native
@@ -135,6 +156,11 @@ Comfortable communicating and collaborating with international clients.` },
       },
       {
         ...card(null, "LOCATION", "01.4 / PROFILE", "sage", null, ""),
+        titleUrdu: "مقام",
+        locationMotion: {
+          pakistan: "/takezo/person/location/Pakistan.webm",
+          gps: "/takezo/person/location/GpsUI.webm",
+        },
         content: [
           { tag: "unhovered", text: "Pakistan · UTC+5" },
           { tag: "hovered", text: `Based in Pakistan.
@@ -145,7 +171,20 @@ Exact location remains private.` },
       },
       {
         ...card(null, "WORK\nPHILOSOPHY", "01.5 / PROFILE", "red", null, ""),
+        titleUrdu: "کام کا فلسفہ",
         tags: ["cursor-read"],
+        workPhilosophy: {
+          eyebrow: "Operating method",
+          footer: "Clarity creates room for craft",
+          steps: [
+            { label: "Define", text: "Begin with a clear destination, complete specifications, and a shared definition of done." },
+            { label: "Clarify", text: "When essential details are missing, I ask early—before assumptions become expensive." },
+            { label: "Create", text: "With the objective understood, creativity leads and intentional space leaves room to improvise." },
+            { label: "Balance", text: "Quality, time, and purpose keep the creative ambition grounded without flattening it." },
+            { label: "Align", text: "Regular feedback keeps every decision moving toward the same destination." },
+            { label: "Refine", text: "Revisions become deliberate improvements when every change is tied to a clear reason." },
+          ],
+        },
         content: [
           { tag: "unhovered", text: "Clarity before craft." },
           { tag: "hovered", text: `I work best when the destination is clearly defined. Complete specifications and regular feedback create room for stronger creative decisions.
@@ -157,7 +196,14 @@ Creativity leads. Quality, time, and purpose keep it grounded. Revisions are han
       },
       {
         ...card(null, "AVAILABILITY", "01.6 / PROFILE", "sage", null, ""),
+        titleUrdu: "دستیابی",
         tags: ["cursor-read"],
+        availabilityMotion: {
+          roles: ["Freelance", "Part-time", "Full-time"],
+          hours: "35–40 HOURS",
+          note: "Additional time can be arranged when urgency calls for it.",
+          tags: ["Remote", "Flexible", "Short Projects", "Long Projects"],
+        },
         content: [
           { tag: "unhovered", text: "Open to work." },
           { tag: "hovered", text: `Available immediately for freelance, part-time, and full-time opportunities.

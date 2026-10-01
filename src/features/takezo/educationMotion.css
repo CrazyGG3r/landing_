@@ -1,0 +1,223 @@
+.tz-education-motion {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .28s ease;
+}
+.tz-education-motion[data-open="true"] { opacity: 1; }
+.tz-fast-filter { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.tz-education-dawn {
+  position: absolute;
+  z-index: 0;
+  /* Overscan survives the largest responsive grid shift while the panel mask
+     animates, so no unpainted strip can enter from either vertical edge. */
+  inset: -34% 0;
+  overflow: hidden;
+  background: linear-gradient(159deg, #111b39 0%, #34406d 34%, #82547d 59%, #df766e 79%, #f4b778 100%);
+  opacity: 0;
+  transition: opacity .75s ease;
+}
+.tz-adaptive[data-bloombound-active="true"] .tz-education-dawn {
+  opacity: 1;
+}
+.tz-education-dawn::before {
+  content: "";
+  position: absolute;
+  left: -25%;
+  bottom: -48%;
+  width: 133%;
+  height: 110%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 43% 34%, #fff4d4 0%, #ffd49abf 12%, #ff9e82a6 30%, #df74906b 50%, transparent 73%);
+  filter: blur(28px);
+  opacity: 0;
+  transform: translateY(35%) scale(.35);
+  transition: opacity .72s ease, transform 1.12s cubic-bezier(.16,1,.3,1);
+}
+.tz-education-dawn::after {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  background: linear-gradient(104deg, transparent 37%, #fff5d91f 49%, transparent 60%);
+  opacity: 0;
+  transform: translateX(-55%) rotate(-8deg);
+  transition: opacity .7s ease, transform 1.25s cubic-bezier(.16,1,.3,1);
+}
+.tz-adaptive[data-bloombound-active="true"] .tz-education-dawn::before {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.tz-adaptive[data-bloombound-active="true"] .tz-education-dawn::after {
+  opacity: 1;
+  transform: translateX(20%) rotate(-8deg);
+}
+.tz-education-dawn-horizon {
+  position: absolute;
+  left: -10%; right: -10%; bottom: 21%; height: 1px;
+  background: linear-gradient(90deg, transparent, #fff1c9 38%, #fff8de 53%, transparent 88%);
+  box-shadow: 0 0 17px 6px #ffd4a370, 0 0 65px 24px #ff9a816e;
+  opacity: 0;
+  transform: translateY(34px) scaleX(.08);
+  transition: opacity .6s ease, transform 1s cubic-bezier(.16,1,.3,1);
+}
+.tz-education-dawn-light {
+  position: absolute;
+  width: 110%; height: 84%; left: -28%; bottom: -46%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, #fff2c9 0%, #ffd48e9e 14%, #ff947b5c 35%, transparent 70%);
+  filter: blur(14px);
+  opacity: 0;
+  transform: translateY(40%) scale(.28);
+  transition: opacity .7s ease, transform 1.16s cubic-bezier(.16,1,.3,1);
+}
+.tz-education-dawn-rays {
+  position: absolute;
+  inset: -50% -80% -20% -40%;
+  background: repeating-conic-gradient(from 242deg at 26% 85%, transparent 0deg 9deg, #ffe0ac2b 11deg 13deg, transparent 16deg 29deg);
+  mask-image: radial-gradient(ellipse at 26% 85%, #000 0%, transparent 66%);
+  opacity: 0;
+  transform: rotate(-13deg) scale(.74);
+  transition: opacity .8s ease, transform 1.3s cubic-bezier(.16,1,.3,1);
+}
+.tz-adaptive[data-bloombound-active="true"] .tz-education-dawn :is(.tz-education-dawn-horizon, .tz-education-dawn-light, .tz-education-dawn-rays) {
+  opacity: 1;
+  transform: none;
+}
+
+.tz-fast-mark {
+  position: absolute;
+  z-index: 1;
+  top: 18%;
+  right: -24%;
+  width: clamp(240px, 76cqw, 510px);
+  aspect-ratio: 1;
+  opacity: .2;
+  pointer-events: none;
+  transform: translateY(var(--fast-drift, 0px)) rotate(-13deg);
+  mask-image: linear-gradient(105deg, transparent 0%, #0006 34%, #000 63%);
+  transition: opacity .7s ease, filter .7s ease;
+}
+.tz-fast-mark img { display: block; width: 100%; height: 100%; object-fit: contain; filter: none; }
+.tz-education-motion[data-moving="true"] .tz-fast-mark img { filter: var(--fast-filter); }
+.tz-adaptive[data-bloombound-active="true"] .tz-fast-mark { opacity: .21; filter: brightness(0) invert(1); }
+.tz-education-copy {
+  position: absolute;
+  z-index: 2;
+  left: var(--panel-pad, 16px);
+  right: var(--panel-pad, 16px);
+  top: clamp(120px, 37%, 205px);
+  bottom: clamp(70px, 16%, 90px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--ink);
+  transition: color .22s ease;
+}
+.tz-education-copy p { margin: 0; }
+.tz-education-eyebrow {
+  display: block;
+  font: 700 clamp(11px, 1.3cqw, 14px)/1.2 TakezoMono, monospace;
+  letter-spacing: .07em;
+  opacity: .76;
+}
+.tz-education-degree {
+  margin-top: 7px !important;
+  font: 740 clamp(22px, 3.7cqw, 35px)/1.04 TakezoSans, Arial, sans-serif;
+  letter-spacing: -.046em;
+}
+.tz-education-project { position: relative; width: max-content; max-width: 100%; }
+.tz-bloombound-link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: min(100%, 360px);
+  min-height: clamp(44px, 9cqw, 62px);
+  margin-top: 5px;
+  font: 750 clamp(32px, 9cqw, 63px)/.96 TakezoSans, Arial, sans-serif;
+  letter-spacing: -.06em;
+  text-decoration: none;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform .7s cubic-bezier(.16,1,.3,1), filter .5s ease;
+}
+.tz-bloombound-link:is(:link, :visited, :hover, :focus-visible) {
+  color: inherit;
+  text-decoration: none;
+}
+.tz-bloombound-text {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  display: block;
+  opacity: 1;
+  transform: translateY(-50%);
+  transform-origin: left center;
+  transition: opacity .38s ease, filter .48s ease, transform .5s cubic-bezier(.16,1,.3,1);
+}
+.tz-bloombound-wordmark {
+  position: absolute;
+  left: -3%;
+  top: 50%;
+  display: block;
+  width: 106%;
+  height: auto;
+  opacity: 0;
+  transform: translateY(calc(-50% + 5px)) scale(.97);
+  transform-origin: left center;
+  transition: opacity .5s ease .08s, transform .65s cubic-bezier(.16,1,.3,1);
+}
+.tz-bloombound-link:is(:hover, :focus-visible) { outline: 0; filter: drop-shadow(0 5px 16px #1820399c); }
+.tz-bloombound-link[data-wordmark-ready="true"]:is(:hover, :focus-visible) .tz-bloombound-text {
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(-50%) scale(.98);
+}
+.tz-bloombound-link[data-wordmark-ready="true"]:is(:hover, :focus-visible) .tz-bloombound-wordmark {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+.tz-education-project-copy {
+  max-width: 41ch;
+  margin-top: 12px !important;
+  font: 600 clamp(12px, 1.5cqw, 16px)/1.35 TakezoMono, monospace;
+  opacity: .83;
+}
+.tz-bloombound-hint {
+  position: absolute;
+  z-index: 4;
+  right: 0;
+  bottom: -12px;
+  color: #fff;
+  font: 800 clamp(8px, .78cqw, 11px)/1 TakezoMono, monospace;
+  letter-spacing: .075em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(5px);
+  transform: translateY(5px);
+  transition: opacity .32s ease .15s, filter .42s ease .1s, transform .48s cubic-bezier(.16,1,.3,1) .1s;
+}
+.tz-adaptive[data-bloombound-active="true"] .tz-bloombound-hint {
+  opacity: .82;
+  filter: blur(0);
+  transform: translateY(0);
+}
+.tz-adaptive[data-education-motion="true"] .tz-adaptive-interior { opacity: 0 !important; visibility: hidden !important; pointer-events: none; }
+.tz-adaptive[data-education-motion="true"] :is(.tz-adaptive-content, .tz-adaptive-header, .tz-adaptive-footer) { transition: color .23s ease, border-color .23s ease; }
+.tz-adaptive[data-education-motion="true"][data-bloombound-active="true"] :is(.tz-adaptive-content, .tz-education-copy) { color: #fff8ec; transition-delay: .16s; }
+.tz-adaptive[data-education-motion="true"][data-bloombound-active="true"] :is(.tz-adaptive-header, .tz-adaptive-footer) { border-color: #fff7df80; transition-delay: .16s; }
+.tz-reduced .tz-education-motion *, .tz-reduced .tz-education-motion, .tz-reduced .tz-adaptive[data-education-motion="true"] .tz-adaptive-content { transition-duration: .01ms !important; }
+
+@container (max-width: 370px) {
+  .tz-fast-mark { top: 20%; right: -34%; width: 89cqw; opacity: .18; }
+  .tz-education-copy { top: clamp(105px, 35%, 150px); bottom: 66px; }
+  .tz-education-degree { font-size: clamp(20px, 6.5cqw, 26px); }
+  .tz-bloombound-link { font-size: clamp(31px, 9.4cqw, 44px); }
+  .tz-education-project-copy { font-size: 12px; }
+  .tz-bloombound-hint { bottom: -10px; font-size: 8px; }
+}

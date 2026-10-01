@@ -1,0 +1,212 @@
+@font-face {
+  font-family: "TakezoTahoma";
+  src: url("/fonts/Tahoma.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+.tz-languages-motion {
+  position: absolute;
+  z-index: 4;
+  inset: clamp(126px, 34%, 182px) clamp(22px, 3.5%, 42px) clamp(38px, 11%, 56px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(12px);
+  transition: opacity .22s ease, transform .46s cubic-bezier(.16,1,.3,1), visibility 0s linear .46s;
+}
+.tz-languages-motion[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: .08s, .08s, 0s;
+}
+.tz-languages-table {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(92%, 920px);
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  gap: clamp(18px, 4cqw, 52px);
+  transform: translate(-50%, -50%);
+}
+.tz-language-cell {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: clamp(116px, 17cqw, 180px);
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.tz-language-choice {
+  width: max-content;
+  max-width: 100%;
+  justify-self: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: #20231e;
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(clamp(14px, 2cqw, 24px)) scale(.94);
+  opacity: .34;
+  transition: opacity .34s ease, transform .68s cubic-bezier(.16,1,.3,1), filter .3s ease;
+}
+.takezo .tz-language-choice:is(:focus, :focus-visible, :active) { outline: 0; }
+.tz-language-cell[data-active="true"] .tz-language-choice {
+  opacity: 1;
+  transform: translateY(clamp(-16px, -2cqw, -24px)) scale(1);
+}
+.tz-language-name {
+  display: block;
+  font: italic 700 clamp(60px, 13cqw, 104px)/.95 TakezoSans, Arial, sans-serif;
+  letter-spacing: -.055em;
+  white-space: nowrap;
+  text-align: center;
+}
+.tz-language-cell[data-language="urdu"] .tz-language-name {
+  font-family: "TakezoTahoma", Tahoma, sans-serif;
+  font-style: normal;
+  font-weight: 700;
+  font-synthesis: weight;
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+.tz-language-cell p {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 0;
+  margin: 0;
+  color: #29271f;
+  font: 600 clamp(14px, 1.65cqw, 19px)/1.32 TakezoMono, monospace;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(7px);
+  visibility: hidden;
+  transition: opacity .18s ease, transform .32s cubic-bezier(.16,1,.3,1), visibility 0s linear .22s;
+}
+.tz-language-cell p[data-visible="true"] {
+  opacity: .82;
+  transform: translateY(0);
+  visibility: visible;
+  transition-delay: .05s, .05s, 0s;
+}
+.tz-adaptive[data-languages="true"][data-expanded="true"] .tz-adaptive-interior {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.tz-adaptive[data-page-language] .tz-adaptive-title h2 {
+  animation: tz-language-title-in .42s cubic-bezier(.16,1,.3,1) both;
+}
+.tz-adaptive[data-page-language="urdu"] .tz-adaptive-title {
+  justify-content: flex-end;
+}
+.takezo .tz-mosaic .tz-adaptive[data-page-language="urdu"] .tz-adaptive-title h2 {
+  font-family: "TakezoTahoma", Tahoma, sans-serif;
+  font-weight: 700;
+  font-synthesis: weight;
+  letter-spacing: 0;
+  line-height: 1.05;
+  text-align: right;
+}
+.takezo .tz-mosaic .tz-adaptive[data-page-language="urdu"][data-vertical="true"] .tz-adaptive-title {
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+.takezo .tz-mosaic .tz-adaptive[data-page-language="urdu"][data-vertical="true"] .tz-adaptive-title h2 {
+  width: auto;
+  max-width: none;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  white-space: nowrap;
+  text-align: center;
+  rotate: -90deg;
+}
+.tz-adaptive[data-page-language="urdu"] .tz-identity-pill-title {
+  font-family: "TakezoTahoma", Tahoma, sans-serif;
+  font-weight: 700;
+  font-synthesis: weight;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  white-space: nowrap;
+  rotate: 0deg;
+}
+.tz-identity-urdu-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0px, .2vw, 3px);
+}
+.tz-identity-urdu-stack > span {
+  display: block;
+  min-width: 1em;
+  font: 700 clamp(20px, 2.1vw, 31px)/.9 "TakezoTahoma", Tahoma, sans-serif;
+  text-align: center;
+}
+@keyframes tz-language-title-in {
+  from { opacity: 0; transform: translateY(9px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+.tz-reduced .tz-languages-motion,
+.tz-reduced .tz-language-choice,
+.tz-reduced .tz-language-cell p,
+.tz-reduced .tz-adaptive[data-page-language] .tz-adaptive-title h2 { animation: none !important; }
+
+@media (max-width: 760px) {
+  .tz-languages-motion { inset: 32% 14px 10%; }
+  .tz-languages-table { gap: 8px; }
+  .tz-language-cell { min-height: 104px; }
+  .tz-language-name { font-size: clamp(34px, 10vw, 54px); }
+  .tz-language-cell p { left: 0; right: 0; font-size: clamp(11px, 3vw, 15px); }
+}
+
+/* A 2x2 tile can become exceptionally narrow on portrait screens. Recompose
+   the two choices vertically instead of shrinking two side-by-side labels
+   until their names and captions collide. */
+@container (max-width: 360px) {
+  .tz-adaptive[data-languages="true"] .tz-languages-motion {
+    inset: clamp(92px, 24%, 128px) 12px clamp(34px, 9%, 46px);
+  }
+  .tz-adaptive[data-languages="true"] .tz-languages-table {
+    width: 100%;
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .tz-adaptive[data-languages="true"] .tz-language-cell {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .tz-adaptive[data-languages="true"] .tz-language-choice,
+  .tz-adaptive[data-languages="true"] .tz-language-cell[data-active="true"] .tz-language-choice {
+    transform: scale(.92);
+  }
+  .tz-adaptive[data-languages="true"] .tz-language-cell[data-active="true"] .tz-language-choice {
+    transform: translateY(-3px) scale(1);
+  }
+  .tz-adaptive[data-languages="true"] .tz-language-name {
+    max-width: 100%;
+    font-size: clamp(38px, 18cqw, 58px);
+  }
+  .tz-adaptive[data-languages="true"] .tz-language-cell p {
+    position: relative;
+    inset: auto;
+    min-height: 2.6em;
+    padding-inline: 8px;
+    font-size: clamp(11px, 4.4cqw, 14px);
+    line-height: 1.28;
+  }
+}

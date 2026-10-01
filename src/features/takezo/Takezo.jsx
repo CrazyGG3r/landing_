@@ -252,6 +252,7 @@ export default function Takezo() {
   const [view, setView] = useState(target);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [personLanguage, setPersonLanguage] = useState("english");
   const [boardSize, setBoardSize] = useState({ width: 1, height: 1 });
   const node = nodes[view];
   const features = useMemo(() => node.cards.map((card) => panelFeatures(card, node.panelDefaults)), [node]);
@@ -277,6 +278,10 @@ export default function Takezo() {
   const initial = useRef(true);
   const hoverPoint = useRef(null);
   const galleryFocus = useRef(null);
+
+  useEffect(() => {
+    if (view !== "identity") setPersonLanguage("english");
+  }, [view]);
 
   useLayoutEffect(() => {
     if (!mosaic) return;
@@ -674,6 +679,8 @@ export default function Takezo() {
               artwork={Artwork}
               features={features[index]}
               reduced={reduced}
+              pageLanguage={view === "identity" ? personLanguage : "english"}
+              onPageLanguage={view === "identity" ? setPersonLanguage : undefined}
             />
           ) : (
             <Panel
