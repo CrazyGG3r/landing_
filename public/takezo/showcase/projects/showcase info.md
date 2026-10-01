@@ -145,7 +145,7 @@ I have experience modeling and texturing optimized 3D assets for potential game 
 
 **Title:** Real Life Base Study  
 **Short Info:** A realistic facial sculpt inspired by Ryan Gosling, subsequently retopologized as a human face base.  
-**Year:** Not specified  
+**Year:** 2025
 **Software Used:** Blender, Adobe Substance 3D Painter
 
 **Main Info:**

@@ -118,7 +118,7 @@ export default function AdaptivePanel({
           </div>
         </div>
         {hasInterests && interest && (
-          <div key={interest.id} className="tz-interest-context" aria-live="polite">
+          <div key={interest.id} className="tz-interest-context" data-interest={interest.id} aria-live="polite">
             <strong>{interest.title}</strong>
             <span>{interest.caption}</span>
           </div>

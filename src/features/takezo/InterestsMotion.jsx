@@ -11,7 +11,6 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
   const field = useRef(null);
   const itemNodes = useRef([]);
   const resetTimer = useRef(0);
-  const visitedImages = useRef(new Set());
 
   useLayoutEffect(() => {
     const panel = host.current;
@@ -77,9 +76,6 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
     const measure = () => {
       const width = panel.clientWidth;
       const height = panel.clientHeight;
-      const heading = panel.querySelector(".tz-adaptive-title h2");
-      const panelRect = heading && panel.getBoundingClientRect();
-      const headingRect = heading?.getBoundingClientRect();
       mode = interestMode(width, height);
       if (panel.dataset.interestMode !== mode) panel.dataset.interestMode = mode;
       rail = interestRailMetrics(height, items.length);
@@ -88,9 +84,6 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
       itemNodes.current.forEach((node, index) => {
         if (node) setVariable(node, "--rail-base", `${(rail.start + rail.spacing * index).toFixed(2)}px`);
       });
-      if (headingRect && panelRect) {
-        setVariable(panel, "--interest-copy-top", `${Math.max(64, headingRect.bottom - panelRect.top + 10).toFixed(2)}px`);
-      }
     };
     const move = (event) => {
       if (event.pointerType !== "mouse" || !expanded) return;
@@ -115,8 +108,6 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
     };
     const resize = new ResizeObserver(measure);
     resize.observe(panel);
-    const heading = panel.querySelector(".tz-adaptive-title h2");
-    if (heading) resize.observe(heading);
     panel.addEventListener("pointermove", move, { passive: true });
     panel.addEventListener("pointerleave", leave);
     document.addEventListener("visibilitychange", visibility);
@@ -128,16 +119,14 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
       panel.removeEventListener("pointerleave", leave);
       document.removeEventListener("visibilitychange", visibility);
       delete panel.dataset.interestMode;
-      panel.style.removeProperty("--interest-copy-top");
     };
   }, [expanded, host, items.length, reduced]);
 
   useEffect(() => () => clearTimeout(resetTimer.current), []);
 
   const select = (item) => {
-    if (!item.image) return;
+    if (!item.interactive) return;
     clearTimeout(resetTimer.current);
-    visitedImages.current.add(item.id);
     onActive(item.id);
   };
   const scheduleReset = () => {
@@ -148,16 +137,16 @@ export default function InterestsMotion({ host, items, expanded, reduced, active
   return (
     <>
       <div className="tz-interest-backgrounds" data-active={expanded} aria-hidden="true">
-        {items.filter((item) => item.image).map((item) => (
-          <img key={item.id} src={active === item.id || visitedImages.current.has(item.id) ? item.image : undefined}
-            alt="" decoding="async" data-visible={active === item.id}
+        {items.filter((item) => item.interactive).map((item) => (
+          <img key={item.id} src={expanded ? item.image : undefined}
+            alt="" decoding="async" loading="eager" data-visible={active === item.id}
             onLoad={(event) => { event.currentTarget.dataset.ready = "true"; }} />
         ))}
       </div>
       <div ref={field} className="tz-interests-motion" data-active={expanded} data-selection={active || undefined}>
       <div className="tz-interest-field" aria-label="Explore interests" aria-hidden={!expanded}>
         {items.map((item, index) => {
-          const interactive = !!item.image;
+          const interactive = item.interactive === true;
           const Tag = interactive ? "button" : "span";
           return (
             <Tag

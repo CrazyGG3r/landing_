@@ -1,14 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { interestDrive, interestMode, interestRailMetrics } from "./interestMotion.js";
 import { nodes } from "./takezoData.js";
 
 test("interest field uses six interactive items followed by six decorative items", () => {
   const items = nodes.identity.cards.find((card) => card.title === "INTERESTS").interests.items;
   assert.equal(items.length, 12);
-  assert.equal(items.filter((item) => item.image).length, 6);
-  assert.ok(items.slice(0, 6).every((item) => item.image));
-  assert.ok(items.slice(6).every((item) => !item.image));
+  assert.equal(items.filter((item) => item.interactive).length, 6);
+  assert.ok(items.slice(0, 6).every((item) => item.interactive && item.image));
+  assert.ok(items.slice(6).every((item) => !item.interactive && !item.image));
+  assert.deepEqual(items.map((item) => item.id), [
+    "world-building", "asset-preparation", "creative-experimentation",
+    "lies-of-p", "minecraft", "vagabond", "jojo", "attack-on-titan",
+    "blender", "zbrush", "substance-painter", "unreal-engine",
+  ]);
+  for (const item of items) {
+    assert.ok(existsSync(resolve(`public${item.icon}`)), item.icon);
+    if (item.image) assert.ok(existsSync(resolve(`public${item.image}`)), item.image);
+  }
+});
+
+test("the Interests title cannot block the upper interactive icons", () => {
+  const css = readFileSync(new URL("./interestsMotion.css", import.meta.url), "utf8");
+  assert.match(css, /\.tz-interest-panel \.tz-title-composition\s*\{\s*pointer-events:\s*none;/);
+});
+
+test("active interests hide default copy and protect difficult caption contrast", () => {
+  const css = readFileSync(new URL("./interestsMotion.css", import.meta.url), "utf8");
+  assert.match(css, /data-interest-active="true"[^}]+tz-title-composition[^}]+opacity:\s*0/s);
+  assert.match(css, /data-interest="creative-experimentation"/);
+  assert.match(css, /data-interest="vagabond"/);
+  assert.match(css, /text-shadow:[^}]+#0d110e/s);
+  assert.match(css, /\.tz-interest-panel \.tz-copy-detail[^}]+column-count:\s*1/s);
+  assert.match(css, /@keyframes tz-interest-caption-in/);
+  assert.doesNotMatch(css, /data-interest-active="true"[^}]+\.tz-copy-layers\s*\{[^}]*opacity:\s*\.08/s);
 });
 
 test("narrow navigation has a centered neutral zone and gentle directional drive", () => {
