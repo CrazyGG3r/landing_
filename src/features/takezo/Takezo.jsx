@@ -18,7 +18,7 @@ import useMotionPreference from "./useMotionPreference";
 import BreakdownPanel from "./BreakdownPanel";
 import TakezoCursor from "./TakezoCursor";
 import TakezoPortrait from "./TakezoPortrait";
-import "./motion.css";
+import MotionSwitch from "./MotionSwitch";
 import { createFocusTransition, focusTransitionConfig } from "./focusTransition";
 import { observePanelFrame, observePanelTitleFit } from "./panelFit";
 import { panelActivationIntent } from "./panelActivation";
@@ -699,12 +699,10 @@ export default function Takezo() {
         )}
       </div>
       <div className="tz-traveler" ref={traveler} aria-hidden="true" />
-      <button className="tz-motion-toggle" type="button" role="switch" aria-checked={!reduced}
-        aria-label="Full animation"
-        onClick={() => { settleTransition.current?.(); toggleMotion(); }}>
-        <span>MOTION <strong>{reduced ? "REDUCED" : "FULL"}</strong></span>
-        <span className="tz-motion-track" aria-hidden="true"><span /></span>
-      </button>
+      <MotionSwitch checked={!reduced} onChange={() => {
+        settleTransition.current?.();
+        toggleMotion();
+      }} />
       <div className="tz-sr-only" role="status" aria-live="polite">
         {node.title}
       </div>

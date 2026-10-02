@@ -313,10 +313,73 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
       if (distance < nearest) { nearest = distance; anchor = { clone, id, x: centerX }; }
     }
     rowChange.current = { rects, anchor };
-    desired.current = 0;
-    speed.current = 0;
     sessionStorage.setItem("takezo-artwork-rows", String(next));
     setRowCount(next);
+  };
+
+  const beginTouch = (event) => {
+    if (event.pointerType === "mouse") return;
+    dragged.current = false;
+    desired.current = 0;
+    speed.current = 0;
+    pendingTouch.current = 0;
+    touch.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      lastTime: performance.now(),
+      velocityX: 0,
+      axis: null,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const moveTouch = (event) => {
+    const gesture = touch.current;
+    if (paused || event.pointerType === "mouse" || !gesture || gesture.pointerId !== event.pointerId) return;
+    const totalX = event.clientX - gesture.startX;
+    const totalY = event.clientY - gesture.startY;
+    const absoluteX = Math.abs(totalX);
+    const absoluteY = Math.abs(totalY);
+    if (!gesture.axis && Math.max(absoluteX, absoluteY) >= 6) {
+      gesture.axis = artwork && absoluteY > absoluteX * 1.05 ? "y" : "x";
+    }
+    if (!gesture.axis) return;
+    if (event.cancelable) event.preventDefault();
+    dragged.current = Math.max(absoluteX, absoluteY) > 7;
+    const now = performance.now();
+    if (gesture.axis === "x") {
+      const distance = (event.clientX - gesture.lastX) * 1.16;
+      const elapsed = Math.max(4, now - gesture.lastTime);
+      const instantaneous = distance * 16 / elapsed;
+      gesture.velocityX = gesture.velocityX * .64 + instantaneous * .36;
+      pendingTouch.current += distance;
+      wake.current();
+    }
+    gesture.lastX = event.clientX;
+    gesture.lastY = event.clientY;
+    gesture.lastTime = now;
+  };
+
+  const endTouch = (event, cancelled = false) => {
+    const gesture = touch.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    touch.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (cancelled) return;
+    if (gesture.axis === "x") {
+      speed.current = Math.max(-22, Math.min(22, gesture.velocityX * .9));
+      wake.current();
+      return;
+    }
+    if (artwork && gesture.axis === "y") {
+      const rowDistance = gesture.startY - gesture.lastY;
+      if (Math.abs(rowDistance) >= 34) adjustRows(Math.sign(rowDistance));
+    }
   };
 
   const makeCard = (card, index, clone, geometry) => {
@@ -349,24 +412,11 @@ export default function ShowcaseGallery({ cards, onOpen, reduced, paused = false
     : cards.map((card, index) => makeCard(card, index, clone));
 
   return <section className={`tz-showcase-gallery ${artwork ? "tz-artwork-gallery" : ""}`} data-rows={artwork ? rowCount : undefined} ref={viewport} aria-label={artwork ? "Artwork gallery" : "Project gallery"}
-    onPointerDown={(e) => {
-      dragged.current = false;
-      if (e.pointerType === "mouse") return;
-      touch.current = { x: e.clientX, last: e.clientX };
-      dragged.current = false;
-    }}
-    onPointerMove={(e) => {
-      if (paused) return;
-      if (touch.current && e.pointerType !== "mouse") {
-        if (Math.abs(e.clientX - touch.current.x) > 7) dragged.current = true;
-        pendingTouch.current += e.clientX - touch.current.last;
-        touch.current.last = e.clientX;
-        wake.current();
-        return;
-      }
-    }}
-    onPointerUp={() => { touch.current = null; }}
-    onPointerCancel={() => { touch.current = null; }}
+    onPointerDown={beginTouch}
+    onPointerMove={moveTouch}
+    onPointerUp={endTouch}
+    onPointerCancel={(event) => endTouch(event, true)}
+    onLostPointerCapture={(event) => endTouch(event, true)}
     onWheel={(e) => {
       if (paused) return;
       if (artwork && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {

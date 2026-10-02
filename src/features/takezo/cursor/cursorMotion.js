@@ -237,11 +237,10 @@ export function createCursorMotion({ root }) {
 
   const inspect = (target) => {
     const hoveredPanel = target?.closest?.(".tz-panel");
-    // The showcase strip panel clips and masks its animated chunks. Keeping the
-    // cursor inside that panel makes the glyph inherit those edges, so it gets
-    // cut off while crossing a strip or the panel boundary. Leave it in the
-    // route-level cursor layer for this panel; its hit testing is unchanged.
-    const cursorLayerPanel = hoveredPanel?.matches?.(".tz-breakdown-strips") ? null : hoveredPanel;
+    // Clipped strip panels can cut the cursor off, while moving gallery cards
+    // can carry a locally mounted cursor away from the real pointer. Keep both
+    // in the route-level cursor layer; their hit testing remains unchanged.
+    const cursorLayerPanel = hoveredPanel?.matches?.(".tz-breakdown-strips, .tz-gallery-card") ? null : hoveredPanel;
     const panel = target?.closest?.('.tz-breakdown[data-hover-mode="contract"][data-open="true"]');
     const hit = panel && target.closest(".tz-breakdown-hit");
     const chunk = hit && panel.querySelector(`.tz-breakdown-grid > :nth-child(${Number(hit.dataset.chunkIndex) + 1})`);

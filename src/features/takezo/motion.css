@@ -1,17 +1,86 @@
 /* This control sits in the outer gutter, above the navigation traveler. */
 .takezo { padding-bottom: max(42px, calc(env(safe-area-inset-bottom) + 39px)); }
-.takezo .tz-motion-toggle {
+.tz-motion-toggle {
   position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: max(7px, env(safe-area-inset-bottom));
   z-index: 60; display: flex; align-items: center; gap: 9px;
-  padding: 8px 11px; border: 0; border-radius: 999px;
-  background: #171b17ed; color: #b7b9a9; cursor: pointer;
-  box-shadow: 0 3px 12px #0003; font: 8px TakezoMono, monospace; letter-spacing: .055em;
+  min-width: 62px; min-height: 34px; padding: 7px 10px; border: 0; border-radius: 999px;
+  background: #181918c9; color: #ededeb; cursor: pointer;
+  box-shadow: 0 3px 12px #0003, inset 0 0 0 1px #ffffff18;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  -webkit-tap-highlight-color: transparent;
 }
-.takezo .tz-motion-toggle:focus-visible { outline: 0; }
-.tz-motion-toggle strong { color: #e2d9bf; font-weight: 400; }
-.tz-motion-track { width: 25px; height: 14px; padding: 3px; border-radius: 99px; background: #727f594a; }
-.tz-motion-track > span { display: block; width: 8px; height: 8px; border-radius: 50%; background: #a9b789; transform: translateX(11px); transition: transform .16s ease, background .16s ease; }
-.tz-motion-toggle[aria-checked="false"] .tz-motion-track > span { transform: translateX(0); background: #adafa4; }
+.tz-motion-toggle:is(:focus, :focus-visible) { outline: 0; }
+.tz-motion-icon {
+  display: block; width: 16px; height: 16px;
+  background: #fff;
+  -webkit-mask: var(--tz-motion-icon) center / contain no-repeat;
+  mask: var(--tz-motion-icon) center / contain no-repeat;
+  opacity: .96; filter: drop-shadow(0 0 3px #ffffffb5) drop-shadow(0 0 7px #ffffff6b);
+  transition: opacity .2s ease, filter .2s ease, background-color .2s ease;
+}
+.tz-motion-toggle[aria-checked="false"] .tz-motion-icon { background: #c2c4c1; opacity: .62; filter: none; }
+.tz-motion-track { width: 25px; height: 14px; padding: 3px; border-radius: 99px; background: #ffffff2e; }
+.tz-motion-track > span { display: block; width: 8px; height: 8px; border-radius: 50%; background: #fff; transform: translateX(11px); transition: transform .16s ease, background .16s ease; }
+.tz-motion-toggle[aria-checked="false"] .tz-motion-track { background: #ffffff1b; }
+.tz-motion-toggle[aria-checked="false"] .tz-motion-track > span { transform: translateX(0); background: #c2c4c1; }
+
+.tz-motion-island {
+  position: fixed; z-index: 110; top: max(10px, env(safe-area-inset-top)); left: 50%;
+  display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  width: min(260px, calc(100vw - 32px)); min-height: 62px; padding: 9px 13px 9px 10px;
+  overflow: hidden; border-radius: 999px;
+  border: 1px solid #ffffff47;
+  background:
+    radial-gradient(circle at 18% 0%, #ffffff24 0, transparent 42%),
+    linear-gradient(180deg, #414340a3 0%, #20222082 58%, #12131257 100%);
+  color: #ecefe8;
+  box-shadow:
+    0 14px 34px #0007,
+    0 4px 14px color-mix(in srgb, var(--tz-island-edge, #fff) 50%, transparent),
+    inset 0 1px 0 #ffffff4a,
+    inset 0 -2px 0 color-mix(in srgb, var(--tz-island-edge, #fff) 88%, white 12%);
+  backdrop-filter: blur(28px) saturate(155%) brightness(1.06);
+  -webkit-backdrop-filter: blur(28px) saturate(155%) brightness(1.06);
+  transform: translate3d(-50%, calc(-100% - 34px), 0) scale(.94);
+  opacity: 0;
+  transition: transform .44s cubic-bezier(.22,.82,.2,1), opacity .24s ease;
+  pointer-events: none;
+}
+.tz-motion-island[data-visible="true"] { transform: translate3d(-50%, 0, 0) scale(1); opacity: 1; }
+.tz-motion-island::before {
+  content: ""; position: absolute; inset: 1px; border-radius: inherit; pointer-events: none;
+  background:
+    linear-gradient(112deg, #ffffff2e 0%, #ffffff0a 29%, transparent 48%, #ffffff10 78%, #ffffff14 100%),
+    radial-gradient(ellipse 58% 32% at 50% 0%, #ffffff24, transparent 72%);
+  mix-blend-mode: screen;
+}
+.tz-motion-island::after {
+  content: ""; position: absolute; z-index: 2; left: 7%; right: 7%; bottom: -1px; height: 2px;
+  border-radius: 999px; pointer-events: none;
+  background: var(--tz-island-edge, #ffffffd9);
+  box-shadow: 0 0 7px var(--tz-island-edge, #ffffffd0), 0 0 20px var(--tz-island-edge, #ffffff80);
+  opacity: .98;
+}
+.tz-motion-island-icon {
+  position: relative; display: block; width: 26px; height: 34px;
+  background: #fff;
+  -webkit-mask: var(--tz-motion-icon) center / contain no-repeat;
+  mask: var(--tz-motion-icon) center / contain no-repeat;
+}
+.tz-motion-island[data-full="true"] .tz-motion-island-icon {
+  filter: drop-shadow(0 0 4px #ffffffbd) drop-shadow(0 0 10px #ffffff78);
+}
+.tz-motion-island[data-full="false"] .tz-motion-island-icon { background: #c2c4c1; opacity: .62; filter: none; }
+.tz-motion-island-copy { position: relative; display: flex; align-items: center; min-width: 0; }
+.tz-motion-island-copy strong { font: 700 14px/1 Takezo, sans-serif; letter-spacing: -.01em; }
+.tz-motion-island-state {
+  position: relative; min-width: 48px; padding: 5px 8px; border-radius: 999px;
+  background: #ffffff18; color: #fff; text-align: center; font: 8px/1 TakezoMono, monospace; letter-spacing: .1em;
+}
+.tz-motion-island[data-full="false"] .tz-motion-island-state { background: #ffffff10; color: #aeb0ad; }
+.takezo.tz-reduced .tz-motion-island {
+  transition: transform .44s cubic-bezier(.22,.82,.2,1), opacity .24s ease !important;
+}
 
 /* A single runtime preference covers decorative CSS, including pseudo-elements.
    Functional navigation, zoom, reading, and the main video remain available. */

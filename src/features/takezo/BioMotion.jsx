@@ -1,60 +1,51 @@
-import { useLayoutEffect, useRef } from "react";
-import TakezoPortrait from "./TakezoPortrait";
+import { useEffect, useState } from "react";
 import "./bioMotion.css";
 
-export default function BioMotion({ host, model, expanded, reduced, language }) {
-  const stage = useRef(null);
-  useLayoutEffect(() => {
-    const panel = host.current;
-    const layer = stage.current;
-    if (!panel || !layer) return;
-    const measure = () => {
-      const { width, height } = panel.getBoundingClientRect();
-      const available = Math.max(160, height - 115);
-      const landscape = width / Math.max(height, 1) > 1.25;
-      layer.dataset.shape = landscape ? "landscape" : available < 440 ? "compact" : "portrait";
-      layer.dataset.short = available < 320 ? "true" : "false";
-      layer.style.setProperty("--bio-name-size", `${Math.min(76, width * .155, available * (landscape ? .25 : .15))}px`);
-      layer.style.setProperty("--bio-portrait-size", `${Math.min(138, width * .32, available * .24)}px`);
-      layer.style.setProperty("--bio-ribbon-size", `${Math.max(14, Math.min(27, width * .058, available * .052))}px`);
-      layer.style.setProperty("--bio-detail-size", `${Math.max(10, Math.min(13, width * .031, available * .028))}px`);
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(panel);
-    measure();
-    return () => observer.disconnect();
-  }, [host, expanded]);
+const PFP = "/takezo/person/bio/TakezoPFP.jpg";
+const PFP_EXPANSION = "/takezo/person/bio/TakezoPFPExpansion.jpg";
 
-  const urdu = language === "urdu";
+export default function BioMotion({ expanded, reduced }) {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) {
+      setReady(false);
+      return undefined;
+    }
+    if (reduced) {
+      setReady(true);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setReady(true), 560);
+    return () => window.clearTimeout(timer);
+  }, [expanded, reduced]);
+
   return (
-    <section ref={stage} className="tz-bio" data-open={expanded} aria-hidden={!expanded} aria-label="About Takezo">
-      <div className="tz-bio-name" lang={urdu ? "ur" : "en"}>
-        <div className="tz-bio-alias-row">
-          <h2 className="tz-bio-alias" dir={urdu ? "rtl" : undefined}>{urdu ? "تاکیزو" : model.alias}</h2>
-          <span className="tz-bio-aka">AKA <i aria-hidden="true" /></span>
+    <section className="tz-bio" data-open={expanded} data-ready={ready} aria-hidden={!expanded}>
+      <figure className="tz-bio-pfp" aria-label="Takezo portrait — available now">
+        <div className="tz-bio-pfp-media">
+          <img className="tz-bio-pfp-idle" src={PFP} alt="Takezo" draggable="false" />
+          <img className="tz-bio-pfp-expanded" src={PFP_EXPANSION} alt="" draggable="false" />
+          <span className="tz-bio-pfp-alias" aria-hidden="true">
+            <span>AKA</span>
+            <strong>Muhammad Uzair</strong>
+            <em>Just another day of achieving something...</em>
+          </span>
+          <span className="tz-bio-pfp-feather" aria-hidden="true" />
         </div>
-        <div className="tz-bio-real-row">
-          <span className="tz-bio-first">{urdu ? "محمد" : model.firstName}</span>
-          <span className="tz-bio-last">{urdu ? "عزیر" : model.lastName}</span>
-        </div>
-      </div>
-      <div className="tz-bio-portrait-group">
-        <div className="tz-bio-portrait-window">
-          <TakezoPortrait reduced={reduced} />
-          <span className="tz-bio-registration" aria-hidden="true">01 / SELF</span>
-        </div>
-        <span className="tz-bio-status"><i aria-hidden="true" />OPEN FOR WORK</span>
-      </div>
-      <ol className="tz-bio-ribbons" aria-label="My practice and perspective">
-        {model.ribbons.map((ribbon, index) => (
-          <li key={ribbon.label} className="tz-bio-ribbon" style={{ "--bio-order": index, "--bio-side": index % 2 ? -1 : 1 }}>
-            <span className="tz-bio-ribbon-index" aria-hidden="true">0{index + 1}</span>
-            <div><strong>{ribbon.label}</strong><p>{ribbon.detail}</p></div>
-            <span className="tz-bio-ribbon-mark" aria-hidden="true">{ribbon.mark}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="tz-bio-motto"><span aria-hidden="true">↗</span>{model.motto}</p>
+
+        <svg className="tz-bio-pfp-status" viewBox="0 0 220 220" aria-hidden="true">
+          <defs>
+            <path id="takezo-availability-arc" d="M 43,170 Q 110,220 177,170" />
+          </defs>
+          <use className="tz-bio-pfp-status-band" href="#takezo-availability-arc" />
+          <text>
+            <textPath href="#takezo-availability-arc" startOffset="50%" textAnchor="middle">
+              AVAILABLE NOW
+            </textPath>
+          </text>
+        </svg>
+      </figure>
     </section>
   );
 }

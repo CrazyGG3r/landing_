@@ -59,6 +59,7 @@
   outline: 2px solid #f1e9d3;
   outline-offset: 6px;
 }
+.takezo .tz-panel:is(:focus, :focus-visible) { outline: 0; }
 .takezo button:disabled {
   cursor: default;
 }
@@ -339,7 +340,13 @@
 .takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible, [data-expanded="true"]) :is(.tz-panel-content, .tz-adaptive-content) {
   color: #fff;
 }
+.takezo .tz-panel:has(.tz-portrait:is([data-playing="true"], [data-formed="true"])) :is(.tz-panel-content, .tz-adaptive-content) {
+  color: #fff;
+}
 .takezo .tz-panel:has(.tz-portrait):is(:hover, :focus-visible, [data-expanded="true"]) :is(.tz-panel-top, .tz-identity-caption, .tz-adaptive-header, .tz-adaptive-footer) {
+  border-color: #ffffff70;
+}
+.takezo .tz-panel:has(.tz-portrait:is([data-playing="true"], [data-formed="true"])) :is(.tz-panel-top, .tz-identity-caption, .tz-adaptive-header, .tz-adaptive-footer) {
   border-color: #ffffff70;
 }
 .tz-takezo-locales {

@@ -6,6 +6,14 @@
   overflow: hidden;
 }
 .tz-showcase-gallery { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: pan-y; }
+@media (pointer: coarse) {
+  .tz-showcase-gallery {
+    touch-action: none;
+    overscroll-behavior: contain;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
 .tz-gallery-window {
   position: absolute; inset: 0;
   overflow: hidden;
