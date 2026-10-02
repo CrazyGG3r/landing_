@@ -34,6 +34,8 @@ export default function BioMotion({ expanded, reduced }) {
 
   useEffect(() => {
     if (!expanded) {
+      window.clearTimeout(hoverDelay.current);
+      setHovered(false);
       setReady(false);
       return undefined;
     }
@@ -166,7 +168,7 @@ export default function BioMotion({ expanded, reduced }) {
       return;
     }
     liquidTimeline.current.timeScale(1)[hovered ? "play" : "reverse"]();
-  }, [expanded, hovered, ready, reduced]);
+  }, [expanded, hovered, ready, reduced, liquidSize.height, liquidSize.width]);
 
   useEffect(() => () => window.clearTimeout(hoverDelay.current), []);
 
@@ -276,7 +278,7 @@ export default function BioMotion({ expanded, reduced }) {
                 d={circularTextArc(liquidWidth, crown, arcRadius)}
               />
               <text className="tz-bio-liquid-label" textAnchor="middle" dy="3.5">
-                <textPath href={`#takezo-liquid-type-arc-${index}`} startOffset="68%">
+                <textPath href={`#takezo-liquid-type-arc-${index}`} startOffset="50%">
                   {[
                     "Artist + Software Architect",
                     "Interdisciplinary Artist",
