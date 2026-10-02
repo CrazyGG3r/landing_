@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
+import { useVideoSource } from "../../shared/performance/videoSources";
 
-const FORMATION = compatibleVideoSource("/takezo/TakezoPortraitFormation.webm");
+const FORMATION = "/takezo/TakezoPortraitFormation.webm";
 const FORMED = "/takezo/TakezoPortraitFormed.svg";
 const cancelPlaybackWatch = (media, frame) => {
   if (!frame.current) return;
@@ -12,6 +12,7 @@ const cancelPlaybackWatch = (media, frame) => {
 };
 
 export default function TakezoPortrait({ reduced = false }) {
+  const formation = useVideoSource(FORMATION);
   const root = useRef(null);
   const video = useRef(null);
   const frame = useRef(0);
@@ -90,7 +91,8 @@ export default function TakezoPortrait({ reduced = false }) {
       cancelPlaybackWatch(media, playbackFrame);
       media.play().then(() => {
         if (active.current && !media.paused) scheduleWatch();
-      }).catch(() => {
+      }).catch((error) => {
+        formation.onPlaybackError(error);
         setPlaying(false);
         setFormed(true);
       });
@@ -124,7 +126,7 @@ export default function TakezoPortrait({ reduced = false }) {
       if (frame.current) cancelAnimationFrame(frame.current);
       cancelPlaybackWatch(mediaNode, playbackFrame);
     };
-  }, [reduced]);
+  }, [reduced, formation]);
 
   return (
     <span
@@ -138,7 +140,7 @@ export default function TakezoPortrait({ reduced = false }) {
       <video
         ref={video}
         className="tz-portrait-formation"
-        src={FORMATION}
+        src={formation.src}
         muted
         playsInline
         preload="auto"
@@ -147,6 +149,7 @@ export default function TakezoPortrait({ reduced = false }) {
           setPlaying(false);
         }}
         onError={() => {
+          formation.onError();
           setFormed(active.current);
           setPlaying(false);
         }}

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
+import { useVideoSource } from "../../shared/performance/videoSources";
 import { artworkColumns, artworkPositions, singleRowArtworkHeight } from "./artworkColumns";
 
 function Marks({ software }) {
@@ -8,8 +9,15 @@ function Marks({ software }) {
 }
 
 function Preview({ project }) {
+  const source = useVideoSource(project.video?.thumb);
   if (project.video) {
-    return <video className="tz-gallery-media" src={project.video.thumb} muted loop playsInline preload="metadata" />;
+    return source.failed ? <span className="tz-gallery-media tz-gallery-media-fallback" aria-hidden="true" />
+      : <video className="tz-gallery-media" src={source.src} muted loop playsInline preload="metadata"
+        onError={source.onError} onLoadedData={(event) => {
+          if (event.currentTarget.closest(".tz-gallery-media-wrap")?.dataset.active === "true") {
+            event.currentTarget.play().catch(source.onPlaybackError);
+          }
+        }} />;
   }
   const duration = Math.max(1, project.images.length) * 2.8;
   return project.images.map((image, index) => <img key={image.src} className="tz-gallery-media"

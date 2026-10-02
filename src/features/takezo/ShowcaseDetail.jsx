@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import PanelSurface from "./PanelSurface";
 import { panelFeatures, surfaceStyle } from "./panelFeatures";
 import VideoTimeline from "./VideoTimeline";
+import { useVideoSource } from "../../shared/performance/videoSources";
 
 const infoSurface = panelFeatures({ color: "bone", baseColor: "#D2D0BB", tags: ["gradient", "Prototype"] });
 
@@ -172,6 +173,7 @@ export function ImageDetail({ project, reduced }) {
 }
 
 export function VideoDetail({ project, ready = true, reduced }) {
+  const ambientSource = useVideoSource(project.video.thumb);
   const player = useRef(null);
   const ambient = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -182,13 +184,13 @@ export function VideoDetail({ project, ready = true, reduced }) {
   useEffect(() => {
     const video = ambient.current;
     const sync = () => {
-      if (!reduced && ready && !playing && !started && !document.hidden) video.play().catch(() => {});
+      if (!reduced && ready && !playing && !started && !document.hidden) video.play().catch(ambientSource.onPlaybackError);
       else video.pause();
     };
     sync();
     document.addEventListener("visibilitychange", sync);
     return () => { video.pause(); document.removeEventListener("visibilitychange", sync); };
-  }, [reduced, ready, playing, started]);
+  }, [reduced, ready, playing, started, ambientSource]);
   const toggle = () => {
     const video = player.current;
     if (video.paused) {
@@ -204,7 +206,7 @@ export function VideoDetail({ project, ready = true, reduced }) {
       onPointerEnter={(e) => { if (e.pointerType === "mouse") setControlsVisible(true); }}
       onPointerLeave={(e) => { if (e.pointerType === "mouse") setControlsVisible(false); }}
       onPointerDown={(e) => { if (e.pointerType !== "mouse") setControlsVisible(true); }}>
-      <video ref={ambient} className="tz-video-ambient" src={project.video.thumb} muted loop playsInline preload="metadata" aria-hidden="true" />
+      <video ref={ambient} className="tz-video-ambient" src={ambientSource.src} muted loop playsInline preload="metadata" onError={ambientSource.onError} aria-hidden="true" />
       <video ref={player} className={`tz-video-main ${playing || started ? "active" : ""}`}
         src={project.video.src} playsInline preload="metadata"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}

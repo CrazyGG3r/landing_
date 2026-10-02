@@ -1,12 +1,29 @@
-import { useEffect, useRef } from "react";
-import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
+import { useEffect, useRef, useState } from "react";
+import { useVideoSource } from "../../shared/performance/videoSources";
 import { observePanelActivity } from "./panelActivity";
 
 const SEEK_INTERVAL_MS = 50;
 
-export default function TechnicalMotion({ host, sources, reduced }) {
+function TechnicalVideo({ path, index, register, playing }) {
+  const source = useVideoSource(path);
+  const element = useRef(null);
+  useEffect(() => {
+    const video = element.current;
+    if (!video || !playing || !source.src) return undefined;
+    video.play().catch(source.onPlaybackError);
+    return () => video.pause();
+  }, [playing, source]);
+  return source.failed ? null : <video
+    ref={(node) => { element.current = node; register(index, node); }}
+    className={`tz-technical-motion-video tz-technical-motion-video-${index + 1}`}
+    src={source.src} preload="metadata" muted playsInline loop onError={source.onError}
+  />;
+}
+
+export default function TechnicalMotion({ host, sources, reduced, expanded }) {
   const stage = useRef(null);
   const videos = useRef([]);
+  const [touchPlaying, setTouchPlaying] = useState(false);
 
   useEffect(() => {
     const panel = host.current;
@@ -33,7 +50,7 @@ export default function TechnicalMotion({ host, sources, reduced }) {
 
       // Arbitrary video seeks are decoder-heavy. Coalesce pointer frames into
       // at most 20 seeks/sec, while leaving parallax at display refresh rate.
-      if (!reduced && now - lastSeek >= SEEK_INTERVAL_MS) {
+      if (!reduced && !window.matchMedia("(pointer: coarse)").matches && now - lastSeek >= SEEK_INTERVAL_MS) {
         lastSeek = now;
         videoNodes.forEach((video, index) => {
           if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return;
@@ -69,6 +86,7 @@ export default function TechnicalMotion({ host, sources, reduced }) {
     const stopActivity = observePanelActivity(panel, (next) => {
       active = next;
       layer.dataset.active = String(next);
+      setTouchPlaying(next && expanded && !reduced && window.matchMedia("(pointer: coarse)").matches);
       if (next) wake();
       else {
         cancelAnimationFrame(frame);
@@ -84,21 +102,12 @@ export default function TechnicalMotion({ host, sources, reduced }) {
         video?.removeEventListener("seeked", ready);
       });
     };
-  }, [host, reduced, sources]);
+  }, [host, reduced, sources, expanded]);
 
   return (
     <span ref={stage} className="tz-technical-motion" aria-hidden="true">
-      {sources.map((src, index) => (
-        <video
-          key={src}
-          ref={(node) => { videos.current[index] = node; }}
-          className={`tz-technical-motion-video tz-technical-motion-video-${index + 1}`}
-          src={compatibleVideoSource(src)}
-          preload="auto"
-          muted
-          playsInline
-        />
-      ))}
+      {sources.map((src, index) => <TechnicalVideo key={src} path={src} index={index}
+        register={(number, node) => { videos.current[number] = node; }} playing={touchPlaying} />)}
     </span>
   );
 }

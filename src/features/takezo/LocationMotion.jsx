@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
+import { useVideoSource } from "../../shared/performance/videoSources";
 import { observePanelActivity } from "./panelActivity";
 import "./locationMotion.css";
 
@@ -7,6 +7,8 @@ const PLAY_DELAY = 500;
 const LABEL_LEAD_SECONDS = 1.15;
 
 export default function LocationMotion({ host, media, expanded, reduced }) {
+  const pakistanSource = useVideoSource(media.pakistan);
+  const gpsSource = useVideoSource(media.gps);
   const stage = useRef(null);
   const pakistan = useRef(null);
   const gps = useRef(null);
@@ -69,7 +71,7 @@ export default function LocationMotion({ host, media, expanded, reduced }) {
       if (reduced) return;
       playTimer = window.setTimeout(() => {
         if (!expanded || !visible) return;
-        videos.forEach((video) => video.play().catch(() => {}));
+        videos.forEach((video, index) => video.play().catch(index === 0 ? pakistanSource.onPlaybackError : gpsSource.onPlaybackError));
       }, PLAY_DELAY);
     };
     const deactivate = () => {
@@ -106,18 +108,20 @@ export default function LocationMotion({ host, media, expanded, reduced }) {
       pakistanVideo?.removeEventListener("timeupdate", updateLabel);
       pakistanVideo?.removeEventListener("ended", finishPakistan);
     };
-  }, [expanded, host, reduced]);
+  }, [expanded, host, reduced, pakistanSource, gpsSource]);
 
   return (
     <>
       <span ref={stage} className="tz-location-motion" data-active="false" data-pakistan-ended="false" aria-hidden="true">
         <video ref={pakistan} className="tz-location-video tz-location-pakistan"
-          src={expanded ? compatibleVideoSource(media.pakistan) : undefined}
+          src={expanded ? pakistanSource.src : undefined}
+          onError={pakistanSource.onError}
           muted playsInline preload="metadata" />
         <span className="tz-location-label">PAKISTAN</span>
       </span>
       <video ref={gps} className="tz-location-video tz-location-gps" data-active="false" aria-hidden="true"
-        src={expanded ? compatibleVideoSource(media.gps) : undefined}
+        src={expanded ? gpsSource.src : undefined}
+        onError={gpsSource.onError}
         muted playsInline preload="metadata" />
     </>
   );

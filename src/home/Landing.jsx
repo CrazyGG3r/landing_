@@ -26,6 +26,7 @@ import TargetCursor from './components/TargetCursor';
 import Options from './Options';
 import { getCachedJson, preloadJson } from './core/assetCache';
 import { scheduleRouteWarmup } from '../performance/routePreloader';
+import { videoSourceOrder } from '../shared/performance/videoSources';
 
 const DEFAULT_CB_COLORS = ['#ff2929', '#00ff00', '#0000ff'];
 const BOLTFORGED_ANIMATION = '/animations/boltforged_alpha.webm';
@@ -448,13 +449,24 @@ export default function Landing({
     const playCenteredAnimation = () => {
       logo.currentTime = 0;
       logo.addEventListener('ended', finishTransition, { once: true });
-      const playback = logo.play();
-      if (playback) {
-        playback.catch(() => {
+      const candidates = videoSourceOrder(BOLTFORGED_ANIMATION);
+      const playCandidate = (index) => {
+        if (index >= candidates.length) {
           logo.removeEventListener('ended', finishTransition);
           finishTransition();
+          return;
+        }
+        if (!logo.currentSrc.endsWith(candidates[index])) logo.src = candidates[index];
+        logo.play().catch((error) => {
+          if (error?.name === 'NotSupportedError' || error?.name === 'EncodingError' || logo.error) {
+            playCandidate(index + 1);
+          } else {
+            logo.removeEventListener('ended', finishTransition);
+            finishTransition();
+          }
         });
-      }
+      };
+      playCandidate(Math.max(0, candidates.findIndex((candidate) => logo.currentSrc.endsWith(candidate))));
     };
 
     const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
@@ -517,11 +529,17 @@ export default function Landing({
 
         <video
           ref={logoRef}
-          src={BOLTFORGED_ANIMATION}
+          src={videoSourceOrder(BOLTFORGED_ANIMATION)[0]}
           aria-label="Boltforged animated logo"
           preload="auto"
           muted
           playsInline
+          poster="/animations/Boltforged0140.png"
+          onError={(event) => {
+            const candidates = videoSourceOrder(BOLTFORGED_ANIMATION);
+            const index = candidates.findIndex((candidate) => event.currentTarget.currentSrc.endsWith(candidate));
+            if (index >= 0 && index + 1 < candidates.length) event.currentTarget.src = candidates[index + 1];
+          }}
           onLoadedData={(event) => {
             event.currentTarget.pause();
             event.currentTarget.currentTime = 0;

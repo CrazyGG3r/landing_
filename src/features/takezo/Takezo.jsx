@@ -7,6 +7,7 @@ import "./takezo.css";
 import AdaptivePanel from "./AdaptivePanel";
 import { layoutFor, trackStyle } from "./mosaicLayout";
 import "./mosaic.css";
+import "./mobile.css";
 import { panelFeatures, surfaceStyle } from "./panelFeatures";
 import PanelSurface from "./PanelSurface";
 import "./panelFeatures.css";
@@ -615,7 +616,7 @@ export default function Takezo() {
         </div>
       </div>
       <div
-        className={`tz-board ${special ? "tz-special" : mosaic ? "tz-mosaic" : "tz-home"} ${busy ? "tz-busy" : ""}`}
+        className={`tz-board ${special ? "tz-special" : mosaic ? "tz-mosaic" : "tz-home"} ${busy ? "tz-busy" : ""} ${active >= 0 ? "tz-mobile-detail-open" : ""}`}
         style={
           mosaic
             ? {

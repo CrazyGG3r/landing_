@@ -14,6 +14,7 @@ import LanguagesMotion from "./LanguagesMotion";
 import LocationMotion from "./LocationMotion";
 import AvailabilityMotion from "./AvailabilityMotion";
 import EducationMotion from "./EducationMotion";
+import MobilePanelDetail from "./MobilePanelDetail";
 
 export default function AdaptivePanel({
   card,
@@ -48,7 +49,7 @@ export default function AdaptivePanel({
   const displayText = pageLanguage === "urdu" && card.titleUrdu ? card.titleUrdu : text;
   const interest = useMemo(() => card.interests?.items?.find((item) => item.id === activeInterest) || null, [activeInterest, card.interests]);
   const isInteractiveSurface = hasBreakdown || hasInterests || hasWorkPhilosophy || hasLanguages || hasEducationMotion;
-  const Tag = isInteractiveSurface ? "article" : "button";
+  const Tag = "article";
 
   useLayoutEffect(() => observePanelFit({
     el: panel.current, label: title.current, box: titleBox.current,
@@ -62,7 +63,8 @@ export default function AdaptivePanel({
   return (
     <Tag
       ref={panel}
-      {...(!isInteractiveSurface ? { type: "button" } : { tabIndex: 0, role: "group" })}
+      tabIndex={0}
+      role={isInteractiveSurface ? "group" : "button"}
       className={`tz-panel tz-adaptive tz-${card.color}${hasInterests ? " tz-interest-panel" : ""}`}
       data-panel={index}
       data-destination={card.id || undefined}
@@ -96,7 +98,13 @@ export default function AdaptivePanel({
         if (e.pointerType === "mouse" && !expanded) onExpand(index, e);
         if (e.pointerType === "mouse" && expanded) reader.current?.move(e);
       }}
-      onKeyDown={(e) => reader.current?.key(e)}
+      onKeyDown={(e) => {
+        reader.current?.key(e);
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          e.currentTarget.click();
+        }
+      }}
       onPointerLeave={() => { reader.current?.stop(); setActiveInterest(null); }}
       onPointerDown={(e) => {
         activationPointer.current = e.pointerType;
@@ -107,7 +115,7 @@ export default function AdaptivePanel({
       }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) onExpand(-1); }}
       onClick={(e) => {
-        if (e.target.closest(".tz-interest-item, a")) return;
+        if (e.target.closest(".tz-interest-item, .tz-mobile-detail, a")) return;
         const pointerType = activationPointer.current;
         const intent = panelActivationIntent(pointerType, expanded);
         activationPointer.current = "";
@@ -132,7 +140,7 @@ export default function AdaptivePanel({
         </span>
       )}
       {hasBreakdown && <AdaptiveBreakdown breakdown={card.breakdown} open={expanded} entryX={entryX} />}
-      {card.cursorVideos?.length > 0 && <TechnicalMotion host={panel} sources={card.cursorVideos} reduced={reduced} />}
+      {card.cursorVideos?.length > 0 && <TechnicalMotion host={panel} sources={card.cursorVideos} reduced={reduced} expanded={expanded} />}
       {card.artThumbnails?.length > 0 && <ArtThumbnailMotion host={panel} sources={card.artThumbnails} reduced={reduced} />}
       {card.designMedia && <DesignMotion media={card.designMedia} expanded={expanded} reduced={reduced} />}
       {hasInterests && <InterestsMotion host={panel} items={card.interests.items} expanded={expanded} reduced={reduced} active={activeInterest} onActive={setActiveInterest} />}
@@ -182,6 +190,7 @@ export default function AdaptivePanel({
           </span>
         </div>
       </div>
+      <MobilePanelDetail card={card} onClose={() => onExpand(-1)} expanded={expanded} reduced={reduced} />
     </Tag>
   );
 }

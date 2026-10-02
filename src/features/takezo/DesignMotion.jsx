@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
-import { compatibleVideoSource } from "../../shared/performance/clientCapabilities";
+import { useVideoSource } from "../../shared/performance/videoSources";
 import { observePanelActivity } from "./panelActivity";
 
 export default function DesignMotion({ media, expanded, reduced }) {
+  const source = useVideoSource(media.video);
   const stage = useRef(null);
   const video = useRef(null);
 
@@ -18,10 +19,10 @@ export default function DesignMotion({ media, expanded, reduced }) {
     element.currentTime = 0;
     return observePanelActivity(stage.current, (active) => {
       stage.current.dataset.active = String(active);
-      if (active) element.play().catch(() => {});
+      if (active) element.play().catch(source.onPlaybackError);
       else element.pause();
     });
-  }, [expanded, reduced]);
+  }, [expanded, reduced, source]);
 
   return (
     <span ref={stage} className="tz-design-motion" aria-hidden="true">
@@ -29,7 +30,8 @@ export default function DesignMotion({ media, expanded, reduced }) {
       <video
         ref={video}
         className="tz-design-motion-video"
-        src={compatibleVideoSource(media.video)}
+        src={source.src}
+        onError={source.onError}
         muted
         playsInline
         preload="metadata"
