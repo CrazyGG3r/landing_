@@ -69,6 +69,18 @@ export const nodes = {
       {
         ...card(null, "TAKEZO", "01 / THE PERSON", "red", "portrait", ""),
         titleUrdu: "تاکیزو",
+        bio: {
+          alias: "TAKEZO",
+          firstName: "MUHAMMAD",
+          lastName: "UZAIR",
+          motto: "Just another day of making progress.",
+          ribbons: [
+            { label: "Interdisciplinary Artist", detail: "Art guided by instinct. A practice across dimensions.", mark: "✳" },
+            { label: "12 years in 2D · 5 in 3D", detail: "Traditional and digital roots. New worlds taking form.", mark: "↗" },
+            { label: "Artist × Programmer", detail: "Creative intuition meets the logic of building.", mark: "×" },
+            { label: "Still Becoming", detail: "Takezo: the phase before mastery. Always learning.", mark: "∞" },
+          ],
+        },
         tags: ["cursor-read"],
         content: [
           { tag: "unhovered", text: "" },

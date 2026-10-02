@@ -15,6 +15,7 @@ import LocationMotion from "./LocationMotion";
 import AvailabilityMotion from "./AvailabilityMotion";
 import EducationMotion from "./EducationMotion";
 import MobilePanelDetail from "./MobilePanelDetail";
+import BioMotion from "./BioMotion";
 
 export default function AdaptivePanel({
   card,
@@ -46,9 +47,10 @@ export default function AdaptivePanel({
   const hasLocationMotion = !!card.locationMotion;
   const hasAvailabilityMotion = !!card.availabilityMotion;
   const hasEducationMotion = !!card.educationMotion;
+  const hasBio = !!card.bio;
   const displayText = pageLanguage === "urdu" && card.titleUrdu ? card.titleUrdu : text;
   const interest = useMemo(() => card.interests?.items?.find((item) => item.id === activeInterest) || null, [activeInterest, card.interests]);
-  const isInteractiveSurface = hasBreakdown || hasInterests || hasWorkPhilosophy || hasLanguages || hasEducationMotion;
+  const isInteractiveSurface = hasBreakdown || hasInterests || hasWorkPhilosophy || hasLanguages || hasEducationMotion || hasBio;
   const Tag = "article";
 
   useLayoutEffect(() => observePanelFit({
@@ -82,6 +84,7 @@ export default function AdaptivePanel({
       data-location-motion={hasLocationMotion ? "true" : undefined}
       data-availability-motion={hasAvailabilityMotion ? "true" : undefined}
       data-education-motion={hasEducationMotion ? "true" : undefined}
+      data-bio={hasBio ? "true" : undefined}
       data-language-active={hasLanguages ? pageLanguage : undefined}
       data-page-language={pageLanguage}
       aria-expanded={expanded}
@@ -115,7 +118,7 @@ export default function AdaptivePanel({
       }}
       onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) onExpand(-1); }}
       onClick={(e) => {
-        if (e.target.closest(".tz-interest-item, .tz-mobile-detail, a")) return;
+        if (e.target.closest(".tz-interest-item, .tz-mobile-detail, .tz-bio, a")) return;
         const pointerType = activationPointer.current;
         const intent = panelActivationIntent(pointerType, expanded);
         activationPointer.current = "";
@@ -149,6 +152,7 @@ export default function AdaptivePanel({
       {hasLocationMotion && <LocationMotion host={panel} media={card.locationMotion} expanded={expanded} reduced={reduced} />}
       {hasAvailabilityMotion && <AvailabilityMotion model={card.availabilityMotion} expanded={expanded} />}
       {hasEducationMotion && <EducationMotion host={panel} model={card.educationMotion} expanded={expanded} reduced={reduced} />}
+      {hasBio && <BioMotion host={panel} model={card.bio} expanded={expanded} reduced={reduced} language={pageLanguage} />}
       <div className="tz-adaptive-content">
         <div className="tz-adaptive-header">
           <span>{card.kicker}</span>
@@ -174,12 +178,12 @@ export default function AdaptivePanel({
           </div>
         )}
         <div className="tz-adaptive-interior">
-          {card.art && (
+          {card.art && !hasBio && (
             <div className="tz-adaptive-art">
               <Artwork kind={card.art} reduced={reduced} />
             </div>
           )}
-          {!hasWorkPhilosophy && !hasLanguages && !hasLocationMotion && !hasAvailabilityMotion && !hasEducationMotion && (
+          {!hasWorkPhilosophy && !hasLanguages && !hasLocationMotion && !hasAvailabilityMotion && !hasEducationMotion && !hasBio && (
             <PanelCopy ref={reader} card={card} expanded={expanded} enabled={features.cursorRead} panel={panel} reduced={reduced} />
           )}
         </div>
@@ -190,7 +194,8 @@ export default function AdaptivePanel({
           </span>
         </div>
       </div>
-      <MobilePanelDetail card={card} onClose={() => onExpand(-1)} expanded={expanded} reduced={reduced} />
+      <MobilePanelDetail card={card} onClose={() => onExpand(-1)}
+        onOpen={() => card.id && onOpen(card.id, panel.current)} expanded={expanded} reduced={reduced} />
     </Tag>
   );
 }
